@@ -179,9 +179,13 @@ addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClus
 }
 
 classifyMutations <- function(vcf) {
-	cls <- as.character(info(vcf)$CLS)
-	cls[info(vcf)$PEAR==0] <- "clonal"
-	cls <- factor(cls, levels=c("early", "late", "clonal", "subclonal"), labels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
+	i <- info(vcf)
+	.clsfy <- function(i) {
+		cls <- as.character(i$CLS)
+		cls[i$PEAR==0] <- "clonal"
+		cls <- factor(cls, levels=c("early", "late", "clonal", "subclonal"), labels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
+	}
+	cls <- .clsfy(i = i)
 }
 
 getGenotype <- function(vcf){
@@ -401,24 +405,22 @@ nmSolve <- function(D, P, maxIter = 500, tol=1e-3) {
 	E2
 }
 
-mnSolve <- function(D, P, maxIter = 500, tol=1e-3) {
+wnmSolve <- function(D, P, weights =  rep(0, ncol(P)), maxIter = 500, tol=1e-3) {
+	D <- as.matrix(D)
+	D <- rbind(D, matrix(weights *, ncol=ncol(D), nrow=ncol(P)))
+	P <- rbind(P, diag(rep(1,ncol(P))))
 	n <- nrow(D)
 	m <- ncol(D)
 	s <- ncol(P)
 	tP <- t(P)
 	rP <- rep(colSums(P), m)
-	D <- as.matrix(D)
-	E1 <- E2 <- nmSolve(D,P, maxIter=100, tol=1e-2)
-	E1 <- E2 <- E1/rep(colSums(E1), each=s)
+	E1 <- E2 <- matrix(runif(s * m, 1e-3, 1), ncol = m)
 	err <- 2*tol
 	
 	iter <- 1
 	while (iter < maxIter & err > tol) {
 		E1 <- E2
-		p <- sapply(1:s, function(i){
-					sapply(1:m, function(j)   dmultinom(D[,j], prob=P[,i]*E1[i,j]))
-				}) +.Machine$double.xmin
-		E2 <- t(p/(rowSums(p)))
+		E2 <- E1 * (tP %*% (D/(P %*% (E1 + .Machine$double.eps))))/rP
 		iter <- iter + 1
 		err <- mean(abs(E2 - E1)/(E1+.Machine$double.eps), na.rm=TRUE)
 		if(iter %% 100 == 0) cat(round(-log10(err)))
@@ -428,7 +430,6 @@ mnSolve <- function(D, P, maxIter = 500, tol=1e-3) {
 	E2
 }
 
-cloneClass <- function(vcf){}
 
 bbplot <- function(bb){
 	s <- c(1:22, "X","Y")
