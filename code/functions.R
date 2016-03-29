@@ -106,6 +106,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 		effCnTumor <- sum((majcni + mincni)*cfi)
 		effCnNormal <- 2 * (1-purity)
 		
+		if(any(majcni)==NA) next
+		
 		multFlag <- rep(FALSE, length(cfi))
 		
 		if(length(cfi)>1){ # multiple CN states, if so add clonal option (ie. mixture of both states)
@@ -125,7 +127,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 		totcni <- majcni+mincni
 		piState <- sapply(cfi, function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
 		piState <- piState/sum(piState)
-		if(all(totcni==0) | all(is.na(totcni))) next
+		if(all(totcni==0)) next
 
 		k <- 0
 		for( j in seq_along(majcni)){
