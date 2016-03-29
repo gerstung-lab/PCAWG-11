@@ -3,7 +3,7 @@
 # Author: mg14
 ###############################################################################
 
-vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/annotated'
+vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03_consensus/annotated'
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016-03_consensus'
 dpPath <- paste0(basePath,'/2_subclones/')
 mutsigDrivers <- read.table('/nfs/team78pc10/im3/Reference_data/putative_cancer_genes_MutSigCV_5000.txt')$V1
