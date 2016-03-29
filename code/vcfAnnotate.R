@@ -34,8 +34,7 @@ clusters <- loadClusters(ID)
 bb <- loadBB(ID) 
 
 # Load vcf
-file <- dir(vcfPath, pattern=paste0(ID, ".vcf.gz$"), full.names=TRUE)
-vcf <- readVcf(file, genome="GRCh37") #, param=ScanVcfParam(which=pos))
+vcf <- readVcf(vcfFileName, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 
 # Load assignments
 pos <- loadPositions(ID)
