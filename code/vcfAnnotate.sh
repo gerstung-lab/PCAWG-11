@@ -10,14 +10,14 @@
 INPUT_FOLDER="../subs/2016-03/raw"
 OUTPUT_FOLDER="../subs/2016-03/annotated"
 
-FILES=(`echo $INPUT_FOLDDER/*mnv.vcf.gz`)
+FILES=(`ls $INPUT_FOLDER/*mnv.vcf.gz`)
 INPUT=${FILES[(($LSB_JOBINDEX-1))]}
 echo $INPUT
 STEM=`basename $INPUT | sed s/.vcf.gz//g`
 OUTPUT="$OUTPUT_FOLDER/$STEM"
 if [ ! -f "$OUTPUT_FOLDER/$STEM.complete_annotation.vcf.bgz" ]; then
 source /lustre/scratch112/sanger/cgppipe/PanCancerFinal/final.bash.setup
-AnnotateVcf.pl -i $INPUT -o $OUTPUT.vagrent.vcf -c /lustre/scratch112/sanger/kr2/PanCancerFinal/ref/vagrent/e74/Homo_sapiens.GRCh37.74.vagrent.cache.gz
+AnnotateVcf.pl -i $INPUT -o $OUTPUT.vagrent.vcf -c /lustre/scratch112/sanger/kr2/PanCancerFinal/ref/vagrent/e74/Homo_sapiens.GRCh37.74.vagrent.cache.gz -sp Homo_sapiens -as GRCh37
 Rscript vcfAnnotate.R $OUTPUT.vagrent.vcf
 else
 echo "$STEM.output exists. skipping."

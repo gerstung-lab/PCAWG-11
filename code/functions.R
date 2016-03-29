@@ -21,6 +21,8 @@ addTNC <- function(vcf){
 	}
 	return(vcf)
 }
+
+dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 	
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
@@ -411,7 +413,7 @@ nmSolve <- function(D, P, maxIter = 500, tol=1e-3) {
 
 wnmSolve <- function(D, P, weights =  rep(0, ncol(P)), maxIter = 500, tol=1e-3) {
 	D <- as.matrix(D)
-	D <- rbind(D, matrix(weights * 1, ncol=ncol(D), nrow=ncol(P)))
+	D <- rbind(D, matrix(weights, ncol=ncol(D), nrow=ncol(P)))
 	P <- rbind(P, diag(rep(1,ncol(P))))
 	n <- nrow(D)
 	m <- ncol(D)
