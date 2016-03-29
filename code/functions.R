@@ -58,7 +58,7 @@ getTumorCounts <- function(vcf){
 }
 
 getTumorDepth <- function(vcf){
-	if("cavemanVersion" %in% rownames(meta(header(vcf)))){
+	if("FAZ" %in% rownames(geno(header(vcf)))){
 		rowSums(getTumorCounts(vcf))
 	}else{
 		geno(vcf)$DEP[,2]
@@ -66,7 +66,7 @@ getTumorDepth <- function(vcf){
 }
 
 getAltCount <- function(vcf){
-	if("cavemanVersion" %in% rownames(meta(header(vcf)))){ ## ie subs
+	if("FAZ" %in% rownames(geno(header(vcf)))){ ## ie subs
 		c <- getTumorCounts(vcf)
 		t <- c[,1:4] + c[,5:8]
 		colnames(t) <- substring(colnames(t),2,2)
