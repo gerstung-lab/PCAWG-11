@@ -30,11 +30,26 @@ print(ID)
 
 clusters <- loadClusters(ID)
 
+# Load BB
 bb <- loadBB(ID) 
 
-# Load
-vcf <- loadVcf(ID)
+# Load vcf
+file <- dir(vcfPath, pattern=paste0(ID, ".vcf.gz$"), full.names=TRUE)
+vcf <- readVcf(file, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 
+# Load assignments
+pos <- loadPositions(ID)
+f <- findOverlaps(pos, vcf, select="first")
+vcf <- vcf[na.omit(f)]
+i = header(vcf)@header$INFO
+exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster", row.names="DPC"))
+i = header(vcf)@header$INFO
+exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster probability", row.names="DPP"))
+info(vcf)$DPC <- pos$cluster[!is.na(f)]
+info(vcf)$DPP <- pos$likelihood[!is.na(f)]	
+
+# Add driver genes
+vcf <- addDriver(vcf, cancerGenes)
 
 # Add ID
 meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=ID, row.names="ID"))

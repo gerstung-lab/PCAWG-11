@@ -6,7 +6,7 @@
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03_consensus/annotated'
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016-03_consensus'
 dpPath <- paste0(basePath,'/2_subclones/')
-mutsigDrivers <- read.table('/nfs/team78pc10/im3/Reference_data/putative_cancer_genes_MutSigCV_5000.txt')$V1
+cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
 purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=TRUE, row.names=1)
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
@@ -197,19 +197,18 @@ classifyMutations <- function(vcf) {
 getGenotype <- function(vcf){
 	cls <- classifyMutations(vcf = vcf)
 	hom <- factor(info(vcf)$MCN==info(vcf)$TCN, levels=c(TRUE,FALSE))
-	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(mutsigDrivers)), class=cls, homozygous=hom)
+	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom)
 }
 
 tryExceptNull <- function(x) if(class(x)=="try-error") GRanges() else x
 
 loadVcf <- function(ID){
-	#file <- dir(vcfPath, pattern=paste0(ID, ".+somatic.snv_mnv.TNC.vcf.bgz$"), full.names=TRUE)
-	file <- dir(vcfPath, pattern=paste0(ID, ".vcf.gz$"), full.names=TRUE)
+	file <- dir(vcfPath, pattern=paste0(ID, ".+somatic.snv_mnv.TNC.vcf.bgz$"), full.names=TRUE)
 	pos <- loadPositions(ID)
 	vcf <- readVcf(file, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 	f <- findOverlaps(pos, vcf, select="first")
 	vcf <- vcf[na.omit(f)]
-	vcf <- addDriver(vcf, mutsigDrivers)
+	vcf <- addDriver(vcf, cancerGenes)
 	i = header(vcf)@header$INFO
 	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster", row.names="DPC"))
 	i = header(vcf)@header$INFO
