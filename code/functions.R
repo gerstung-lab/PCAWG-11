@@ -55,7 +55,7 @@ getTumorDepth <- function(vcf){
 	if("cavemanVersion" %in% rownames(meta(header(vcf)))){
 		rowSums(getTumorCounts(vcf))
 	}else{
-		(geno(vcf)$PR + geno(vcf)$NR)[,"TUMOUR"]
+		geno(vcf)$DEP[,2]
 	}
 }
 
@@ -65,54 +65,133 @@ getAltCount <- function(vcf){
 		t <- c[,1:4] + c[,5:8]
 		colnames(t) <- substring(colnames(t),2,2)
 		a <- as.character(unlist(alt(vcf)))
-		sapply(seq_along(a), function(i) t[i, a[i]])
+		a[!a%in%c('A','T','C','G')] <- NA
+		sapply(seq_along(a), function(i) if(is.na(a[i])) NA else t[i, a[i]])
 	}else{ ## ie indel
-		(geno(vcf)$PP + geno(vcf)$NP + geno(vcf)$PB + geno(vcf)$NB)[,"TUMOUR"]
+		#(geno(vcf)$PP + geno(vcf)$NP + geno(vcf)$PB + geno(vcf)$NB)[,"TUMOUR"]
+		geno(vcf)$MTR[,2]
 	}
 }
 
-computeMutCn <- function(vcf, bb){
+computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]]){
 	if(nrow(vcf)==0)
 		return(DataFrame(MCN=numeric(),TCN=numeric(),CNF=numeric(),PMCN=numeric(), CNID=numeric()))
 	altCount <- getAltCount(vcf)
 	tumDepth <- getTumorDepth(vcf)
 	names(altCount) <- names(tumDepth) <- NULL
+	ID <- meta(header(vcf))["ID",]
 	purity <- purityPloidy[ID, 'purity']
 	f <- findOverlaps(vcf, bb)
-	copyNum <- split(bb$copy_number[subjectHits(f)], queryHits(f))
+	majorCN <- split(bb$major_cn[subjectHits(f)], queryHits(f))
+	minorCN <- split(bb$minor_cn[subjectHits(f)], queryHits(f))	
+	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(f)], queryHits(f))
-	m <- t(sapply(seq_along(altCount), function(i){
-						if(!i %in% names(copyNum)) return(rep(NA,4))
-						cni <- copyNum[[as.character(i)]]
-						cfi <- cloneFreq[[as.character(i)]]
-						totalCnTumor <- sum(cni * cfi)
-						totalCnNormal <- 2
-						cnStates <- unlist(sapply(seq_along(cni), 
-										function(j){s <- 0:cni[j] * cfi[j]
-											names(s) <- paste0(j,':',0:cni[j]) 
-											return(s)}, simplify=FALSE)) * purity / (totalCnTumor * purity + (1-purity) * totalCnNormal)
-						prob <- sapply(cnStates, function(s) dbinom(altCount[i],tumDepth[i],s)) + .Machine$double.eps
-						prob <- prob/sum(prob)
-						w <- which.max(prob)
-						idx <- as.numeric(strsplit(names(prob[w]), ":")[[1]])
-						names(prob) <- NULL
-						c(MCN=idx[2], TCN=cni[idx[1]], CNF=cfi[idx[1]], PMCN=prob[w])
-					}))
-	colnames(m) <- c("MCN","TCN","CNF","PMCN")
-	D <- DataFrame(m, CNID = as(f,"List"))
-	colnames(D) <- gsub("[[:punct:]]+[0-9]+","", colnames(D))
+	n <- length(altCount)
+	D <- DataFrame(MCN=rep(NA,n), TCN=rep(NA,n), CNF=rep(NA,n), CNID =as(f,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
+	cnStates <- matrix(0, nrow=1000, ncol=4)
+	colnames(cnStates) <- c("state","cn","p","piCn")
+	for( i in seq_along(altCount)){
+		if(!i %in% names(majorCN)) next
+		majcni <- majorCN[[as.character(i)]]
+		mincni <- minorCN[[as.character(i)]]
+		cfi <- cloneFreq[[as.character(i)]]
+		effCnTumor <- sum((majcni + mincni)*cfi)
+		effCnNormal <- 2 * (1-purity)
+		
+		multFlag <- rep(FALSE, length(cfi))
+		
+		if(length(cfi)>1){ # multiple CN states, if so add clonal option (ie. mixture of both states)
+			majcni <- c(majcni, max(majcni))
+			mincni <- c(mincni, max(mincni))
+			cfi <- c(cfi, purity)
+			multFlag <- c(multFlag, TRUE)
+		}
+		
+		a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > 0.05)) # subclone(s) not coinciding with CN change
+		if(any(a)){ # assume subclones have derived from most abundant CN state
+			majcni <- c(majcni, rep(majcni[which.max(cfi)], sum(a)))
+			mincni <- c(mincni, rep(mincni[which.max(cfi)], sum(a)))
+			cfi <- c(cfi, clusters$proportion[a])
+			multFlag <- c(multFlag, rep(FALSE, sum(a)))
+		}
+		totcni <- majcni+mincni
+		piState <- sapply(cfi, function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
+		piState <- piState/sum(piState)
+		if(all(totcni==0)) next
+
+		k <- 0
+		for( j in seq_along(majcni)){
+			if(majcni[j]==0) {
+				p <- cn <- piCn <- 0
+				l <- 1
+			}else{
+				l <- 1:majcni[j]
+				cn <- l
+				piCn <- rep(1, length(l)) #multiplicity of cn states
+				if(!multFlag[j]){ # single subclone, or no subclonal cn
+					p <- l * cfi[j] / (effCnTumor + effCnNormal)
+					if(mincni[j] > 0)
+						piCn[1:mincni[j]] <- 2
+					piCn <- piCn/sum(piCn)
+				}else{ # coexisting cn subclones, use mixture
+					p <- (cfi[1] * pmin(l, majcni[1]) + cfi[2] * pmin(l,majcni[2])) / (effCnTumor + effCnNormal) # Variant on major allele
+					if(mincni[j] > 0){ # Variant on minor allele
+						ll <- 1:mincni[j]
+						p <- c(p,  (cfi[1] * pmin(ll, mincni[1]) + cfi[2] * pmin(ll,mincni[2])) / (effCnTumor + effCnNormal))
+						piCn <- c(piCn, rep(1, length(ll)))
+						cn <- c(l,ll)
+						l <- seq_along(cn)
+					}
+					piCn <- piCn/sum(piCn)
+				}
+			}
+			cnStates[k + l,"state"]=j
+			cnStates[k + l,"cn"]=cn
+			cnStates[k + l,"p"]=p
+			cnStates[k + l,"piCn"]=piCn
+			k <- k + length(l)
+		}
+		L <- sapply(cnStates[1:k,"p"], function(s) dbinom(altCount[i],tumDepth[i],pmin(s,1))) + .Machine$double.eps
+		post <- L * piState[cnStates[1:k,"state"]] * cnStates[1:k,"piCn"]
+		post <- post/sum(post)
+		if(any(is.nan(post) | is.na(post))) next
+		D[i,"PSUB"] <- sum(post[cnStates[1:k,"state"]!=which.max(cfi)])
+		D[i,"PEAR"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"cn"]>1])
+		D[i,"PLAT"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"cn"]<=1])
+		
+		w <- which.max(post)
+		#idx <- as.numeric(strsplit(names(prob[w]), ":")[[1]])
+		#names(prob) <- NULL
+		D[i,"MCN"] <- cnStates[w,"cn"]
+		D[i,"TCN"] <- totcni[cnStates[w,"state"]]
+		D[i,"CNF"] <- cfi[cnStates[w,"state"]] 
+		D[i,"PMCN"] <- post[w]
+		
+	}
 	return(D)
 }
 
-addMutCn <- function(vcf, bb){
+addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClusters[[meta(header(vcf))["ID",]]]){
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,"."),Type=rep("Numeric",5), Description=c("Mutation copy number","Total copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids"), row.names=c("MCN","TCN","CNF","PMCN","CNID")))
-	info(vcf) <- cbind(info(vcf), computeMutCn(vcf, bb))
+	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Total copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","TCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
+	info(vcf) <- cbind(info(vcf), computeMutCn(vcf, bb, clusters))
 	return(vcf)
 }
 
-classifyMutations <- function(vcf){
-	info(vcf)$MCN
+classifyMutations <- function(vcf) {
+	i <- info(vcf)
+	.clsfy <- function(i) {
+		cls <- as.character(i$CLS)
+		cls[i$PEAR==0] <- "clonal"
+		cls <- factor(cls, levels=c("early", "late", "clonal", "subclonal"), labels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
+	}
+	cls <- .clsfy(i = i)
+}
+
+getGenotype <- function(vcf){
+	cls <- classifyMutations(vcf = vcf)
+	hom <- factor(info(vcf)$MCN==info(vcf)$TCN, levels=c(TRUE,FALSE))
+	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(mutsigDrivers)), class=cls, homozygous=hom)
 }
 
 tryExceptNull <- function(x) if(class(x)=="try-error") GRanges() else x
@@ -121,20 +200,21 @@ loadVcf <- function(ID){
 	file <- dir(vcfPath, pattern=paste0(ID, ".+somatic.snv_mnv.TNC.vcf.bgz$"), full.names=TRUE)
 	pos <- loadPositions(ID)
 	vcf <- readVcf(file, genome="GRCh37") #, param=ScanVcfParam(which=pos))
-	vcf <- vcf[findOverlaps(pos, vcf, select="first")]
+	f <- findOverlaps(pos, vcf, select="first")
+	vcf <- vcf[na.omit(f)]
 	vcf <- addDriver(vcf, mutsigDrivers)
 	i = header(vcf)@header$INFO
 	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster", row.names="DPC"))
 	i = header(vcf)@header$INFO
 	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster probability", row.names="DPP"))
-	info(vcf)$DPC <- pos$cluster
-	info(vcf)$DPP <- pos$likelihood
+	info(vcf)$DPC <- pos$cluster[!is.na(f)]
+	info(vcf)$DPP <- pos$likelihood[!is.na(f)]	
 	vcf
 }
 
 isDeamination <- function(vcf) grepl("(A.CG)|(T..CG)", paste(as.character(unlist(alt(vcf))),vcf@info$TNC))
 
-testDriver <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FALSE  else x %in% c('nonsense','missense','ess_splice','frameshift','inframe','cds_distrupted'))
+testDriver <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FALSE  else any(x %in% c('nonsense','missense','ess_splice','frameshift','inframe','cds_distrupted')))
 
 addDriver <- function(vcf, mutsigDrivers){
 	i = header(vcf)@header$INFO
@@ -185,6 +265,7 @@ tncToPyrimidine <- function(vcf){
 	f <- paste0(rep(n, each=4), "[", rep(c("C","T"), each=96/2), ">", c(rep(c("A","G","T"), each=48/3), rep(c("A","C","G"), each=48/3)), "]", n)
 	factor(t, levels=f)
 } 
+
 
 applyPigeonHole <- function(ID){
 	c <- loadClusters(ID)
@@ -301,4 +382,88 @@ distAsRange <- function(g){
 }
 
 
+nmSolve <- function(D, P, maxIter = 500, tol=1e-3) {
+	n <- nrow(D)
+	m <- ncol(D)
+	s <- ncol(P)
+	tP <- t(P)
+	rP <- rep(colSums(P), m)
+	D <- as.matrix(D)
+	E1 <- E2 <- matrix(runif(s * m, 1e-3, 1), ncol = m)
+	err <- 2*tol
+	
+	iter <- 1
+	while (iter < maxIter & err > tol) {
+		E1 <- E2
+		E2 <- E1 * (tP %*% (D/(P %*% (E1 + .Machine$double.eps))))/rP
+		iter <- iter + 1
+		err <- mean(abs(E2 - E1)/(E1+.Machine$double.eps), na.rm=TRUE)
+		if(iter %% 100 == 0) cat(round(-log10(err)))
+	}
+	cat("\n")
+	if(iter == maxIter) warning(paste("No convergence after",iter, "iterations."))
+	E2
+}
 
+wnmSolve <- function(D, P, weights =  rep(0, ncol(P)), maxIter = 500, tol=1e-3) {
+	D <- as.matrix(D)
+	D <- rbind(D, matrix(weights *, ncol=ncol(D), nrow=ncol(P)))
+	P <- rbind(P, diag(rep(1,ncol(P))))
+	n <- nrow(D)
+	m <- ncol(D)
+	s <- ncol(P)
+	tP <- t(P)
+	rP <- rep(colSums(P), m)
+	E1 <- E2 <- matrix(runif(s * m, 1e-3, 1), ncol = m)
+	err <- 2*tol
+	
+	iter <- 1
+	while (iter < maxIter & err > tol) {
+		E1 <- E2
+		E2 <- E1 * (tP %*% (D/(P %*% (E1 + .Machine$double.eps))))/rP
+		iter <- iter + 1
+		err <- mean(abs(E2 - E1)/(E1+.Machine$double.eps), na.rm=TRUE)
+		if(iter %% 100 == 0) cat(round(-log10(err)))
+	}
+	cat("\n")
+	if(iter == maxIter) warning(paste("No convergence after",iter, "iterations."))
+	E2
+}
+
+
+bbplot <- function(bb){
+	s <- c(1:22, "X","Y")
+	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
+	names(l) <- s
+	plot(NA,NA, xlab="",ylab="",xlim=c(0,sum(l)), ylim=c(0,max(max(bb$copy_number, na.rm=TRUE))), xaxt="n")
+	c <- cumsum(l)[-length(l)]
+	axis(side=1, at=c, labels=rep('', length(l)-1))
+	mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=2)
+	abline(v=c, lty=3)
+	x0 <- start(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
+	x1 <- end(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
+	segments(x0=x0, bb$major_cn ,x1, bb$major_cn, col=2, lwd=5* bb$clonal_frequency)
+	segments(x0=x0, bb$minor_cn,x1, bb$minor_cn, col=3, lwd=5* bb$clonal_frequency)
+	segments(x0=x0, bb$copy_number,x1, bb$copy_number, col=1, lwd=5* bb$clonal_frequency)
+	cv <- coverage(bb)
+	cv <- cv[s[s%in%names(cv)]]
+	par(xpd=NA)
+	for(n in names(cv)){
+		cc <- cv[[n]]
+		segments(start(cc) + cumsum(l)[n] - l[n] ,-runValue(cc)/2,end(cc)+ cumsum(l)[n] - l[n], -runValue(cc)/2, col=4)
+	}
+}
+
+wgdTest <- function(vcf){
+	id <- meta(header(vcf))["ID",1]
+	bb <- allBB[[id]]
+	ix <- which(bb$copy_number==4 & bb$minor_cn==2)
+	v <- vcf[vcf %over% bb[ix]]
+	#w <- sum(as.numeric(width(reduce(bb[ix]))))
+	t <- table(info(v)$MCN, info(v)$TCN, as.character(seqnames(v)), info(v)$DPC)
+}
+
+#' Power
+power <- function(f,n, theta=6.3, err=1e-4) if(any(is.na(c(f,n,theta,err)))) NA else sum((log10(dbinom(0:n, n, 0:n/n) / dbinom(0:n,n,err)) > theta) * dbinom(0:n,n,f))
+
+testIndel <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FALSE  else any(x %in% c('frameshift','inframe','ess_splice','SO:0001577:complex_change_in_transcript', 'SO:0001582:initiator_codon_change', 'splice_region')))

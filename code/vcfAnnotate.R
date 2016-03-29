@@ -19,7 +19,7 @@ library(igraph)
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
 sampleIds <- sub("_mutation_assignments.txt.gz","",dir(dpPath, pattern="_mutation_assignments.txt.gz"))
-sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".bgz$")))
+failed <- setdiff(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".complete_annotation.vcf.bgz")))
 
 s <- strsplit(vcfFileName,"/")[[1]]
 ID <- sub("\\..+", "", s[length(s)])
@@ -39,7 +39,7 @@ vcf <- loadVcf(ID)
 meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=ID, row.names="ID"))
 
 #' Add mutation copy numbers
-vcf <-  addMutCn(vcf, bb)
+vcf <-  addMutCn(vcf, bb, clusters)
 
 
 #' Remove spurious clusters
