@@ -203,7 +203,8 @@ getGenotype <- function(vcf){
 tryExceptNull <- function(x) if(class(x)=="try-error") GRanges() else x
 
 loadVcf <- function(ID){
-	file <- dir(vcfPath, pattern=paste0(ID, ".+somatic.snv_mnv.TNC.vcf.bgz$"), full.names=TRUE)
+	#file <- dir(vcfPath, pattern=paste0(ID, ".+somatic.snv_mnv.TNC.vcf.bgz$"), full.names=TRUE)
+	file <- dir(vcfPath, pattern=paste0(ID, ".vcf.gz$"), full.names=TRUE)
 	pos <- loadPositions(ID)
 	vcf <- readVcf(file, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 	f <- findOverlaps(pos, vcf, select="first")
