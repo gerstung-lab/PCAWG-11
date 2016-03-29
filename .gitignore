@@ -1,1 +1,4 @@
-/.project
+code/log/
+.project
+*.log
+*.err
