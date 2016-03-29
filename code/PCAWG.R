@@ -27,7 +27,7 @@ ref <- "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta
 refLengths <- scanFaIndex(file=ref)
 
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/annotated'
-basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2015_11_23_vanloo_wedge_batch06070809_sanger'
+basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016-03_consensus'
 dpPath <- paste0(basePath,'/2_subclones/')
 mutsigDrivers <- read.table('/nfs/team78pc10/im3/Reference_data/putative_cancer_genes_MutSigCV_5000.txt')$V1
 purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=TRUE, row.names=1)
