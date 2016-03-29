@@ -26,7 +26,7 @@ dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
 loadClusters <- function(ID){
 	file <- paste0(dpPath,"/",grep(ID, dpFiles, value=TRUE))
-	if(grep(".gz", file))
+	if(grepl(".gz", file))
 		file <- gzfile(file)
 	read.table(file, header=TRUE, sep="\t")
 }
