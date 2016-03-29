@@ -7,7 +7,9 @@ vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03_conse
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016-03_consensus'
 dpPath <- paste0(basePath,'/2_subclones/')
 cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
-purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=TRUE, row.names=1)
+p <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=FALSE)
+p <- p[!duplicated(p$V1),]
+purityPloidy <- data.frame(purity=p$V2, ploidy=NA, row.names=p$V1)
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
 
