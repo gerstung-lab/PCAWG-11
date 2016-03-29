@@ -1,19 +1,19 @@
 #!/bin/bash
 #BSUB -q normal
-#BSUB -J vcfAnnotate[1-2267]
+#BSUB -J vcfAnnotate[1-2266]
 #BSUB -o log/vcfAnnotate-%J-%I.out
 #BSUB -e log/vcfAnnotate-%J-%I.err
 #BSUB -R "span[hosts=1] select[mem>4800] rusage[mem=4800]"
 #BSUB -M 4800
 #BSUB -n 1
 
-INPUT_FOLDER="../subs/2016-03/raw"
+INPUT_FOLDER="../subs/2016-03/sanger"
 OUTPUT_FOLDER="../subs/2016-03/annotated"
 
-FILES=(`ls $INPUT_FOLDER/*mnv.vcf.gz`)
+FILES=(`ls $INPUT_FOLDER/*mnv.vcf`)
 INPUT=${FILES[(($LSB_JOBINDEX-1))]}
 echo $INPUT
-STEM=`basename $INPUT | sed s/.vcf.gz//g`
+STEM=`basename $INPUT | sed s/.vcf//g`
 OUTPUT="$OUTPUT_FOLDER/$STEM"
 if [ ! -f "$OUTPUT.vagrent.vcf" ]; then
 source /lustre/scratch112/sanger/cgppipe/PanCancerFinal/final.bash.setup
