@@ -96,7 +96,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(f)], queryHits(f))
 	n <- length(altCount)
 	D <- DataFrame(MCN=rep(NA,n), TCN=rep(NA,n), CNF=rep(NA,n), CNID =as(f,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
-	cnStates <- matrix(0, nrow=1000, ncol=4)
+	cnStates <- matrix(0, nrow=10000, ncol=4)
 	colnames(cnStates) <- c("state","cn","p","piCn")
 	for( i in seq_along(altCount)){
 		if(!i %in% names(majorCN)) next
