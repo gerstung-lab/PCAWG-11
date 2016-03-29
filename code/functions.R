@@ -106,7 +106,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 		effCnTumor <- sum((majcni + mincni)*cfi)
 		effCnNormal <- 2 * (1-purity)
 		
-		if(any(is.na(majcni))==NA) next
+		if(any(is.na(majcni))) next
 		
 		multFlag <- rep(FALSE, length(cfi))
 		
