@@ -3,7 +3,7 @@
 # Author: mg14
 ###############################################################################
 
-vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03_consensus/annotated'
+vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03/annotated'
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016-03_consensus'
 dpPath <- paste0(basePath,'/2_subclones/')
 cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
