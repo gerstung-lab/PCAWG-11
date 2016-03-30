@@ -40,7 +40,7 @@ if(length(bb)==0){ # Missing BB, use consensus CN
 	cnPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/cn/consensus_001/all"
 	file <- paste0(cnPath, "/",ID,"_segments.txt")
 	tab <- read.table(file, header=TRUE, sep='\t')
-	GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
+	bb <- GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
 	#m <- read.table(gzfile(paste0(basePath, "/0_multiplicity/",ID,"_multiplicity.txt.gz")), header=TRUE)
 	#bb <- GRanges(m$chr, IRanges(m$pos, width=1), copy_number=m$tumour_copynumber, major_cn=m$nMaj1, minor_cn=m$nMin1, clonal_frequency=purityPloidy[ID,'purity'])
 	#meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value="False", row.names="Battenberg"))
