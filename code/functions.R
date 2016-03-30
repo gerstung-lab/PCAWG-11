@@ -7,9 +7,8 @@ vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03/annot
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016-03_consensus'
 dpPath <- paste0(basePath,'/2_subclones/')
 cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
-p <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=FALSE)
-p <- p[!duplicated(p$V1),]
-purityPloidy <- data.frame(purity=p$V2, ploidy=NA, row.names=p$V1)
+purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=FALSE, row.names=1)
+colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
 
@@ -26,7 +25,7 @@ addTNC <- function(vcf){
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 	
-dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
+bbFiles <- dir(bbPath, pattern="_segments.txt", recursive=TRUE)
 
 loadClusters <- function(ID){
 	file <- paste0(dpPath,"/",grep(ID, dpFiles, value=TRUE))
@@ -50,9 +49,12 @@ loadCn <- function(ID){
 }
 
 loadBB <- function(ID){
-	file <- gzfile(paste0(bbPath, "/",ID,"_segments.txt.gz"))
-	tab <- read.table(file, header=TRUE, sep='\t')
-	GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
+	t <- try({
+				file <- gzfile(paste0(bbPath, "/",ID,"_segments.txt.gz"))
+				tab <- read.table(file, header=TRUE, sep='\t')
+				GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
+			})
+	if(class(t)=='try-error') GRanges(copy_number=numeric(), major_cn=numeric(), minor_cn=numeric(), clonal_frequency=numeric()) else t
 }
 
 getTumorCounts <- function(vcf){
@@ -188,20 +190,23 @@ addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClus
 	return(vcf)
 }
 
-classifyMutations <- function(vcf) {
+classifyMutations <- function(vcf, missing=TRUE) {
 	i <- info(vcf)
 	.clsfy <- function(i) {
 		cls <- as.character(i$CLS)
-		cls[i$PEAR==0] <- "clonal"
+		if(missing & any(is.na(cls)))
+			cls[is.na(cls)] <- paste(factor(wm <- apply(as.matrix(i[is.na(cls), c("PEAR","PLAT","PSUB")]), 1, function(x) if(all(is.na(x))) NA else which.max), levels=c("early", "late","subclonal"))) ## reclassify missing
+		cls[i$PEAR==0 & cls!="subclonal"] <- "clonal"
 		cls <- factor(cls, levels=c("early", "late", "clonal", "subclonal"), labels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
 	}
 	cls <- .clsfy(i = i)
+	return(cls)
 }
 
-getGenotype <- function(vcf){
+getGenotype <- function(vcf, ...){
 	cls <- classifyMutations(vcf = vcf)
 	hom <- factor(info(vcf)$MCN==info(vcf)$TCN, levels=c(TRUE,FALSE))
-	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom)
+	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom, ...)
 }
 
 tryExceptNull <- function(x) if(class(x)=="try-error") GRanges() else x
