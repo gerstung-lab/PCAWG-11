@@ -35,10 +35,14 @@ if(all(is.na(purityPloidy[ID,]))) # Missing purity
 
 
 # Load BB
-bb <- try(loadBB(ID))
-if(class(bb)=="try-error"){ # Missing BB
-	m <- read.table(gzfile(paste0(basePath, "/0_multiplicity/",ID,"_multiplicity.txt.gz")), header=TRUE)
-	bb <- GRanges(m$chr, IRanges(m$pos, width=1), copy_number=m$tumour_copynumber, major_cn=m$nMaj1, minor_cn=m$nMin1, clonal_frequency=purityPloidy[ID,'purity'])
+bb <- loadBB(ID)
+if(length(bb)==0){ # Missing BB, use consensus CN
+	cnPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/cn/consensus_001/all"
+	file <- paste0(cnPath, "/",ID,"_segments.txt")
+	tab <- read.table(file, header=TRUE, sep='\t')
+	GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
+	#m <- read.table(gzfile(paste0(basePath, "/0_multiplicity/",ID,"_multiplicity.txt.gz")), header=TRUE)
+	#bb <- GRanges(m$chr, IRanges(m$pos, width=1), copy_number=m$tumour_copynumber, major_cn=m$nMaj1, minor_cn=m$nMin1, clonal_frequency=purityPloidy[ID,'purity'])
 	#meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value="False", row.names="Battenberg"))
 }
 	
@@ -51,9 +55,9 @@ pos <- loadPositions(ID)
 f <- findOverlaps(pos, vcf, select="first")
 vcf <- vcf[na.omit(f)]
 i = header(vcf)@header$INFO
-exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster", row.names="DPC"))
+exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Integer",Description="DP cluster", row.names="DPC"))
 i = header(vcf)@header$INFO
-exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster probability", row.names="DPP"))
+exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Float",Description="DP cluster probability", row.names="DPP"))
 info(vcf)$DPC <- pos$cluster[!is.na(f)]
 info(vcf)$DPP <- pos$likelihood[!is.na(f)]	
 
@@ -90,4 +94,4 @@ info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String"
 #' Save output
 fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileName)
 writeVcf(vcf, file=fnew)
-bgzip(fnew)
+bgzip(fnew, overwrite=TRUE)
