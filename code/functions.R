@@ -97,7 +97,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(f)], queryHits(f))
 	n <- length(altCount)
-	D <- DataFrame(MCN=rep(NA,n), TCN=rep(NA,n), CNF=rep(NA,n), CNID =as(f,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
+	D <- DataFrame(MCN=rep(NA,n), MJCN=rep(NA,n), MNCN=rep(NA,n), CNF=rep(NA,n), CNID =as(f,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
 	cnStates <- matrix(0, nrow=10000, ncol=4)
 	colnames(cnStates) <- c("state","cn","p","piCn")
 	for( i in seq_along(altCount)){
@@ -175,7 +175,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 		#idx <- as.numeric(strsplit(names(prob[w]), ":")[[1]])
 		#names(prob) <- NULL
 		D[i,"MCN"] <- cnStates[w,"cn"]
-		D[i,"TCN"] <- totcni[cnStates[w,"state"]]
+		D[i,"MNCN"] <- mincni[cnStates[w,"state"]]
+		D[i,"MJCN"] <- majcni[cnStates[w,"state"]]
 		D[i,"CNF"] <- cfi[cnStates[w,"state"]] 
 		D[i,"PMCN"] <- post[w]
 		
@@ -185,7 +186,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 
 addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClusters[[meta(header(vcf))["ID",]]]){
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Total copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","TCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
+	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Major copy number","Minor copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","MJCN","MNCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
 	info(vcf) <- cbind(info(vcf), computeMutCn(vcf, bb, clusters))
 	return(vcf)
 }
@@ -194,8 +195,9 @@ classifyMutations <- function(vcf, missing=TRUE) {
 	i <- info(vcf)
 	.clsfy <- function(i) {
 		cls <- as.character(i$CLS)
+		cls[cls=="NA"] <- NA
 		if(missing & any(is.na(cls)))
-			cls[is.na(cls)] <- paste(factor(wm <- apply(as.matrix(i[is.na(cls), c("PEAR","PLAT","PSUB")]), 1, function(x) if(all(is.na(x))) NA else which.max), levels=c("early", "late","subclonal"))) ## reclassify missing
+			cls[is.na(cls)] <- paste(factor(apply(as.matrix(i[is.na(cls), c("PEAR","PLAT","PSUB")]), 1, function(x) if(all(is.na(x))) NA else which.max(x)), levels=1:3, labels=c("early", "late","subclonal"))) ## reclassify missing
 		cls[i$PEAR==0 & cls!="subclonal"] <- "clonal"
 		cls <- factor(cls, levels=c("early", "late", "clonal", "subclonal"), labels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
 	}
