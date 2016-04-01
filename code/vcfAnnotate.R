@@ -95,4 +95,4 @@ info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String"
 #' Save output
 #fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileOut)
 writeVcf(vcf, file=vcfFileOut)
-bgzip(fnew, overwrite=TRUE)
+bgzip(vcfFileOut, overwrite=TRUE)
