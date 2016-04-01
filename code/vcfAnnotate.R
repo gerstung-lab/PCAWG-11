@@ -8,7 +8,8 @@ args <- commandArgs(trailingOnly = TRUE)
 
 source("functions.R")
 
-vcfFileName <- args[1]
+vcfFileIn <- args[1]
+vcfFileOut <- args[2]
 
 library(VariantAnnotation)
 library(Matrix)
@@ -22,7 +23,7 @@ dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 sampleIds <- sub("_mutation_assignments.txt.gz","",dir(dpPath, pattern="_mutation_assignments.txt.gz"))
 sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".bgz$")))
 
-s <- strsplit(vcfFileName,"/")[[1]]
+s <- strsplit(vcfFileIn,"/")[[1]]
 ID <- sub("\\..+", "", s[length(s)])
 
 
@@ -48,7 +49,7 @@ if(length(bb)==0){ # Missing BB, use consensus CN
 	
 
 # Load vcf
-vcf <- readVcf(vcfFileName, genome="GRCh37") #, param=ScanVcfParam(which=pos))
+vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 
 # Load assignments
 pos <- loadPositions(ID)
@@ -92,6 +93,6 @@ info(vcf)$CLS <- class
 info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification {early, late, subclonal}", row.names="CLS"))
 
 #' Save output
-fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileName)
-writeVcf(vcf, file=fnew)
+#fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileOut)
+writeVcf(vcf, file=vcfFileOut)
 bgzip(fnew, overwrite=TRUE)
