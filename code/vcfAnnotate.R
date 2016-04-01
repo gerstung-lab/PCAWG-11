@@ -85,12 +85,15 @@ info(vcf)$DPC[!info(vcf)$DPC %in% clusters$cluster[clusters$proportion < 1] ] <-
 
 #' Classify mutations
 class <- rep(2,nrow(vcf))
-class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 3
-class[info(vcf)$MCN > 1 & class==2] <- 1
-class <- factor(class, levels=1:3, labels=c("early","late","subclonal"))
+class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 4
+class[info(vcf)$MCN > 1 & class==2 ] <- 1
+i <- info(vcf)
+class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- 3
+class <- factor(class, levels=1:4, labels=c("clonal [early]","clonal [late]","clonal [NA]", "subclonal"))
 class[is.na(info(vcf)$DPC) | is.na(info(vcf)$MCN)] <- NA
+
 info(vcf)$CLS <- class
-info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification {early, late, subclonal}", row.names="CLS"))
+info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
 
 #' Save output
 #fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileOut)
