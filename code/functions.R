@@ -4,7 +4,7 @@
 ###############################################################################
 
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03/annotated'
-basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016_04_01_vanloo_wedge_consensusSNV_battenbergCNA'
+basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016_04_02_vanloo_wedge_consensusSNV_battenbergCNA'
 dpPath <- paste0(basePath,'/2_subclones/')
 cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
 purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=TRUE, row.names=1)

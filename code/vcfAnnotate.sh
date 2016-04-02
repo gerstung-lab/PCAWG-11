@@ -9,7 +9,7 @@
 
 INPUT_FOLDER="../subs/2016-03/sanger"
 VAGRENT_FOLDER="../subs/2016-03/vagrent"
-OUTPUT_FOLDER="../dp/2016_04_01_vanloo_wedge_consensusSNV_battenbergCNA/5_annotated_vcf"
+OUTPUT_FOLDER="../dp/2016_04_02_vanloo_wedge_consensusSNV_battenbergCNA/5_annotated_vcf"
 OVERWRITE=true
 
 FILES=(`ls $INPUT_FOLDER/*mnv.vcf`)
