@@ -383,7 +383,7 @@ colnames(wgdDeam) <- sampleIds
 #+ wdgTime, 3,3
 o <- order(colMeans(wgdDeam), na.last=NA)
 i <- seq_along(o)
-plot(wgdDeam[,o[i]], rep(i,each=2), xlab="Time [C>T@CpG]", ylab="", pch=rep(c(1,19), 25), log='x')
+plot(wgdDeam[2:3,o[i]], rep(i,each=2), xlab="Time [C>T@CpG]", ylab="", pch=rep(c(1,19), 25), log='x')
 segments(wgdDeam[2,o[i]], i, wgdDeam[3,o[i]], i)
 legend("bottomright", c("MCN=2; CN=4", "MCN=2"), pch=c(1,19))
 
