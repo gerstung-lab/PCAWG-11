@@ -394,10 +394,10 @@ glm(nDeamTrunk ~ offset(log(1/avgWeightTrunk*wgdDeam[2,]/wgdWeight)), subset=wgd
 plot(nDeamTrunk*avgWeightTrunk, wgdDeam[2,]/wgdWeight); abline(0,1)
 quantile((wgdDeam[2,]/wgdWeight)/(nDeamTrunk*avgWeightTrunk), na.rm=TRUE)
 
-fit <- glm(nDeam ~ log(age) + offset(log(avgPower/avgWeightTrunk)) + tumourType -1, family="poisson")
+fit <- glm(nDeam ~ log(age) + offset(log(1/avgWeightTrunk)) + tumourType -1, family="poisson")
 plot(sort(wgdDeam[2,])/exp(coef(fit)[1])); abline(0,1)
 
-p <- predict(fit, newdata=data.frame(age=1/exp(1), avgPower=avgPower, avgWeightTrunk=avgWeightTrunk, tumourType=tumourType)[-fit$na.action,], type='response', se.fit=TRUE)
+p <- predict(fit, newdata=data.frame(age=1/exp(1), avgWeightTrunk=avgWeightTrunk, tumourType=tumourType)[-fit$na.action,], type='response', se.fit=TRUE)
 plot(age[-fit$na.action], (wgdDeam[2,]/wgdWeight)[-fit$na.action] / p$fit, ylim=c(0,100), xlab="Age at diagnosis", ylab="Infered age during WGD"); abline(0,1)
 e <- (t(sapply(wgdDeam[2,], function(w) qpois(c(0.025,0.975), w)))/wgdWeight)[-fit$na.action,] / p$fit
 segments(age[-fit$na.action], e[,1], age[-fit$na.action], e[,2])
