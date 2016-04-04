@@ -33,6 +33,8 @@ library(igraph)
 
 setwd("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/code")
 source("functions.R")
+vcfPath <- paste0(basePath,'/5_annotated_vcf/')
+
 ref <- "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
 refLengths <- scanFaIndex(file=ref)
 
