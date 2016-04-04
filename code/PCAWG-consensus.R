@@ -211,9 +211,9 @@ for(j in 2:5) lines(cumsum(r[,j]), col=set1[j])
 legend("topleft", col=set1[1:5], lty=1, colnames(tt), bty="n")
 abline(h=0.5, lty=3)
 
-P <- apply(t, 1, function(x) pbinom(x[2], sum(x), prob=1-1712568/(18578183+1712568), lower.tail=TRUE))
-
-data.frame(t,P=P, Q=p.adjust(P, method="BH"), sig=mg14::sig2star(p.adjust(P, method="BH")))
+#P <- apply(t, 1, function(x) pbinom(x[2], sum(x), prob=1-1712568/(18578183+1712568), lower.tail=TRUE))
+#
+#data.frame(t,P=P, Q=p.adjust(P, method="BH"), sig=mg14::sig2star(p.adjust(P, method="BH")))
 
 
 #' ## Burden and signatures
