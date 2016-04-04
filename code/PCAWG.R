@@ -1,6 +1,15 @@
-#' PCAWG downstream analysis
-#' ==========
-#' Sanger pipeline only
+#' ---
+#' title: PCAWG-11 downstream analysis
+#' output:
+#'   html_document:
+#'     toc: true
+#'     toc_depth: 4
+#'     number_sections: true
+#'     auto_identifiers: true
+#'     table_captions: true
+#' author: Moritz Gerstung
+
+#' # PCAWG-11 downstream analysis
 
 #+ Preliminaries, echo=FALSE
 options(width=120)
@@ -14,7 +23,7 @@ my_png <-  function(file, width, height, pointsize=12, ...) {
 }
 
 
-
+#' ## Prelim
 #' ### Libraries
 library(VariantAnnotation)
 library(Matrix)
@@ -26,94 +35,179 @@ source("functions.R")
 ref <- "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
 refLengths <- scanFaIndex(file=ref)
 
-vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/annotated'
-basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016-03_consensus'
-dpPath <- paste0(basePath,'/2_subclones/')
-mutsigDrivers <- read.table('/nfs/team78pc10/im3/Reference_data/putative_cancer_genes_MutSigCV_5000.txt')$V1
-purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=TRUE, row.names=1)
-cnPath <- paste0(basePath,'/4_copynumber/')
-bbPath <- paste0(basePath,'/4_copynumber/')
+mutsigDrivers <- read.table('../ref/putative_cancer_genes_MutSigCV_5000.txt')$V1
+census <- read.csv('../ref/Census_allThu Mar 24 17_30_12 2016.csv.txt', stringsAsFactors=FALSE)
+census <- census$Gene.Symbol[grepl("Mis|F|N|M|S",census$Mutation.Types)]
+cancerGenesS <- sort(union(mutsigDrivers, census))
 
 sampleInfo <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/train2/analysis_santa_cruz/samplesheet/output/icgc_sanger_samplesheet_single_samples.txt", header=TRUE, sep="\t", comment.char="")
 sampleInfo$sample_type <- sub("/.+","",sub("/nfs/users/nfs_c/cgppipe/pancancer/automated/donors/","", sampleInfo$tumour))
 
 sampleIds <- sub("_mutation_assignments.txt.gz","",dir(dpPath, pattern="_mutation_assignments.txt.gz"))
-sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".complete_annotation.vcf.bgz")))
+sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern="*.bgz")))
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
 allClusters <- mclapply(sampleIds, loadClusters, mc.cores=8)
 names(allClusters) <- sampleIds
 
+ploidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pancan_full/processed_data/copynumberConsensus/consensus_001/ploidy.tsv", header=TRUE, sep="\t", row.names=1)
+purity <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pancan_full/processed_data/copynumberConsensus/consensus_001/purity/consensus_purities.20160319.txt", header=TRUE, sep="\t", row.names=1)
+s <-  setdiff(sampleIds, rownames(purityPloidy))
+purityPloidy <- rbind(purityPloidy, data.frame(purity=purity[s,1],ploidy=ploidy[s,1], row.names=s))
+
 #' ### Battenberg
+#+ allBB, cache=TRUE
 allBB <- mclapply(sampleIds, loadBB, mc.cores=8) 
 names(allBB) <- sampleIds
 
-#' ### Other CN
-t <- read.table("ref/zack2013_140.txt", sep="\t", header=TRUE)[-141,]
-r <- parseRegion(t$Peak.region)
-gisticCn <- GRanges(sub("chr","",r$chr), IRanges(r$start,r$end), strand="*",t)
-
-allCn <- do.call("GRangesList",sapply(sampleIds, function(x) tryExceptNull(try(loadCn(x)))))
-
-c <- coverage(allCn)
-c[c >= 3]
-
-#' Coverage
-c <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/train2/coverage/coverage_santa_cruz.txt", header=FALSE, sep="\t")
-coverage <- c$V2[match(sampleIds, c$V1)]
-names(coverage) <- sampleIds
-coverage[is.na(coverage)] <- mean(coverage, na.rm=TRUE)
-rm(c)
-
-
-
-#' Raw names
-r <- dir("/lustre/scratch116/casm/cgp/pancancer/downloads/donors/", pattern=".+/.+/sanger/.+_mnv.vcf.gz", recursive=TRUE, full.names=TRUE)#   LGG-US/fc3b7596-f515-446f-81db-fed0154ca2c5/sanger/
-
-#' ### Load all to VCF and annotate
-#+ allVcf, cache=TRUE
+#' Add consensus CN where BB is missing
+for(w in which(sapply(allBB, length)==0)){
+	cnPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/cn/consensus_001/all"
+	ID <- names(allBB)[w]
+	file <- paste0(cnPath, "/",ID,"_segments.txt")
+	tab <- read.table(file, header=TRUE, sep='\t')
+	allBB[[w]] <- GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
+}
+			
+#' ### Subs 
+#' Load all annotated Subs files
+#+ allVcf, cache=TRUE, cache.lazy=FALSE
 allVcf <- mclapply(sampleIds, function(ID){
-			readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh38")
+			readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh37")
 		}, mc.cores=8)
 names(allVcf) <- sampleIds
 
+#' Reload a few (not run)
+#+ eval=FALSE
+#w <- setdiff(sampleIds, sub("_.+","",dir(bbPath, pattern="*_segments.txt.gz"))) 
+w <- setdiff(sub("\\..+","",dir(vcfPath, pattern=".complete_annotation.vcf.bgz")), sampleIds)
+tmp <- mclapply(w, function(ID){
+			readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh37")
+		}, mc.cores=8)
+names(tmp) <- w
+for(s in w)
+	allVcf[[s]] <- tmp[[s]]
+rm(tmp)
+sampleIds <- names(allVcf)
+
+#' ### Indels
+#' Load indels after exoneration to get reliable VAF estimates
+indelPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/indel/indelVafAnnotatedConsensus"
+i <- dir(indelPath, pattern="*.vcf.gz$")
+
+#' Load annotated vcfs
+#+ indelVcf, cache=TRUE
+indelVcf <- mclapply(sampleIds, function(ID){
+			f <- grep(ID, i, value=TRUE)
+			v <- readVcf(paste0(indelPath,"/",f), genome="GRCh37")
+			#v <- addDriver(v, mutsigDrivers)
+			#v <- addMutCn(v, allBB[[ID]])
+			#if(nrow(v) > 0) v[testIndel(v)] else v
+		}, mc.cores=8)
+names(indelVcf) <- sampleIds
+
+#' Fix empty vcfs
+for(w in which(sapply(indelVcf, ncol)==0))
+	indelVcf[[w]] <- indelVcf[[1]][0,]
 
 
-allMutationTable <- sapply(allVcf, function(vcf) table(info(vcf)$CLS))
-o <- order(colSums(allMutationTable))
-barplot(allMutationTable[,o]+.5, col=RColorBrewer::brewer.pal(3,"Set1"), border=NA)
+#' Compute mutation copy numbers and assign indels to subclonal clusters
+#+ indelAnnotated, cache=TRUE
+indelAnnotated <- mclapply(sampleIds, function(ID){
+			vcf <- indelVcf[[ID]]
+			meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=ID, row.names="ID"))
+			rownames(info(header(vcf))) <- sub("NA","NOA",rownames(info(header(vcf))) )
+			colnames(info(vcf)) <- sub("NA","NOA",colnames(info(vcf)))
+			
+			vcf <- addDriver(vcf, cancerGenes)
+			
+			exptData(vcf)$header@header$INFO <- rbind(header(vcf)@header$INFO, DataFrame(Number=1,Type="Integer",Description="DP cluster", row.names="DPC"))
+			exptData(vcf)$header@header$INFO <- rbind(header(vcf)@header$INFO, DataFrame(Number=1,Type="Float",Description="DP cluster probability", row.names="DPP"))
+			info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
+			# add clusters
+			if(nrow(vcf)==0){
+				info(vcf)$DPC <- info(vcf)$DPP <-  numeric(0)
+				info(vcf)$CLS <- character(0)
+				return(vcf)
+			}
+			meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=ID, row.names="ID"))
+			
+			clusters <- allClusters[[ID]]
+			# Add mutation copy numbers
+			vcf <-  addMutCn(vcf, allBB[[ID]], clusters)
+			
+			info(vcf)$DPC <- sapply(info(vcf)$CNF, function(f) {if(is.null(f) | is.na(f)) NA else {d <- abs(f-clusters$proportion); w <- which.min(d); if(d[w]>0.05) NA else clusters$cluster[w]}})
+			info(vcf)$DPP <- rep(NA, nrow(vcf))
+			
+			# Remove spurious clusters
+			info(vcf)$DPC[!info(vcf)$DPC %in% clusters$cluster[clusters$proportion < 1] ] <- NA
+			
+			# Classify mutations
+			class <- rep(2,nrow(vcf))
+			class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 4
+			class[info(vcf)$MCN > 1 & class==2 ] <- 1
+			i <- info(vcf)
+			class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- 3
+			class <- factor(class, levels=1:4, labels=c("clonal [early]","clonal [late]","clonal [NA]", "subclonal"))
+			class[is.na(info(vcf)$MCN)] <- NA
+			
+			info(vcf)$CLS <- class
+			
+			return(vcf)
+		}, mc.cores=8)
 
-#' Output for dN/dS
-forInigo <- do.call("rbind", mclapply(allVcf, function(vcf) {DataFrame(CHR=seqnames(vcf), POS=start(vcf), REF=ref(vcf), ALT=unlist(alt(vcf)), SAMPLE=meta(header(vcf))["ID",], CLS=classifyMutations(vcf), MCN=info(vcf)$MCN, TCN=info(vcf)$TCN)}, mc.cores=8))
-write.table(as.data.frame(forInigo), file="../scratch/oct15_1846samples.txt", sep="\t", col.names=TRUE, quote=FALSE, row.names=FALSE)
-rm(forInigo)
 
-#' Total mutation frequencies
-tabMut <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), factor(info(x)$CLS, levels=c("early","late","subclonal"))), mc.cores=8))
-nMut <- colSums(tabMut,dims=2)
-tumourType <- factor(sampleInfo$sample_type[match(sampleIds, sampleInfo$tumour_id)])
-mg14:::ggPlot(nMut, tumourType, xlab="", log='y', ylab="All mutations", pch=19)
+#' ## Genotypes
+#' Compute all genotypes, including zygousity
+#+ genotypes, cache=TRUE
+subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=8, useNA='always'))
+indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=8, useNA='always'))
 
-nDeam <- colSums(tabMut["TRUE",,])
-mg14:::ggPlot(nDeam, tumourType, xlab="", log='y', ylab="CpG>TpG", pch=19)
+allGenotypes <- aperm(abind::abind(subs=subGenotypes,indels=indelGenotypes, along=5), c(1,5,2,3,4))
 
-nDeamTrunk <- colSums(tabMut["TRUE",1:2,])
-mg14:::ggPlot(nDeamTrunk, tumourType, xlab="", log='y', ylab="CpG>TpG (clonal)", pch=19)
+#t <- (apply(allGenotypes, c(1,3), sum) + apply(indelGenotypes, c(1,3), sum))
 
-mg14:::ggPlot(realTimeAll, tumourType, xlab="", log='y', ylab="Aging signature", ylim=c(1,200), pch=19)
+#' Most abundant
+#+ genesFrequency, fig.width=7
+t <- t(asum(allGenotypes[cancerGenesS,,,,], c(2,4,5)))
+barplot(t[,order(-colSums(t))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2)
 
-lBranch <- sapply(allVcf, function(x) branchLengths(x, type="deam"))
-lTrunk <- sapply(lBranch, function(x) x[length(x)])
+#' Normalised by CDS length
+#+ genesDensity, fig.width=7
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(org.Hs.eg.db)
+entrez <- select(org.Hs.eg.db, cancerGenesS, "ENTREZID", "SYMBOL")
+txids <- select(TxDb.Hsapiens.UCSC.hg19.knownGene, na.omit(entrez$ENTREZID), "TXID", "GENEID")$TXID
+cdsByGene <- cdsBy(TxDb.Hsapiens.UCSC.hg19.knownGene, "gene")[na.omit(entrez[,2])]
+cdsLength <- sapply(cdsByGene, function(x) sum(width(x)))
+names(cdsLength) <- entrez$SYMBOL[match(names(cdsLength), entrez$ENTREZID)]
 
-#mg14:::ggPlot(lBranch, tumourType, xlab="", log='y', ylab="Branch lengths")
+n <- t/rep(cdsLength[match(cancerGenesS, names(cdsLength))], each=5)
+barplot(n[,order(-colSums(n))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2)
 
-mg14:::ggPlot(lTrunk, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=19)
+n <- n[,!is.na(n[1,])]
 
-powerBranch <- sapply(sampleIds, function(ID) sapply(allClusters[[ID]]$proportion, function(pr) power(pr/purityPloidy[ID,2], round(coverage[ID]))))
-avgPower <- mapply(power, purityPloidy[sampleIds,1]/purityPloidy[sampleIds,2], round(coverage), err=1e-3)
-avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=8))
+#' Cumulative effects
+#+ genesCumulative
+tt <- t(n[,order(-colSums(n))])
+RColorBrewer::brewer.pal(10,"Spectral") -> s
+m <- as.matrix(aggregate(tt/rep(colSums(tt), each=nrow(tt)), list(round(log2(1:nrow(tt)))), sum))
+barplot(m[,-1], col=s, legend.text=2^m[,1])
 
+set1 <- RColorBrewer::brewer.pal(9, "Set1")
+r <- tt/rep(colSums(tt), each=nrow(tt))
+plot(cumsum(r[,1]), col=set1[1], type='l', xlab="cancer gene rank", ylab="fraction of mutations", log='', ylim=c(0,1))
+for(j in 2:5) lines(cumsum(r[,j]), col=set1[j])
+legend("topleft", col=set1[1:5], lty=1, colnames(tt), bty="n")
+abline(h=0.5, lty=3)
+
+P <- apply(t, 1, function(x) pbinom(x[2], sum(x), prob=1-1712568/(18578183+1712568), lower.tail=TRUE))
+
+data.frame(t,P=P, Q=p.adjust(P, method="BH"), sig=mg14::sig2star(p.adjust(P, method="BH")))
+
+
+#' ## Burden and signatures
 
 #' ### Age
 icgc_info <- read.table("../ref/donor.all_projects.tsv", header=TRUE, sep="\t")
@@ -127,11 +221,39 @@ age <- pcawg_info$age[match(sampleIds, pcawg_info$sanger_variant_calling_file_na
 
 tumourType <- factor(sub("-.+","",pcawg_info$dcc_project_code[match(sampleIds, pcawg_info$sanger_variant_calling_file_name_prefix)]))
 
+
+#' ### Total mutation frequencies, split by deaminations at CpG
+#+ tabDeam, cache=TRUE
+tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x)), mc.cores=8))
+nMut <- colSums(tabDeam,dims=2)
+tumourType <- factor(sub("-.+","",sampleInfo$sample_type)[match(sampleIds, sampleInfo$tumour_id)])
+mg14:::ggPlot(nMut, tumourType, xlab="", log='y', ylab="All mutations", pch=19)
+
+nDeam <- colSums(tabDeam["TRUE",,])
+mg14:::ggPlot(nDeam, tumourType, xlab="", log='y', ylab="CpG>TpG", pch=19)
+
+nDeamTrunk <- colSums(tabDeam["TRUE",1:2,])
+mg14:::ggPlot(nDeamTrunk, tumourType, xlab="", log='y', ylab="CpG>TpG (clonal)", pch=19)
+
+#mg14:::ggPlot(realTimeAll, tumourType, xlab="", log='y', ylab="Aging signature", ylim=c(1,200), pch=19)
+
+lBranch <- sapply(allVcf, function(x) branchLengths(x, type="deam"))
+lTrunk <- sapply(lBranch, function(x) x[length(x)])
+
+#mg14:::ggPlot(lBranch, tumourType, xlab="", log='y', ylab="Branch lengths")
+
+mg14:::ggPlot(lTrunk, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=19)
+
+#powerBranch <- sapply(sampleIds, function(ID) sapply(allClusters[[ID]]$proportion, function(pr) power(pr/purityPloidy[ID,2], round(coverage[ID]))))
+#avgPower <- mapply(power, purityPloidy[sampleIds,1]/purityPloidy[sampleIds,2], round(coverage), err=1e-3)
+avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=8))
+
+
 #' Variation explained
-fit <- lm(log(nDeamTrunk) ~ log(age) + tumourType + log(avgPower) + log(avgWeightTrunk))
+fit <- lm(log(nDeamTrunk) ~ log(age) + tumourType + log(avgWeightTrunk))
 summary(fit)
 
-fit <- glm(nDeamTrunk ~ log(age) + log(avgPower) + log(1/avgWeightTrunk) + tumourType, family="poisson")
+fit <- glm(nDeamTrunk ~ log(age) + log(1/avgWeightTrunk) + tumourType, family="poisson")
 summary(fit)
 col <- c(brewer.pal(9, "Set1"), brewer.pal(8, "Dark2"), brewer.pal(8, "Set2"))
 plot(nDeamTrunk[-fit$na.action], exp(predict(fit)), log='xy', col=col[tumourType[-fit$na.action]], pch=19, xlab="C>T@CpG [observed]", ylab="C>T@CpG [predicted]")
@@ -139,31 +261,9 @@ abline(0,1)
 plot(age[-fit$na.action], nDeamTrunk[-fit$na.action]/exp(predict(fit, newdata=data.frame(age=1/exp(1), avgPower=avgPower, avgWeightTrunk=avgWeightTrunk, tumourType=tumourType)[-fit$na.action,])),  col=col[tumourType[-fit$na.action]], pch=19, xlab="Age", ylab="Residual C>T@CpG w/o age")
 abline(0,1)
 
-#' ### Signatures
-snmf <- new.env()
-load("../ref/snmf.RData", envir=snmf)
-
-set.seed(42)
-sigList <- sapply(sampleIds, function(ID) table(info(allVcf[[ID]])$DPC, tncToPyrimidine(allVcf[[ID]])))
-sigData <- sapply(sigList, colSums)
-n <- 6
-nmfFit <- mynmf(sigData,n)
-f <- factor(substr(rownames(d),3,5))
-b <- barplot(t(nmfFit$P), las=2, col=brewer.pal(8,"Set1"), border=NA,names.arg=rep("", nrow(sigData)))
-mtext(at=b,rownames(sigData), side=1, las=2, cex=.7, col=brewer.pal(6,"Set1")[f])
-
-cor(snmf$snmfFit$P[-1,], nmfFit$P[,])
-newSig <- nmfFit$P
-w <- which.max(cor(snmf$snmfFit$P[-1,1], nmfFit$P[,]))
-newSig <- newSig[,c(w, setdiff(1:n,w))]
-
-realTimeBranch <- sapply(sigList, function(x) predictRealTime(t(x), newSig))
-realTimeAll <- predictRealTime(sigData, newSig)
-
-fit <- lm(log(age) ~ log(realTimeAll) + tumourType + log(avgPower) + log(avgWeightTrunk))
-summary(fit)
-
-#' ### More signatures
+#' ### COSMIC Signatures
+#' #### Run all 30 signatures
+#+ sigDecomp30, cache=TRUE
 signatures <- read.table("http://cancer.sanger.ac.uk/cancergenome/assets/signatures_probabilities.txt", header=TRUE, sep="\t")
 sigTable <- simplify2array(mclapply(allVcf, function(vcf) table(classifyMutations(vcf), tncToPyrimidine(vcf)), mc.cores=8))
 sigTable <- aperm(sigTable, c(2,3,1))
@@ -194,166 +294,61 @@ fit <- glm(age ~ log(avgPower) + log(1/avgWeightTrunk) + tumourType + log(sigClo
 summary(fit)
 
 
-#' HDP signatures
-library(hdp)
+#' #### Active signatures
+#+ eval=FALSE
+library(png)
+p <- readPNG("~/Desktop/matrix.png")
+w <- p[ seq(0,2156,l=32)[-32]+30,seq(5,3583,l=41)[-41]+42,1] < .5
+rownames(w) <- paste("Signature",1:31)
+colnames(w) <- c("ACCAx","ALL","LAML","BLCA","BRCA","CESC","CHSA","CLLE","COAD","GBM","LGG", "HNSC","KICH","KIRC","KIRP","LIHC","LUAD","LUSC","LUSQx","MALY","HLYx","PEME","MELA","MMx","NACA","NBL","ESAD","ORCA","OS","OV","PACA","PARAx","PILOx","PRAD","STAD","THCA","URCAx","UCEC","UCSAx","SKCM")
 
-t <- factor(paste(tumourType))
+#' Read signature activities
+#+ sigDecomp, cache=TRUE
+sigActivity <- read.table("../ref/sigActivity.txt", header=TRUE, row.names=1, sep="\t")
+sigActivityHere <- as.matrix(sigActivity)[1:30,match(levels(tumourType), colnames(sigActivity))] 
+sigActivityHere[,is.na(colnames(sigActivityHere))] <- rowSums(sigActivity)[1:30] > 10
+colnames(sigActivityHere) <- levels(tumourType)
+sigActivityHere[8,"PBCA"] <- 1
 
-ppindex <- c(0, rep(1, nlevels(t)), as.numeric(t)+1, rep(as.numeric(t) + nlevels(t) + 1, each=3))
-cpindex <- ppindex +1
-hdp <- hdp_init(ppindex, 
-		cpindex, 
-		hh=rep(1, 96), 
-		alphaa=rep(1, length(unique(ppindex))), 
-		alphab=rep(1, length(unique(ppindex))))
+w <- colSums(sigTable) != 0
 
-
-
-#' ## Graphs and timing
-#' Posets
-allPosets <- sapply(sampleIds, function(ID){
-			reduceToCoverRelations(applyPigeonHole(ID))
-		})
-
-allGraphs <- mclapply(sampleIds, function(ID){
-			edgelist <- reduceToCoverRelations(applyPigeonHole(ID))
-			branch.length <- branchLengths(allVcf[[ID]], type='deam')
-			b <- as.numeric(names(branch.length))
-			edgelist <- edgelist[edgelist[,2] %in% b & edgelist[,1] %in% b,,drop=FALSE]
-			edgelist <- rbind(edgelist, cbind(setdiff(b, edgelist[,1]),max(b)+1))
-			edgelist <- edgelist[,2:1, drop=FALSE]
-			labels <- sapply(split(unlist(info(allVcf[[ID]])$DG), info(allVcf[[ID]])$DPC), function(x) paste(na.rm(x), collapse=","))
-			r <- match(1:max(edgelist),sort(unique(as.numeric(edgelist)), d=T))
-			branch.length <- branch.length[as.character(edgelist[,2])]
-			labels <- labels[as.character(edgelist[,2])]
-			edgelist <- cbind(r[edgelist[,1]], r[edgelist[,2]]) ## reverse node ids
-			node.size <- branchLengths(allVcf[[ID]])
-			c <- loadClusters(ID)
-			alleleFrequency <- c$proportion[match(b, c$cluster)]
-			node.labels <- c("Germline", paste0(b, ", n=", node.size, ", f=", round(alleleFrequency,2)))
-			g <- toGraph(edgelist, branch.length, edge.labels=labels, node.labels=node.labels)
-			V(g)$size <- c(1-purityPloidy[ID,"purity"],alleleFrequency)
-			return(g)
-		}, mc.cores=4)
-names(allGraphs) <- sampleIds
+M <- matrix(0,nrow=30, ncol=prod(dim(sigTable)[2:3]))
+rownames(M) <- colnames(S)
 
 
-#' Plot all posets
-#+ allGraphs, fig.width=2, fig.height=2
-par(mar=c(1,1,1,1))
-i <- 1; for(g in allGraphs){
-	plotPoset(g);
-	title(main=names(allGraphs)[i])
-	i<-i+1
+for(t in levels(tumourType)){
+	v <- tumourType==t 
+	E <- nmSolve(matrix(sigTable, nrow=96)[,which(w & v)], S[,sigActivityHere[,t]==1], maxIter=5000)
+	M[rownames(E), which(v&w)] <- E
 }
 
+sigDecomp <- array(M, dim=c(30, dim(sigTable)[2:3]))
+rm(M)
 
-allDist <- sapply(allGraphs, function(g){ #all
-			posetDist(graph = g)
-		})
+dimnames(sigDecomp) <- c(list(colnames(signatures[,1:30+3])),dimnames(sigTable)[2:3])
 
-#' Map to drivers
-allDrivers <- sapply(allVcf, function(x) {sapply(split(unlist(info(x)$DG), info(x)$DPC), na.rm)})
-driverTable <- table(unlist(allDrivers))
-driverTable <- sort(driverTable, decreasing=TRUE)
+#+ signaturesTumourTypes, fig.width=7
+mg14:::ggPlot(sigDecomp[5,,2]+1, tumourType, log='y', ylab="Signature 5")
+mg14:::ggPlot(sigDecomp[1,,2]+1, tumourType, log='y', ylab="Signature 1")
 
-minDriver <- 5
-recMutations <- names(driverTable)[which(driverTable >= minDriver)]
-#allMutations <- allMutations[allMutations!="ARID1A"]
-recMutationsGermline <- c("germline",recMutations)
-
-genotypes <- sapply(allVcf, function(vcf) table(factor(unlist(info(vcf)$DG), levels=as.character(mutsigDrivers)), factor(info(vcf)$CLS, levels=c("early","late","subclonal"))), simplify='array')
-
-genotypes <- mclapply(allVcf, function(vcf) sapply(mutsigDrivers, function(g) {w <- which(unlist(info(vcf)$DG)==g); if(length(w)==0) 0 else as.numeric(info(vcf)$CLS[w[1]])}), mc.cores=8)
-genotypes <- simplify2array(genotypes)
-genotypes <- do.call("data.frame", sapply(recMutations, function(g) factor(genotypes[g,], labels=c("none","early","late","subclonal"), levels=0:3), simplify=FALSE))
-
-genotypes <- simplify2array(mclapply(allVcf, function(vcf) table(factor(info(vcf)$DG, levels=mutsigDrivers), factor(info(vcf)$CLS, levels=c("early","late","subclonal"))), mc.cores=8))
-
-
-#' Combine into array
-allDistMutations <- array(0, c(rep(length(recMutationsGermline),2), length(sampleIds)), dimnames=list(recMutationsGermline, recMutationsGermline, sampleIds))
-for(n in sampleIds){
-	c <- getMutationCluster(recMutations, allVcf[[n]])
-	d <- allDist[[n]]
-	colnames(d) <- sub(",.+","", colnames(d))
-	colnames(d) <- sub("Germline", max(as.numeric(sub("Germline","0",colnames(d))))+1, colnames(d))
-	m <- c(germline=max(as.numeric(colnames(d))), c)
-	l <- match(paste(1:max(as.numeric(colnames(d)))), colnames(d))
-	d <- d[l, l]
-	#d[is.infinite(d)] <- NA
-	allDistMutations[,,n] <- d[m,m]
-}
-
-weights <- sapply(sampleIds, function(ID){
-			m <- getMutationCluster(recMutations, allVcf[[ID]])
-			l <- branchLengths(allVcf[[ID]], type="deam")
-			1/l[m]
-		})
-rownames(weights) <- recMutations
-
-#' # Fit model
-#+ fit, results='asis'
-observed <- !is.na(allDistMutations) & !is.infinite(allDistMutations) & c(TRUE,rep(FALSE, length(recMutations))) # only distance to root for the moment..
-w <- which(observed, arr.ind = TRUE)
-y <- allDistMutations[observed]
-x <- CoxHD:::MakeInteger(factor(w[,2], levels=seq_along(recMutationsGermline), labels=recMutationsGermline)) - CoxHD:::MakeInteger(factor(w[,1], levels=seq_along(recMutationsGermline), labels=recMutationsGermline))
-
-fit <- lm(y ~ . -1 -germline, data=x , weights=1/mapply(function(i,j) weights[i,j], w[,2]-1,w[,3]))
-s <- summary(fit)
-kable(s$coefficients)
-
-#' # Plot
-#+ btTiming, fig.width=5, fig.height=3
-r <- rank(coef(fit), ties.method = 'random')
-c <- coef(fit)
-u <- unlist(allDrivers)
-par(bty="n", xpd=NA, mar=c(5,3,1,5))
-v1 <- s$coefficients[,2]^2
-d1 <- colSums(abs(x[,-1]))
-d0 <- 0 # prior df
-v0 <- 1 # prior variance, i.e., any time
-vcf <- (d1*v1 + d0 * v0)/(d0+d1)  
-sd <- sqrt(vcf)
-plot(c, r, xlab="Time [C>T@CpG]", yaxt='n', pch=19, cex=sqrt(table(u)[gsub("`","",names(r))]/2), xlim=pmax(0,range(c(pmin(5000,c+sd), c-sd))), ylab="")
-segments(pmax(0,c-sd),r, pmin(5000,c+sd),r)
-text(pmax(1,c+sd),r, paste0(names(c), ", n=",table(u)[names(c)]), pos=4)
-
-
-#' Distributions
-boxplot(t(allDistMutations[1,-1,][order(c),]), las=2, horizontal=TRUE)
-
-#' ### Pairwise precendences
-allPrecMutations <- rowSums(!is.na(allDistMutations) & !is.infinite(allDistMutations), dims=2)
-Matrix(allPrecMutations[recMutations, recMutations])
-
-#' ### Intervals
-
-
-allRanges <- Reduce("c", sapply(allGraphs, distAsRange))
-
-allRangesDrivers <- sapply(recMutations, function(d) allRanges[grep(d, names(allRanges))])
-
-i <- 1
-d <- names(driverTable[driverTable >= 5])
-col <- rainbow(length(d),  v=0.8)
-mm <- matrix(numeric(0), nrow=0, ncol=2)
-for(n in d){
-	c <- coverage(allRangesDrivers[[n]])
-	if(i==1) plot(c, col=col[i], type="S", log='y')
-	else lines(c, col=col[i], type="S")
-	m <- round(round(max(c)/2))
-	w <- which(c==m)[1]
-	mm <- rbind(mm, c(w,m))
-	i <- i+1
-}
-points(mm[,1], mm[,2], col=col, pch=(15:19)[seq_along(d) %% 5 + 1])
-
-legend("topright", d, lty=1, col=col, text.font=3, pch=(15:19)[seq_along(d)%%5 +1] , ncol=2)
+#+ signaturesTime, fig.width=7
+t <- t(asum(sigDecomp, 2))
+barplot(t, col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
+barplot(t/rep(colSums(t), each=4),col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
 
 
 
-#' ### WGD
+#' ### TNC probabilities
+#+ tncProb, cache=TRUE
+tncProb <- sapply(1:96, function(i) S[i,] * sigDecomp, simplify='array')
+s <- apply(tncProb, 2:4, sum)
+tncProb <- tncProb / rep(s, each=30)
+rm(s)
+dimnames(tncProb)[[4]] <- rownames(S)
+
+
+#' ## WGD
+#' ### Test for WGD
 library(mixtools)
 mixmdl = normalmixEM(purityPloidy[,2], k=3)
 plot(mixmdl,which=2, n=50)
@@ -361,7 +356,9 @@ lines(density(purityPloidy[,2]), lty=2, lwd=2)
 
 isWgd <- sapply(sampleIds, function(ID) !(which.max(mixmdl$posterior[rownames(purityPloidy)==ID,])!=3 | purityPloidy[ID,2] < 2))
 
-wgd <- simplify2array(mclapply(allVcf, function(vcf){
+#' ### Using C>T @ CpG
+#+ wgdDeam, cache=TRUE
+wgdDeam <- simplify2array(mclapply(allVcf, function(vcf){
 					ID <- meta(header(vcf))["ID","Value"]
 			if(which.max(mixmdl$posterior[rownames(purityPloidy)==ID,])!=3 | purityPloidy[ID,2] < 2)
 				return(rep(NA,3))
@@ -369,317 +366,114 @@ wgd <- simplify2array(mclapply(allVcf, function(vcf){
 			t <- table(factor(info(vcf)$MCN[w], levels=1:20), factor(info(vcf)$TCN[w], levels=1:20))
 			c(t["1","4"], t["2","4"], rowSums(t["2",,drop=FALSE]))
 		}, mc.cores=8))
-colnames(wgd) <- sampleIds
+colnames(wgdDeam) <- sampleIds
 
 #+ wdgTime, 3,3
-o <- order(colMeans(wgd), na.last=NA)
+o <- order(colMeans(wgdDeam), na.last=NA)
 i <- seq_along(o)
-plot(wgd[,o[i]], rep(i,each=2), xlab="Time [C>T@CpG]", ylab="", pch=rep(c(1,19), 25), log='x')
-segments(wgd[2,o[i]], i, wgd[3,o[i]], i)
+plot(wgdDeam[,o[i]], rep(i,each=2), xlab="Time [C>T@CpG]", ylab="", pch=rep(c(1,19), 25), log='x')
+segments(wgdDeam[2,o[i]], i, wgdDeam[3,o[i]], i)
 legend("bottomright", c("MCN=2; CN=4", "MCN=2"), pch=c(1,19))
 
 
 wgdWeight <- sapply(sampleIds, function(ID){
-			if(is.na(wgd[2,ID])) return(NA)
+			if(is.na(wgdDeam[2,ID])) return(NA)
 			bb <- allBB[[ID]]
 			ix <- abs(bb$clonal_frequency - purityPloidy[ID, "purity"]) < 0.01 & bb$minor_cn==2 & bb$copy_number==4
 			sum(as.numeric(width(bb[ix]))) / 3e9
 		})
 
 
+#' #### Model based
+glm(nDeamTrunk ~ offset(log(1/avgWeightTrunk*wgdDeam[2,]/wgdWeight)), subset=wgdWeight>0, family="poisson")
 
-glm(nDeamTrunk ~ offset(log(1/avgWeightTrunk*wgd[2,]/wgdWeight)), subset=wgdWeight>0, family="poisson")
-
-plot(nDeamTrunk*avgWeightTrunk, wgd[2,]/wgdWeight); abline(0,1)
-quantile((wgd[2,]/wgdWeight)/(nDeamTrunk*avgWeightTrunk), na.rm=TRUE)
+plot(nDeamTrunk*avgWeightTrunk, wgdDeam[2,]/wgdWeight); abline(0,1)
+quantile((wgdDeam[2,]/wgdWeight)/(nDeamTrunk*avgWeightTrunk), na.rm=TRUE)
 
 fit <- glm(nDeam ~ log(age) + offset(log(avgPower/avgWeightTrunk)) + tumourType -1, family="poisson")
-plot(sort(wgd[2,])/exp(coef(fit)[1])); abline(0,1)
+plot(sort(wgdDeam[2,])/exp(coef(fit)[1])); abline(0,1)
 
 p <- predict(fit, newdata=data.frame(age=1/exp(1), avgPower=avgPower, avgWeightTrunk=avgWeightTrunk, tumourType=tumourType)[-fit$na.action,], type='response', se.fit=TRUE)
-plot(age[-fit$na.action], (wgd[2,]/wgdWeight)[-fit$na.action] / p$fit, ylim=c(0,100), xlab="Age at diagnosis", ylab="Infered age during WGD"); abline(0,1)
-e <- (t(sapply(wgd[2,], function(w) qpois(c(0.025,0.975), w)))/wgdWeight)[-fit$na.action,] / p$fit
+plot(age[-fit$na.action], (wgdDeam[2,]/wgdWeight)[-fit$na.action] / p$fit, ylim=c(0,100), xlab="Age at diagnosis", ylab="Infered age during WGD"); abline(0,1)
+e <- (t(sapply(wgdDeam[2,], function(w) qpois(c(0.025,0.975), w)))/wgdWeight)[-fit$na.action,] / p$fit
 segments(age[-fit$na.action], e[,1], age[-fit$na.action], e[,2])
 
-#' Direct ascertainment
+#' #### Direct using age
 a <- jitter(age)
-plot(a, age * (2*wgd[2,]+1)/(1+2*wgd[2,] + wgd[1,]), col=col[tumourType], pch=ifelse(colSums(wgd[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
+plot(a, age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]), col=col[tumourType], pch=ifelse(colSums(wgdDeam[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
 d <- density(na.omit(a))
 lines(d$x, 500*d$y)
-d <- density(na.omit( ifelse(colSums(wgd[1:2,])==0,NA,age * (2*wgd[2,]+1)/(1+2*wgd[2,] + wgd[1,]))))
+d <- density(na.omit( ifelse(colSums(wgdDeam[1:2,])==0,NA,age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]))))
 lines(500*d$y,d$x)
 abline(0,1)
 ci <- sapply(1:1000, function(foo){
-			n1 <- rpois(n=length(wgd[1,]),lambda=wgd[1,]+1)
-			n2 <- rpois(n=length(wgd[2,]),lambda=wgd[2,]+1)
+			n1 <- rpois(n=length(wgdDeam[1,]),lambda=wgdDeam[1,]+1)
+			n2 <- rpois(n=length(wgdDeam[2,]),lambda=wgdDeam[2,]+1)
 			age * (2*n2)/(2*n2 + n1)
 		})
 
 ci <- apply(ci,1, function(x) if(all(is.na(x))) rep(NA,2) else quantile(x,c(.025, 0.975), na.rm=TRUE))
 
-segments(a,ci[1,], a,ci[2,], col=col[tumourType], lwd=ifelse(colSums(wgd[1:2,])==0,NA,1))
+segments(a,ci[1,], a,ci[2,], col=col[tumourType], lwd=ifelse(colSums(wgdDeam[1:2,])==0,NA,1))
 
-tWgd <- (2*wgd[2,]+1)/(1+2*wgd[2,] + wgd[1,])
+tWgd <- (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,])
 mg14:::ggPlot(tWgd, tumourType)
 
-#' ??
-library(lme4)
-y <- c(wgd[1,],nDeamTrunk)
-z <- factor(rep(1:length(nDeamTrunk),2))
-x <- c(rep(1, length(nDeamTrunk)), 1/avgWeightTrunk)
-u <- c(rep(c(0,1), each=length(nDeamTrunk)))
-fit <- glm(y ~ z + offset(log(x)) + u, family="poisson")
-summary(fit)
-
-#' WGD test
-wgdTest <- function(vcf){
-	ID <- meta(header(vcf))["ID","Value"]
-	bb <- allBB[[ID]]
-	if(is.null(bb)) return(NA)
-	w <- which(abs(bb$clonal_frequency - purityPloidy[ID, "purity"]) < 0.01 & bb$minor_cn==2 & bb$copy_number==4)
-	if(length(w) == 0) return(1)
-	ix <- sapply(info(vcf)$CNID, function(x) ifelse(length(x)==0, NA, x %in% w)) & isDeamination(vcf)
-	t <- table(as.factor(unlist(seqnames(vcf)))[ix], factor(info(vcf)$MCN, levels=0:2)[ix])[c(1:22, "X"),c("1","2")]
-	t <- t[rowSums(t)!=0,,drop=FALSE]
-	if(nrow(t) <=1) return(1)
-	mcn <- factor(rep(colnames(t), each=nrow(t))) 
-	chr <- factor(rep(rownames(t), ncol(t)))
-	fit2 <- glm(as.numeric(t) ~ chr*mcn, data=data.frame(chr, mcn), family="poisson")
-	fit1 <- glm(as.numeric(t) ~ chr+mcn, data=data.frame(chr, mcn), family="poisson")
-	anova(fit2, fit1, test="Chisq")
-}
-
-sapply(allVcf[1:100], wgdTest)
-
-#' Fix allCN
-allCn <- GRangesList(sapply(allCn, function(x){
-					reg <- parseRegion(x$ascatId)
-					GRanges(reg$chr, ranges(x), strand(x), mcols(x))
-				}))
-
-#' Driver CN to obs
-driverCnTime <- sapply(allCn, function(cn){
-			gamp <- gisticCn[gisticCn$Type=="Amp"]
-			gdel <- gisticCn[gisticCn$Type=="Del"]
-			c(cn[grep("ains",cn$type)]$pi0[findOverlaps(gamp, cn[grep("ains",cn$type)], select='first')],
-					cn[grep("CNLOH",cn$type)]$pi0[findOverlaps(gdel, cn[grep("CNLOH",cn$type)], select='first')])
-		})
-rownames(driverCnTime) <- gisticCn$Peak.Name
-#+ driverCnTime, 4,4
-o <- order(rowMeans(driverCnTime, na.rm=TRUE))
-w <- rowSums(!is.na(driverCnTime)) >= 10
-boxplot(driverTable(driverCnTime[o,][w[o],]), horizontal=TRUE, las=2, col=gisticCn$Type[o][w[o]], xlab="pi0")
-
-#+ driverCnHist, fig.width=6, fig.height=3
-barplot(sort(rowSums(!is.na(driverCnTime)), decreasing=TRUE), las=2, border=NA, cex.names=.5)
-
-allClusters <- sapply(sampleIds, loadClusters)
-
-driverStatus <- sapply(sampleIds, function(ID){
-			m <- match(mutsigDrivers,unlist(info(allVcf[[ID]])$DG))
-			allClusters["location",ID][[1]][info(allVcf[[ID]])$DPC[m]] > 0.95
-		})
-
-driverStatus <- apply(driverStatus,1, function(x) table(factor(x, levels=c(TRUE,FALSE), labels=c("clonal","subclonal"))))
-
-#+ driverSubHist, fig.width=6, fig.height=3
-w <- colSums(driverStatus)>0
-o <- order(colSums(driverStatus[,w]), decreasing=TRUE)
-barplot(driverStatus[,w][,o], las=2, legend=TRUE, border=NA, col=brewer.pal(3,"Set1"), cex.names=.5)
-dev.off()
-
-
-tcgaInfo <- read.table("../ref/patient_metadata.tsv", header=TRUE, sep="\t", fill=TRUE)
-icgcInfo <- read.table("../ref/donor.all_projects.tsv", header=TRUE, sep="\t", fill=TRUE)
-pcawgInfo <- read.table("../ref/pcwag_data_release_aug_2015_v1.tsv", header=TRUE, sep="\t")
-
-
-#' Load vcf
-indelPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/indel/indelVafAnnotated"
-i <- dir(indelPath, pattern="*.vcf.gz$")
-
-
-indelVcf <- mclapply(sampleIds, function(ID){
-			f <- grep(ID, i, value=TRUE)
-			v <- readVcf(paste0(indelPath,"/",f), genome="GRCh38")
-			#v <- addDriver(v, mutsigDrivers)
-			#v <- addMutCn(v, allBB[[ID]])
-			#if(nrow(v) > 0) v[testIndel(v)] else v
-		}, mc.cores=8)
-names(indelVcf) <- sampleIds
-
-#' Fix empty vcfs
-for(w in which(sapply(indelVcf, ncol)==0))
-	indelVcf[[w]] <- indelVcf[[1]][0,]
-
-# Assign indels to clusters
-indelAnnotated <- mclapply(sampleIds, function(ID){
-			vcf <- indelVcf[[ID]]
-			meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=ID, row.names="ID"))
-			rownames(info(header(vcf))) <- sub("NA","NOA",rownames(info(header(vcf))) )
-			colnames(info(vcf)) <- sub("NA","NOA",colnames(info(vcf)))
-			
-			vcf <- addDriver(vcf, mutsigDrivers)
-
-			exptData(vcf)$header@header$INFO <- rbind(header(vcf)@header$INFO, DataFrame(Number=1,Type="Integer",Description="DP cluster", row.names="DPC"))
-			exptData(vcf)$header@header$INFO <- rbind(header(vcf)@header$INFO, DataFrame(Number=1,Type="Float",Description="DP cluster probability", row.names="DPP"))
-			info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification {early, late, subclonal}", row.names="CLS"))
-			# add clusters
-			if(nrow(vcf)==0){
-				info(vcf)$DPC <- info(vcf)$DPP <-  numeric(0)
-				info(vcf)$CLS <- character(0)
-				return(vcf)
-			}
-			meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=ID, row.names="ID"))
-			
-			clusters <- allClusters[[ID]]
-			# Add mutation copy numbers
-			vcf <-  addMutCn(vcf, allBB[[ID]], clusters)
-			
-			info(vcf)$DPC <- sapply(info(vcf)$CNF, function(f) {if(is.null(f) | is.na(f)) NA else {d <- abs(f-clusters$proportion); w <- which.min(d); if(d[w]>0.05) NA else clusters$cluster[w]}})
-			info(vcf)$DPP <- rep(NA, nrow(vcf))
-			
-			# Remove spurious clusters
-			info(vcf)$DPC[!info(vcf)$DPC %in% clusters$cluster[clusters$proportion < 1] ] <- NA
-			# Classify mutations
-			class <- rep(2,nrow(vcf))
-			class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 3
-			class[info(vcf)$MCN > 1 & class==2] <- 1
-			class <- factor(class, levels=1:3, labels=c("early","late","subclonal"))
-			class[is.na(info(vcf)$DPC) | is.na(info(vcf)$MCN)] <- NA
-			info(vcf)$CLS <- class
+#' ### Using TNC
+#+ wgdTnc, cache=TRUE
+wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
+					ID <- meta(header(vcf))["ID","Value"]
+					if(which.max(mixmdl$posterior[rownames(purityPloidy)==ID,])!=3 | purityPloidy[ID,2] < 2)
+						return(matrix(NA,nrow=30, ncol=3))
+					c <- classifyMutations(vcf)
+					bb <- allBB[[ID]]
+					w <- which(vcf %over% bb[bb$minor_cn==2 & bb$major_cn==2] & c!="subclonal")
+					pre <- info(vcf)$MCN[w] == 2 &  info(vcf)$TCN[w] == 4
+					post <- info(vcf)$MCN[w] == 1 &  info(vcf)$TCN[w] == 4
+					tnc <- tncToPyrimidine(vcf[w])
 					
-			return(vcf)
-		}, mc.cores=8)
+					wgd <- sapply(1:30, function(i){
+								c(sum(tncProb[i,ID,1,tnc[pre]]), sum(tncProb[i,ID,2,tnc[post]]))
+							})
+					
+					ci <- sapply(1:1000, function(foo){
+								n1 <- rpois(n=length(wgd[1,]),lambda=wgd[1,]+1)
+								n2 <- rpois(n=length(wgd[2,]),lambda=wgd[2,]+1)
+								(2*n2)/(2*n2 + n1)
+							})
+					
+					ci <- apply(ci,1, function(x) if(all(is.na(x))) rep(NA,2) else quantile(x,c(.025, 0.975), na.rm=TRUE))
+					
+					cbind(hat=(2*wgd[2,]+0.5)/(1+2*wgd[2,] + wgd[1,]), CI=t(ci))
+					
+				}, mc.cores=8))
 
 
-#' Compute all genotypes, including zygousity
-subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=8))
-indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=8))
-
-allGenotypes <- subGenotypes + indelGenotypes
-
-t <- (apply(allGenotypes, c(1,3), sum) + apply(indelGenotypes, c(1,3), sum))
-
-t
-
-asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
-
-P <- apply(t, 1, function(x) pbinom(x[2], sum(x), prob=1-1712568/(18578183+1712568), lower.tail=TRUE))
-
-data.frame(t,P=P, Q=p.adjust(P, method="BH"), sig=mg14::sig2star(p.adjust(P, method="BH")))
+rowMeans((1-wgdTnc[,1,])*rep(age[isWgd],30), na.rm=TRUE)
 
 
-lTotal <- nDeamTrunk*avgWeightTrunk + (nDeam - nDeamTrunk) *2/purityPloidy[sampleIds,"ploidy"]
-		
 
-## Time drivers rel to CN
-timeCn <- Vectorize(function(ID, cnid){
-	# gains only
-	bb <- allBB[[ID]]
-	vcf <- allVcf[[ID]]
-	r <- nDeamTrunk[ID] * avgWeightTrunk[ID] / 3e9
-	if(!is.na(wgd[1,ID]))
-		return(wgd[1,ID]/wgdWeight[ID])
-	if(bb$copy_number[cnid]==3){
-		(sum(isDeamination(vcf) & info(vcf)$cnid == cnid & info(vcf)$MCN==2)) * 3e9/width(bb)[cnid]
-	}else if(bb$copy_number[cnid]==4){
-		(sum(isDeamination(vcf) & info(vcf)$cnid == cnid & info(vcf)$MCN==2)) * 3e9/width(bb)[cnid]
-	}else if(bb$copy_number[cnid]==2 & bb$major_cn[cnid]==1){
-		0
-	}else if(bb$copy_number[cnid]==2 & bb$major_cn[cnid]==2){
-		(sum(isDeamination(vcf) & info(vcf)$cnid == cnid & info(vcf)$MCN==2)) * 3e9/width(bb)[cnid]
-	}else return(NA)
-},vectorize.args = "cnid")
+#' ## Selection
+#' ### Output for dN/dS
+#+ dNdSOut, eval=FALSE
+forInigo <- do.call("rbind", mclapply(allVcf, function(vcf) {DataFrame(CHR=seqnames(vcf), POS=start(vcf), REF=ref(vcf), ALT=unlist(alt(vcf)), SAMPLE=meta(header(vcf))["ID",], CLS=classifyMutations(vcf), MCN=info(vcf)$MCN, TCN=info(vcf)$TCN)}, mc.cores=8))
+write.table(as.data.frame(forInigo), file="../scratch/mar16_1429samples.txt", sep="\t", col.names=TRUE, quote=FALSE, row.names=FALSE)
+rm(forInigo)
 
-
-timeDriverCn <- function(ID){
-	do.call("c",lapply(c("sub", "indel"), function(type){
-						vcf <- if(type=="sub") allVcf[[ID]] else indelAnnotated[[ID]]
-						rgs <- GRanges(genes=CharacterList(), type=character(), sample=character())
-						if(nrow(vcf)==0) return(rgs)
-						w <- which(na.omit(sapply(!is.na(info(vcf)$DG),any) & info(vcf)$CLS != 'subclonal'))
-						cnid <- sapply(info(vcf)$CNID[w], function(c) {
-									if(length(c)==1) return(c)
-									else c[which.max(allBB[[ID]][c]$clonal_frequency)]
-								})
-						if(length(w)>0){
-							t <- timeCn(ID, cnid)
-							v <- info(vcf)$MCN[w]!=1
-							s <- ifelse(v, 0, t)
-							e <- ifelse(v, t, nDeamTrunk[ID]*avgWeightTrunk[ID])
-							cls <- as.character(info(vcf)$CLS[w])
-							cls[allBB[[ID]]$copy_number[cnid]==2 & allBB[[ID]]$major_cn[cnid]==1] <- "diploid"
-							n <- is.na(s) | is.na(e) | is.infinite(t)
-							if(sum(!n)>0) 
-								rgs <- c(rgs, GRanges(factor(cls[!n], levels=c(levels(info(vcf)$CLS), "diploid")), IRanges(pmin(s[!n],e[!n]),e[!n]), genes=info(vcf)$DG[w][!n], type=rep(type, sum(!n)), sample=rep(ID, sum(!n))))
-						}
-						w <- which(na.omit(sapply(!is.na(info(vcf)$DG),any) & info(vcf)$CLS == 'subclonal'))
-						if(length(w)>0){
-							s <- rep(nDeamTrunk[[ID]]*avgWeightTrunk[ID], length(w))
-							e <- rep(nDeamTrunk[[ID]]*avgWeightTrunk[ID] + (nDeam[[ID]] - nDeamTrunk[[ID]]) *2/purityPloidy[ID,"ploidy"], length(w))
-							rgs <- c(rgs, GRanges(rep('subclonal', length(w)), IRanges(s,e), genes=info(vcf)$DG[w], type=rep(type,length(w)), sample=rep(ID, length(w))))
-						}
-						return(rgs)
-}))}
-
-driverTimes <- GRangesList(sapply(sampleIds, timeDriverCn))
-
-u <- unlist(driverTimes)
-t <- table(unlist(u$genes), u$type, as.character(seqnames(u)))
-barplot(sort(rowSums(t), d=TRUE), las=2)
-names(age) <- sampleIds
-par(mfrow=c(2,3))
-
-pdf("times.pdf",3,3, pointsize=8); par(bty="n", mgp=c(2,0.5,0), mar=c(3,3,1,1))
-#### Age of WGD!!!!
-y <- (wgd[1,]/wgdWeight)/(nDeamTrunk*avgWeightTrunk)*age
-plot(age, y, ylim=c(0,100), xlab="Age at diagnosis", ylab="Age of WGD"); abline(0,1)
-e <- (t(sapply(wgd[1,], function(w) qpois(c(0.025,0.975), w)))/wgdWeight) /(nDeamTrunk*avgWeightTrunk)*age
-segments(age, e[,1], age, e[,2], col='grey')
-d <- density(na.omit(age)); lines(d$x, d$y*.1/max(d$y) * 100)
-d <- density(na.omit(y)); lines(d$y*.1/max(d$y) * 100, d$x)
-legend("topleft", legend=sum(!is.na(wgd[1,])), lty=1, bty="n", col=1)
-
-clr <- c(col[1:3], "#888888")
-#### Drivers
-for(gene in c("TP53","PIK3CA","KRAS","NOTCH1","CDKN2A")){
-t <- u[sapply(u$genes, function(x) gene %in% x)]
-s <- age[t$sample]/lTotal[t$sample]
-y <- (end(t)+start(t)) /2*s
-
-plot(age[t$sample], y , xlim=c(0,100), ylim=c(0,100), col=clr[as.numeric(seqnames(t))], xlab="Age at diagnosis", ylab="Age at mutation", main=gene, pch=".")
-abline(0,1)
-e <- cbind(start(t),end(t)) *s
-segments(age[t$sample], e[,1], age[t$sample], e[,2], col=clr[as.numeric(seqnames(t))])
-f <- function(x) paste(names(x), x)
-legend("topleft", legend=f(table(seqnames(t))), lty=1, col=clr[1:4], bty="n")
-d <- density(na.omit(age[t$sample])); lines(d$x, d$y*.1/max(d$y) * 100)
-w <- !is.na(e[,1])
-d <- sapply(coverage(GRanges(seqnames(t)[w], IRanges(e[w,1],e[w,2])), weight=1/(e[w,2]-e[w,1]+1)), function(x) {y <- numeric(100); n <- as.numeric(x); y[1:min(length(n),100)] <- n[1:min(length(n),100)];y})
-a <- apply(d, 1,cumsum)/length(t)*500
-for(i in nrow(a):1) polygon(c(0,a[i,]), c(1,1:100), col=mg14::colTrans(clr[i]), border=NA, )
-}
-dev.off()
-
-
-## inigo selection
-sSub <- cbind(wMIS =	c(1.91831062196026,	0.919545485202377,	4.00188538962342),
-wNON =	c(6.73416105169359,	2.38927228182595,	18.9802248220492),
-wSPLICE	= c(4.73003260101133,	1.20999550398506,	18.4903235862819))
-
-
-sEarly <- cbind(wMIS=	c(2.32117247053749,	1.67002387515843,	3.22620635436723),
-wNON	=c(9.95274974928443,	6.25798469653712,	15.8289341338107),
-wSPLICE	=c(3.76229376536249,	2.1063230165632,	6.72017267322149))
-
-sLate	<- cbind(wMIS=c(	1.63512904723344,	1.33839800123583,	1.99764718614178),
-wNON=c(	4.93163721684375,	3.65519983206903,	6.65382106476828),
-wSPLICE	=c(3.11074216948118,	2.11924768949577,	4.56610942314669))
-
-pdf("selection.pdf",3,3, pointsize=8); par(bty="n", mgp=c(2,0.5,0), mar=c(3,3,1,1))
-barplot(rbind(sEarly[1,], sLate[1,],sSub[1,]), col=clr[1:3], beside=TRUE, ylab="dN/dS") -> b
-legend("topleft", c("early","late","subclonal"), fil=clr[1:3], bty="n")
-segments(b,rbind(sEarly[2,], sLate[2,],sSub[2,]),b,rbind(sEarly[3,], sLate[3,],sSub[3,]))
+#' ### From Inigo
+#+ dNdS, fig.width=4
+dNdS <- sapply(grep("dNdS_357drivers",dir("/nfs/users/nfs_c/cgppipe/pancancer/workspace/im3/PCAWG_Evolution_and_Heterogeneity/dNdS_vs_clonality/BARCELONA_dataset", pattern="dNdSvalues_with_CI95.txt", full.names=TRUE, recursive=TRUE), value=TRUE), function(x) as.matrix(read.table(x, sep="\t", row.names=1, header=TRUE)), simplify='array')
+dimnames(dNdS)[[3]] <- sub("(.+drivers_)(.+)(.dNdScv.+)","\\2",dimnames(dNdS)[[3]])
+dimnames(dNdS)[[1]] <- c(wMIS="missense",wNON="nonsense", wSPL="splice site")[dimnames(dNdS)[[1]] ]
+col <- sapply(c("#444444",RColorBrewer::brewer.pal(9,"Set1")), function(c) sapply(1:3, function(f) mg14::colTrans(c,f)))
+o <- c(2,4,5,6,1,3)
+barplot(dNdS[,1,o], beside=TRUE, legend=TRUE, ylab="dN/dS", col=col[,c(2:5,1,6)], args.legend=list(x="topleft", bty='n')) -> b
 abline(h=1)
-dev.off()
+segments(b,dNdS[,2,o],b,dNdS[,3,o])
+
+
+#' # Session
+#+ sessionInfo, eval=TRUE
+library(devtools)
+devtools::session_info()
+sessionInfo()
