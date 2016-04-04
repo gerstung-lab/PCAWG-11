@@ -286,12 +286,12 @@ barplot(t(sigDecomp30[,1,]))
 
 sigClonal <- t(sigDecomp30[,,1]+sigDecomp30[,,2])
 
-mg14:::ggPlot(sig1Clonal, tumourType, xlab="", log='y', ylab="Signature 1 (clonal)", pch=19, ylim=c(1,1e5), las=2)
+mg14:::ggPlot(sigClonal[,1] +1, tumourType, xlab="", log='y', ylab="Signature 1 (clonal)", pch=19, ylim=c(1,1e5), las=2)
 
 fit <- VGAM::vglm(round(sigClonal) ~ log(age) + log(1/avgWeightTrunk) + tumourType, family="poissonff")
 summary(fit)
 
-fit <- lm(log(sig1Clonal +1) ~ log(age) + tumourType + log(avgWeightTrunk))
+fit <- lm(log(sigClonal[,1] +1) ~ log(age) + tumourType + log(avgWeightTrunk))
 summary(fit)
 
 fit <- glm(age ~  log(1/avgWeightTrunk) + tumourType + log(sigClonal + 1), family=gaussian(link="log"))
