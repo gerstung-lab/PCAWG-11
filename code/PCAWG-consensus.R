@@ -234,6 +234,8 @@ tumourType <- factor(sub("-.+","",pcawg_info$dcc_project_code[match(sampleIds, p
 #' ### Total mutation frequencies, split by deaminations at CpG
 #+ tabDeam, cache=TRUE
 tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x)), mc.cores=8))
+
+#+ tabDeamPlot, fig.width=7
 nMut <- colSums(tabDeam,dims=2)
 tumourType <- factor(sub("-.+","",sampleInfo$sample_type)[match(sampleIds, sampleInfo$tumour_id)])
 mg14:::ggPlot(nMut, tumourType, xlab="", log='y', ylab="All mutations", pch=19)
@@ -259,7 +261,7 @@ avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(i
 
 
 #' Variation explained
-fit <- lm(log(nDeamTrunk) ~ log(age) + tumourType + log(avgWeightTrunk))
+fit <- lm(log(nDeamTrunk + 1) ~ log(age) + tumourType + log(avgWeightTrunk))
 summary(fit)
 
 fit <- glm(nDeamTrunk ~ log(age) + log(1/avgWeightTrunk) + tumourType, family="poisson")
