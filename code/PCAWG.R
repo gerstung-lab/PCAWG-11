@@ -261,7 +261,7 @@ summary(fit)
 col <- c(brewer.pal(9, "Set1"), brewer.pal(8, "Dark2"), brewer.pal(8, "Set2"))
 plot(nDeamTrunk[-fit$na.action], exp(predict(fit)), log='xy', col=col[tumourType[-fit$na.action]], pch=19, xlab="C>T@CpG [observed]", ylab="C>T@CpG [predicted]")
 abline(0,1)
-plot(age[-fit$na.action], nDeamTrunk[-fit$na.action]/exp(predict(fit, newdata=data.frame(age=1/exp(1), avgPower=avgPower, avgWeightTrunk=avgWeightTrunk, tumourType=tumourType)[-fit$na.action,])),  col=col[tumourType[-fit$na.action]], pch=19, xlab="Age", ylab="Residual C>T@CpG w/o age")
+plot(age[-fit$na.action], nDeamTrunk[-fit$na.action]/exp(predict(fit, newdata=data.frame(age=1/exp(1), avgWeightTrunk=avgWeightTrunk, tumourType=tumourType)[-fit$na.action,])),  col=col[tumourType[-fit$na.action]], pch=19, xlab="Age", ylab="Residual C>T@CpG w/o age")
 abline(0,1)
 
 #' ### COSMIC Signatures
