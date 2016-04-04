@@ -388,28 +388,6 @@ segments(wgdDeam[2,o[i]], i, wgdDeam[3,o[i]], i)
 legend("bottomright", c("MCN=2; CN=4", "MCN=2"), pch=c(1,19))
 
 
-wgdWeight <- sapply(sampleIds, function(ID){
-			if(is.na(wgdDeam[2,ID])) return(NA)
-			bb <- allBB[[ID]]
-			ix <- abs(bb$clonal_frequency - purityPloidy[ID, "purity"]) < 0.01 & bb$minor_cn==2 & bb$copy_number==4
-			sum(as.numeric(width(bb[ix]))) / 3e9
-		})
-
-
-#' #### Model based
-glm(nDeamTrunk ~ offset(log(1/avgWeightTrunk*wgdDeam[2,]/wgdWeight)), subset=wgdWeight>0, family="poisson")
-
-plot(nDeamTrunk*avgWeightTrunk, wgdDeam[2,]/wgdWeight); abline(0,1)
-quantile((wgdDeam[2,]/wgdWeight)/(nDeamTrunk*avgWeightTrunk), na.rm=TRUE)
-
-fit <- glm(nDeam ~ log(age) + offset(log(avgPower/avgWeightTrunk)) + tumourType -1, family="poisson")
-plot(sort(wgdDeam[2,])/exp(coef(fit)[1])); abline(0,1)
-
-p <- predict(fit, newdata=data.frame(age=1/exp(1), avgPower=avgPower, avgWeightTrunk=avgWeightTrunk, tumourType=tumourType)[-fit$na.action,], type='response', se.fit=TRUE)
-plot(age[-fit$na.action], (wgdDeam[2,]/wgdWeight)[-fit$na.action] / p$fit, ylim=c(0,100), xlab="Age at diagnosis", ylab="Infered age during WGD"); abline(0,1)
-e <- (t(sapply(wgdDeam[2,], function(w) qpois(c(0.025,0.975), w)))/wgdWeight)[-fit$na.action,] / p$fit
-segments(age[-fit$na.action], e[,1], age[-fit$na.action], e[,2])
-
 #' #### Direct using age
 a <- jitter(age)
 plot(a, age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]), col=col[tumourType], pch=ifelse(colSums(wgdDeam[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
