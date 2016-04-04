@@ -281,6 +281,7 @@ sigDecomp30 <- array(M, dim=c(30, dim(sigTable)[2:3]))
 rm(M)
 dimnames(sigDecomp30) <- c(list(colnames(signatures[,1:30+3])),dimnames(sigTable)[2:3])
 
+#+ sigDecomp30Plot, fig.width=7
 barplot(t(sigDecomp30[,1,]))
 
 sigClonal <- t(sigDecomp30[,,1]+sigDecomp30[,,2])
