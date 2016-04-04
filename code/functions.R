@@ -208,7 +208,10 @@ classifyMutations <- function(vcf, missing=TRUE) {
 
 getGenotype <- function(vcf, ...){
 	cls <- classifyMutations(vcf = vcf)
-	hom <- factor(info(vcf)$MCN==info(vcf)$TCN, levels=c(TRUE,FALSE))
+	t <- info(vcf)$TCN
+	if(is.null(t))
+		t <- info(vcf)$MNCN + info(vcf)$MJCN
+	hom <- factor(info(vcf)$MCN==t, levels=c(TRUE,FALSE))
 	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom, ...)
 }
 

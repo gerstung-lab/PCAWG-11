@@ -364,7 +364,7 @@ wgdDeam <- simplify2array(mclapply(allVcf, function(vcf){
 			if(which.max(mixmdl$posterior[rownames(purityPloidy)==ID,])!=3 | purityPloidy[ID,2] < 2)
 				return(rep(NA,3))
 			w <- isDeamination(vcf) & abs(info(vcf)$CNF - purityPloidy[ID,"purity"]) < 0.01
-			t <- table(factor(info(vcf)$MCN[w], levels=1:20), factor(info(vcf)$TCN[w], levels=1:20))
+			t <- table(factor(info(vcf)$MCN[w], levels=1:20), factor(info(vcf)$MJCN[w] + info(vcf)$MNCN[w], levels=1:20))
 			c(t["1","4"], t["2","4"], rowSums(t["2",,drop=FALSE]))
 		}, mc.cores=8))
 colnames(wgdDeam) <- sampleIds
@@ -429,8 +429,8 @@ wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
 					c <- classifyMutations(vcf)
 					bb <- allBB[[ID]]
 					w <- which(vcf %over% bb[bb$minor_cn==2 & bb$major_cn==2] & c!="subclonal")
-					pre <- info(vcf)$MCN[w] == 2 &  info(vcf)$TCN[w] == 4
-					post <- info(vcf)$MCN[w] == 1 &  info(vcf)$TCN[w] == 4
+					pre <- info(vcf)$MCN[w] == 2 &  info(vcf)$MJCN[w] == 2 &  info(vcf)$MNCN[w] == 2
+					post <- info(vcf)$MCN[w] == 1 &  info(vcf)$MJCN[w] == 2 &  info(vcf)$MNCN[w] == 2
 					tnc <- tncToPyrimidine(vcf[w])
 					
 					wgd <- sapply(1:30, function(i){
@@ -457,7 +457,7 @@ rowMeans((1-wgdTnc[,1,])*rep(age[isWgd],30), na.rm=TRUE)
 #' ## Selection
 #' ### Output for dN/dS
 #+ dNdSOut, eval=FALSE
-forInigo <- do.call("rbind", mclapply(allVcf, function(vcf) {DataFrame(CHR=seqnames(vcf), POS=start(vcf), REF=ref(vcf), ALT=unlist(alt(vcf)), SAMPLE=meta(header(vcf))["ID",], CLS=classifyMutations(vcf), MCN=info(vcf)$MCN, TCN=info(vcf)$TCN)}, mc.cores=8))
+forInigo <- do.call("rbind", mclapply(allVcf, function(vcf) {DataFrame(CHR=seqnames(vcf), POS=start(vcf), REF=ref(vcf), ALT=unlist(alt(vcf)), SAMPLE=meta(header(vcf))["ID",], CLS=classifyMutations(vcf), MCN=info(vcf)$MCN, MJCN=info(vcf)$MJCN, MNCN=info(vcf)$MNCN)}, mc.cores=8))
 write.table(as.data.frame(forInigo), file="../scratch/mar16_1429samples.txt", sep="\t", col.names=TRUE, quote=FALSE, row.names=FALSE)
 rm(forInigo)
 
