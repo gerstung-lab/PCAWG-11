@@ -251,6 +251,8 @@ mg14:::ggPlot(nDeamTrunk+1, tumourType, xlab="", log='y', ylab="CpG>TpG (clonal)
 
 #mg14:::ggPlot(realTimeAll, tumourType, xlab="", log='y', ylab="Aging signature", ylim=c(1,200), pch=19)
 
+#' Individual branch lengths
+#+ lBranch, cache=TRUE
 lBranch <- sapply(allVcf, function(x) branchLengths(x, type="deam"))
 lTrunk <- sapply(lBranch, function(x) x[length(x)])
 

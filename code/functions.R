@@ -329,7 +329,8 @@ reduceToCoverRelations <- function(rel){
 }
 
 cnWeights <- function(vcf){
-	info(vcf)$MCN / info(vcf)$TCN
+	t <- if(is.null(info(vcf)$TCN)) (info(vcf)$MJCN + info(vcf)$MNCN) else info(vcf)$TCN
+	info(vcf)$MCN / t
 }
 
 branchLengths <- function(vcf, type=c("all","deamination")){
