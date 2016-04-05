@@ -241,13 +241,13 @@ tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), c
 #+ tabDeamPlot, fig.width=7
 nMut <- colSums(tabDeam,dims=2)
 tumourType <- factor(sub("-.+","",sampleInfo$sample_type)[match(sampleIds, sampleInfo$tumour_id)])
-mg14:::ggPlot(nMut, tumourType, xlab="", log='y', ylab="All mutations", pch=19)
+mg14:::ggPlot(nMut+1, tumourType, xlab="", log='y', ylab="All mutations", pch=19)
 
 nDeam <- colSums(tabDeam["TRUE",,])
-mg14:::ggPlot(nDeam, tumourType, xlab="", log='y', ylab="CpG>TpG", pch=19)
+mg14:::ggPlot(nDeam+1, tumourType, xlab="", log='y', ylab="CpG>TpG", pch=19)
 
-nDeamTrunk <- colSums(tabDeam["TRUE",1:2,])
-mg14:::ggPlot(nDeamTrunk, tumourType, xlab="", log='y', ylab="CpG>TpG (clonal)", pch=19)
+nDeamTrunk <- colSums(tabDeam["TRUE",1:3,])
+mg14:::ggPlot(nDeamTrunk+1, tumourType, xlab="", log='y', ylab="CpG>TpG (clonal)", pch=19)
 
 #mg14:::ggPlot(realTimeAll, tumourType, xlab="", log='y', ylab="Aging signature", ylim=c(1,200), pch=19)
 
@@ -256,7 +256,7 @@ lTrunk <- sapply(lBranch, function(x) x[length(x)])
 
 #mg14:::ggPlot(lBranch, tumourType, xlab="", log='y', ylab="Branch lengths")
 
-mg14:::ggPlot(lTrunk, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=19)
+mg14:::ggPlot(lTrunk+1, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=19)
 
 #powerBranch <- sapply(sampleIds, function(ID) sapply(allClusters[[ID]]$proportion, function(pr) power(pr/purityPloidy[ID,2], round(coverage[ID]))))
 #avgPower <- mapply(power, purityPloidy[sampleIds,1]/purityPloidy[sampleIds,2], round(coverage), err=1e-3)
