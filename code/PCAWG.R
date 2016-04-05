@@ -51,6 +51,8 @@ sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern="*.bgz")))
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
+MCCORES <- 6
+
 allClusters <- mclapply(sampleIds, loadClusters, mc.cores=MCCORES)
 names(allClusters) <- sampleIds
 
@@ -59,7 +61,6 @@ purity <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pan
 s <-  setdiff(sampleIds, rownames(purityPloidy))
 purityPloidy <- rbind(purityPloidy, data.frame(purity=purity[s,1],ploidy=ploidy[s,1], row.names=s))
 
-MCCORES=6
 
 #' ### Battenberg
 #+ allBB, cache=TRUE
