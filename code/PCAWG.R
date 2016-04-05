@@ -51,7 +51,7 @@ sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern="*.bgz")))
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
-MCCORES <- 6
+#MCCORES <- 8
 
 allClusters <- mclapply(sampleIds, loadClusters, mc.cores=MCCORES)
 names(allClusters) <- sampleIds
