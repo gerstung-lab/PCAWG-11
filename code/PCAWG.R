@@ -77,14 +77,18 @@ for(w in which(sapply(allBB, length)==0)){
 }
 			
 #' ### Subs 
-#' Load all annotated Subs files
-#+ allVcf, cache=TRUE, cache.lazy=FALSE
+#' Load all annotated Subs files (not run)
+#+ allVcf, cache=TRUE, cache.lazy=FALSE, eval=FALSE
 allVcf <- mclapply(sampleIds, function(ID){
 			try(readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh37"))
 		}, mc.cores=MCCORES)
 names(allVcf) <- sampleIds
 allVcf <- allVcf[sapply(allVcf, class)!="try-error"]
 sampleIds <- names(allVcf)
+
+#' Load separately:
+#+ allVcfLoad
+load("allVcf.RData")
 
 #' Reload a few (not run)
 #+ eval=FALSE
