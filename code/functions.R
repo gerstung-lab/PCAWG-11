@@ -194,13 +194,16 @@ addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClus
 classifyMutations <- function(vcf, missing=TRUE) {
 	i <- info(vcf)
 	.clsfy <- function(i) {
-		cls <- as.character(i$CLS)
+		cls <- i$CLS
+		if(all(unique(cls) %in% c("early", "late", "clonal", "subclonal")))
+			cls <- factor(cls, levels=c("early", "late", "clonal", "subclonal"), labels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
+		cls <- as.character(cls)
 		cls[cls=="NA"] <- NA
 		if(missing & any(is.na(cls)))
-			cls[is.na(cls)] <- paste(factor(apply(as.matrix(i[is.na(cls), c("PEAR","PLAT","PSUB")]), 1, function(x) if(all(is.na(x))) NA else which.max(x)), levels=1:3, labels=c("early", "late","subclonal"))) ## reclassify missing
-		cls[i$PEAR==0 & cls!="subclonal"] <- "clonal"
-		cls[cls!="subclonal" & (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- "clonal"
-		cls <- factor(cls, levels=c("early", "late", "clonal", "subclonal"), labels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
+			cls[is.na(cls)] <- paste(factor(apply(as.matrix(i[is.na(cls), c("PEAR","PLAT","PSUB")]), 1, function(x) if(all(is.na(x))) NA else which.max(x)), levels=1:3, labels=c("clonal [early]", "clonal [late]","subclonal"))) ## reclassify missing
+		cls[i$PEAR==0 & cls!="subclonal"] <- "clonal [NA]"
+		cls[cls!="subclonal" & (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- "clonal [NA]"
+		cls <- factor(cls, levels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
 	}
 	cls <- .clsfy(i = i)
 	return(cls)
