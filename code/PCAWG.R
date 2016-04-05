@@ -51,7 +51,7 @@ sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern="*.bgz")))
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
-allClusters <- mclapply(sampleIds, loadClusters, mc.cores=8)
+allClusters <- mclapply(sampleIds, loadClusters, mc.cores=MCCORES)
 names(allClusters) <- sampleIds
 
 ploidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pancan_full/processed_data/copynumberConsensus/consensus_001/ploidy.tsv", header=TRUE, sep="\t", row.names=1)
@@ -59,9 +59,11 @@ purity <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pan
 s <-  setdiff(sampleIds, rownames(purityPloidy))
 purityPloidy <- rbind(purityPloidy, data.frame(purity=purity[s,1],ploidy=ploidy[s,1], row.names=s))
 
+MCCORES=6
+
 #' ### Battenberg
 #+ allBB, cache=TRUE
-allBB <- mclapply(sampleIds, loadBB, mc.cores=8) 
+allBB <- mclapply(sampleIds, loadBB, mc.cores=MCCORES) 
 names(allBB) <- sampleIds
 
 #' Add consensus CN where BB is missing
@@ -78,7 +80,7 @@ for(w in which(sapply(allBB, length)==0)){
 #+ allVcf, cache=TRUE, cache.lazy=FALSE
 allVcf <- mclapply(sampleIds, function(ID){
 			readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh37")
-		}, mc.cores=8)
+		}, mc.cores=MCCORES)
 names(allVcf) <- sampleIds
 
 #' Reload a few (not run)
@@ -87,7 +89,7 @@ names(allVcf) <- sampleIds
 w <- setdiff(sub("\\..+","",dir(vcfPath, pattern=".complete_annotation.vcf.bgz")), sampleIds)
 tmp <- mclapply(w, function(ID){
 			readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh37")
-		}, mc.cores=8)
+		}, mc.cores=MCCORES)
 names(tmp) <- w
 for(s in w)
 	allVcf[[s]] <- tmp[[s]]
@@ -107,7 +109,7 @@ indelVcf <- mclapply(sampleIds, function(ID){
 			#v <- addDriver(v, mutsigDrivers)
 			#v <- addMutCn(v, allBB[[ID]])
 			#if(nrow(v) > 0) v[testIndel(v)] else v
-		}, mc.cores=8)
+		}, mc.cores=MCCORES)
 names(indelVcf) <- sampleIds
 
 #' Fix empty vcfs
@@ -158,14 +160,14 @@ indelAnnotated <- mclapply(sampleIds, function(ID){
 			info(vcf)$CLS <- class
 			
 			return(vcf)
-		}, mc.cores=8)
+		}, mc.cores=MCCORES)
 
 
 #' ## Genotypes
 #' Compute all genotypes, including zygousity
 #+ genotypes, cache=TRUE
-subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=8, useNA='always'))
-indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=8, useNA='always'))
+subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=MCCORES, useNA='always'))
+indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=MCCORES, useNA='always'))
 
 allGenotypes <- aperm(abind::abind(subs=subGenotypes,indels=indelGenotypes, along=5), c(1,5,2,3,4))
 
@@ -227,7 +229,7 @@ tumourType <- factor(sub("-.+","",pcawg_info$dcc_project_code[match(sampleIds, p
 
 #' ### Total mutation frequencies, split by deaminations at CpG
 #+ tabDeam, cache=TRUE
-tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x)), mc.cores=8))
+tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x)), mc.cores=MCCORES))
 
 #+ tabDeamPlot, fig.width=7
 nMut <- colSums(tabDeam,dims=2)
@@ -251,7 +253,7 @@ mg14:::ggPlot(lTrunk, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=19
 
 #powerBranch <- sapply(sampleIds, function(ID) sapply(allClusters[[ID]]$proportion, function(pr) power(pr/purityPloidy[ID,2], round(coverage[ID]))))
 #avgPower <- mapply(power, purityPloidy[sampleIds,1]/purityPloidy[sampleIds,2], round(coverage), err=1e-3)
-avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=8))
+avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=MCCORES))
 
 
 #' Variation explained
@@ -270,7 +272,7 @@ abline(0,1)
 #' #### Run all 30 signatures
 #+ sigDecomp30, cache=TRUE
 signatures <- read.table("http://cancer.sanger.ac.uk/cancergenome/assets/signatures_probabilities.txt", header=TRUE, sep="\t")
-sigTable <- simplify2array(mclapply(allVcf, function(vcf) table(classifyMutations(vcf), tncToPyrimidine(vcf)), mc.cores=8))
+sigTable <- simplify2array(mclapply(allVcf, function(vcf) table(classifyMutations(vcf), tncToPyrimidine(vcf)), mc.cores=MCCORES))
 sigTable <- aperm(sigTable, c(2,3,1))
 dimnames(sigTable)[[2]] <- sampleIds
 S <- as.matrix(signatures[match(dimnames(sigTable)[[1]],as.character(signatures[,3])),1:30+3])
@@ -371,7 +373,7 @@ wgdDeam <- simplify2array(mclapply(allVcf, function(vcf){
 			w <- isDeamination(vcf) & abs(info(vcf)$CNF - purityPloidy[ID,"purity"]) < 0.01
 			t <- table(factor(info(vcf)$MCN[w], levels=1:20), factor(info(vcf)$MJCN[w] + info(vcf)$MNCN[w], levels=1:20))
 			c(t["1","4"], t["2","4"], rowSums(t["2",,drop=FALSE]))
-		}, mc.cores=8))
+		}, mc.cores=MCCORES))
 colnames(wgdDeam) <- sampleIds
 
 #+ wdgTime, 3,3
@@ -430,7 +432,7 @@ wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
 					
 					cbind(hat=(2*wgd[2,]+0.5)/(1+2*wgd[2,] + wgd[1,]), CI=t(ci))
 					
-				}, mc.cores=8))
+				}, mc.cores=MCCORES))
 
 
 rowMeans((1-wgdTnc[,1,])*rep(age[isWgd],30), na.rm=TRUE)
@@ -440,7 +442,7 @@ rowMeans((1-wgdTnc[,1,])*rep(age[isWgd],30), na.rm=TRUE)
 #' ## Selection
 #' ### Output for dN/dS
 #+ dNdSOut, eval=FALSE
-forInigo <- do.call("rbind", mclapply(allVcf, function(vcf) {DataFrame(CHR=seqnames(vcf), POS=start(vcf), REF=ref(vcf), ALT=unlist(alt(vcf)), SAMPLE=meta(header(vcf))["ID",], CLS=classifyMutations(vcf), MCN=info(vcf)$MCN, MJCN=info(vcf)$MJCN, MNCN=info(vcf)$MNCN)}, mc.cores=8))
+forInigo <- do.call("rbind", mclapply(allVcf, function(vcf) {DataFrame(CHR=seqnames(vcf), POS=start(vcf), REF=ref(vcf), ALT=unlist(alt(vcf)), SAMPLE=meta(header(vcf))["ID",], CLS=classifyMutations(vcf), MCN=info(vcf)$MCN, MJCN=info(vcf)$MJCN, MNCN=info(vcf)$MNCN)}, mc.cores=MCCORES))
 write.table(as.data.frame(forInigo), file="../scratch/mar16_1429samples.txt", sep="\t", col.names=TRUE, quote=FALSE, row.names=FALSE)
 rm(forInigo)
 
