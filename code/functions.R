@@ -193,6 +193,8 @@ addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClus
 
 classifyMutations <- function(vcf, reclassify=c("missing","all","none")) {
 	reclassify <- match.arg(reclassify)
+	if(nrow(vcf) ==0 )
+		return(factor(NULL, levels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal")))
 	i <- info(vcf)
 	.clsfy <- function(i) {
 		cls <- i$CLS
