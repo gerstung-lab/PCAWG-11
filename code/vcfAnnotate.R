@@ -88,7 +88,7 @@ class <- rep(2,nrow(vcf))
 class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 4
 class[info(vcf)$MCN > 1 & class==2 ] <- 1
 i <- info(vcf)
-class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- 3
+class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1 & class != 4] <- 3
 class <- factor(class, levels=1:4, labels=c("clonal [early]","clonal [late]","clonal [NA]", "subclonal"))
 class[is.na(info(vcf)$DPC) | is.na(info(vcf)$MCN)] <- NA
 
@@ -99,3 +99,4 @@ info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String"
 #fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileOut)
 writeVcf(vcf, file=vcfFileOut)
 bgzip(vcfFileOut, overwrite=TRUE)
+save(vcf, file=paste0(vcfFileOut,".RData"))
