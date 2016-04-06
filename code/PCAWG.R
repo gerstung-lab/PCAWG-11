@@ -172,10 +172,13 @@ indelAnnotated <- mclapply(sampleIds, function(ID){
 
 #' ## Genotypes
 #' Compute all genotypes, including zygousity
-#+ genotypes, cache=TRUE
+#+ subGenotypes, cache=TRUE
 subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=MCCORES, reclassify='all', useNA='always'))
+
+#+ indelGenotypes, cache=TRUE
 indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=MCCORES, reclassify='all',useNA='always'))
 
+#+ allGenotypes, cache=TRUE
 allGenotypes <- aperm(abind::abind(subs=subGenotypes,indels=indelGenotypes, along=5), c(1,5,2,3,4))
 
 #t <- (apply(allGenotypes, c(1,3), sum) + apply(indelGenotypes, c(1,3), sum))
