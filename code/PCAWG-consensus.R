@@ -57,7 +57,9 @@ sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern="*.bgz")))
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
-allClusters <- mclapply(sampleIds, loadClusters, mc.cores=8)
+#MCCORES <- 8
+
+allClusters <- mclapply(sampleIds, loadClusters, mc.cores=MCCORES)
 names(allClusters) <- sampleIds
 
 ploidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pancan_full/processed_data/copynumberConsensus/consensus_001/ploidy.tsv", header=TRUE, sep="\t", row.names=1)
@@ -67,7 +69,7 @@ purityPloidy <- rbind(purityPloidy, data.frame(purity=purity[s,1],ploidy=ploidy[
 
 #' ### Battenberg
 #+ allBB, cache=TRUE
-allBB <- mclapply(sampleIds, loadBB, mc.cores=8) 
+allBB <- mclapply(sampleIds, loadBB, mc.cores=MCCORES) 
 names(allBB) <- sampleIds
 
 #' Add consensus CN where BB is missing
@@ -83,8 +85,8 @@ for(w in which(sapply(allBB, length)==0)){
 #' Load all annotated Subs files
 #+ allVcf, cache=TRUE, cache.lazy=FALSE
 allVcf <- mclapply(sampleIds, function(ID){
-			readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh37")
-		}, mc.cores=8)
+			try(readVcf(grep(ID, dir(vcfPath, pattern=".complete_annotation.vcf.bgz", full.names=TRUE), value=TRUE), genome="GRCh37"))
+		}, mc.cores=MCCORES)
 names(allVcf) <- sampleIds
 
 #' Reload a few (not run)
@@ -113,7 +115,7 @@ indelVcf <- mclapply(sampleIds, function(ID){
 			#v <- addDriver(v, mutsigDrivers)
 			#v <- addMutCn(v, allBB[[ID]])
 			#if(nrow(v) > 0) v[testIndel(v)] else v
-		}, mc.cores=8)
+		}, mc.cores=MCCORES)
 names(indelVcf) <- sampleIds
 
 #' Fix empty vcfs
@@ -157,22 +159,25 @@ indelAnnotated <- mclapply(sampleIds, function(ID){
 			class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 4
 			class[info(vcf)$MCN > 1 & class==2 ] <- 1
 			i <- info(vcf)
-			class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- 3
+			class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1 & class != 4] <- 3
 			class <- factor(class, levels=1:4, labels=c("clonal [early]","clonal [late]","clonal [NA]", "subclonal"))
 			class[is.na(info(vcf)$MCN)] <- NA
 			
 			info(vcf)$CLS <- class
 			
 			return(vcf)
-		}, mc.cores=8)
+		}, mc.cores=MCCORES)
 
 
 #' ## Genotypes
 #' Compute all genotypes, including zygousity
-#+ genotypes, cache=TRUE
-subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=8, useNA='always'))
-indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=8, useNA='always'))
+#+ subGenotypes, cache=TRUE
+subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=MCCORES, reclassify='all', useNA='always'))
 
+#+ indelGenotypes, cache=TRUE
+indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=MCCORES, reclassify='all',useNA='always'))
+
+#+ allGenotypes, cache=TRUE
 allGenotypes <- aperm(abind::abind(subs=subGenotypes,indels=indelGenotypes, along=5), c(1,5,2,3,4))
 
 #t <- (apply(allGenotypes, c(1,3), sum) + apply(indelGenotypes, c(1,3), sum))
@@ -180,7 +185,14 @@ allGenotypes <- aperm(abind::abind(subs=subGenotypes,indels=indelGenotypes, alon
 #' Most abundant
 #+ genesFrequency, fig.width=7
 t <- t(asum(allGenotypes[cancerGenesS,,,,], c(2,4,5)))
-barplot(t[,order(-colSums(t))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2)
+b <- asum(allGenotypes[725,,,,], c(1,3,4))
+rownames(t) <- paste(rownames(t), round(b/sum(b),2))
+barplot(t[,order(-colSums(t))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2, main="Clonal status")
+t <- t(asum(allGenotypes[cancerGenesS,,,,], c(2,3,5)))
+b <- asum(allGenotypes[725,,,,], c(1,2,4))
+rownames(t) <- paste(rownames(t), round(b/sum(b),2))
+barplot(t[,order(-colSums(t))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2, main="Homozygousity")
+
 
 #' Normalised by CDS length
 #+ genesDensity, fig.width=7
@@ -192,7 +204,9 @@ cdsByGene <- cdsBy(TxDb.Hsapiens.UCSC.hg19.knownGene, "gene")[na.omit(entrez[,2]
 cdsLength <- sapply(cdsByGene, function(x) sum(width(x)))
 names(cdsLength) <- entrez$SYMBOL[match(names(cdsLength), entrez$ENTREZID)]
 
-n <- t/rep(cdsLength[match(cancerGenesS, names(cdsLength))], each=5)
+n <-  t(asum(allGenotypes[cancerGenesS,,,,], c(2,4,5)))/rep(cdsLength[match(cancerGenesS, names(cdsLength))], each=5)
+b <- asum(allGenotypes[725,,,,], c(1,3,4))
+rownames(n) <- paste(rownames(t), round(b/sum(b),2))
 barplot(n[,order(-colSums(n))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2)
 
 n <- n[,!is.na(n[1,])]
@@ -233,31 +247,33 @@ tumourType <- factor(sub("-.+","",pcawg_info$dcc_project_code[match(sampleIds, p
 
 #' ### Total mutation frequencies, split by deaminations at CpG
 #+ tabDeam, cache=TRUE
-tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x)), mc.cores=8))
+tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x, reclassify="all")), mc.cores=MCCORES))
 
 #+ tabDeamPlot, fig.width=7
 nMut <- colSums(tabDeam,dims=2)
 tumourType <- factor(sub("-.+","",sampleInfo$sample_type)[match(sampleIds, sampleInfo$tumour_id)])
-mg14:::ggPlot(nMut, tumourType, xlab="", log='y', ylab="All mutations", pch=19)
+mg14:::ggPlot(nMut+1, tumourType, xlab="", log='y', ylab="All mutations", pch=19)
 
 nDeam <- colSums(tabDeam["TRUE",,])
-mg14:::ggPlot(nDeam, tumourType, xlab="", log='y', ylab="CpG>TpG", pch=19)
+mg14:::ggPlot(nDeam+1, tumourType, xlab="", log='y', ylab="CpG>TpG", pch=19)
 
-nDeamTrunk <- colSums(tabDeam["TRUE",1:2,])
-mg14:::ggPlot(nDeamTrunk, tumourType, xlab="", log='y', ylab="CpG>TpG (clonal)", pch=19)
+nDeamTrunk <- colSums(tabDeam["TRUE",1:3,])
+mg14:::ggPlot(nDeamTrunk+1, tumourType, xlab="", log='y', ylab="CpG>TpG (clonal)", pch=19)
 
 #mg14:::ggPlot(realTimeAll, tumourType, xlab="", log='y', ylab="Aging signature", ylim=c(1,200), pch=19)
 
+#' Individual branch lengths
+#+ lBranch, cache=TRUE
 lBranch <- sapply(allVcf, function(x) branchLengths(x, type="deam"))
 lTrunk <- sapply(lBranch, function(x) x[length(x)])
 
 #mg14:::ggPlot(lBranch, tumourType, xlab="", log='y', ylab="Branch lengths")
 
-mg14:::ggPlot(lTrunk, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=19)
+mg14:::ggPlot(lTrunk+1, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=19)
 
 #powerBranch <- sapply(sampleIds, function(ID) sapply(allClusters[[ID]]$proportion, function(pr) power(pr/purityPloidy[ID,2], round(coverage[ID]))))
 #avgPower <- mapply(power, purityPloidy[sampleIds,1]/purityPloidy[sampleIds,2], round(coverage), err=1e-3)
-avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=8))
+avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=MCCORES))
 
 
 #' Variation explained
@@ -276,7 +292,7 @@ abline(0,1)
 #' #### Run all 30 signatures
 #+ sigDecomp30, cache=TRUE
 signatures <- read.table("http://cancer.sanger.ac.uk/cancergenome/assets/signatures_probabilities.txt", header=TRUE, sep="\t")
-sigTable <- simplify2array(mclapply(allVcf, function(vcf) table(classifyMutations(vcf), tncToPyrimidine(vcf)), mc.cores=8))
+sigTable <- simplify2array(mclapply(allVcf, function(vcf) table(classifyMutations(vcf, reclassify="all"), tncToPyrimidine(vcf)), mc.cores=MCCORES))
 sigTable <- aperm(sigTable, c(2,3,1))
 dimnames(sigTable)[[2]] <- sampleIds
 S <- as.matrix(signatures[match(dimnames(sigTable)[[1]],as.character(signatures[,3])),1:30+3])
@@ -347,6 +363,7 @@ mg14:::ggPlot(sigDecomp[1,,2]+1, tumourType, log='y', ylab="Signature 1")
 t <- t(asum(sigDecomp, 2))
 barplot(t, col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
 barplot(t/rep(colSums(t), each=4),col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
+barplot(t[1:2,]/rep(colSums(t[1:2,]), each=2),col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
 
 
 
@@ -360,6 +377,9 @@ dimnames(tncProb)[[4]] <- rownames(S)
 
 
 #' ## WGD
+#+ wgdPlot, fig.width=7
+mg14:::ggPlot(purityPloidy[,2], tumourType, log='y', ylab="Avg. ploidy")
+
 #' ### Test for WGD
 library(mixtools)
 mixmdl = normalmixEM(purityPloidy[,2], k=3)
@@ -377,7 +397,7 @@ wgdDeam <- simplify2array(mclapply(allVcf, function(vcf){
 			w <- isDeamination(vcf) & abs(info(vcf)$CNF - purityPloidy[ID,"purity"]) < 0.01
 			t <- table(factor(info(vcf)$MCN[w], levels=1:20), factor(info(vcf)$TCN[w], levels=1:20))
 			c(t["1","4"], t["2","4"], rowSums(t["2",,drop=FALSE]))
-		}, mc.cores=8))
+		}, mc.cores=MCCORES))
 colnames(wgdDeam) <- sampleIds
 
 #+ wdgTime, 3,3
@@ -389,13 +409,7 @@ legend("bottomright", c("MCN=2; CN=4", "MCN=2"), pch=c(1,19))
 
 
 #' #### Direct using age
-a <- jitter(age)
-plot(a, age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]), col=col[tumourType], pch=ifelse(colSums(wgdDeam[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
-d <- density(na.omit(a))
-lines(d$x, 500*d$y)
-d <- density(na.omit( ifelse(colSums(wgdDeam[1:2,])==0,NA,age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]))))
-lines(500*d$y,d$x)
-abline(0,1)
+#+ wgdAge, warning=FALSE
 ci <- sapply(1:1000, function(foo){
 			n1 <- rpois(n=length(wgdDeam[1,]),lambda=wgdDeam[1,]+1)
 			n2 <- rpois(n=length(wgdDeam[2,]),lambda=wgdDeam[2,]+1)
@@ -404,10 +418,28 @@ ci <- sapply(1:1000, function(foo){
 
 ci <- apply(ci,1, function(x) if(all(is.na(x))) rep(NA,2) else quantile(x,c(.025, 0.975), na.rm=TRUE))
 
+#' Plotting age dist
+#+ tWgd
+col <- rep(col, each=2)[1:nlevels(tumourType)]
+names(col) <- levels(tumourType)
+a <- jitter(age)
+plot(a, age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]), col=col[tumourType], pch=ifelse(colSums(wgdDeam[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
+d <- density(na.omit(a))
+lines(d$x, 500*d$y)
+d <- density(na.omit( ifelse(colSums(wgdDeam[1:2,])==0,NA,age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]))))
+lines(500*d$y,d$x)
+abline(0,1)
 segments(a,ci[1,], a,ci[2,], col=col[tumourType], lwd=ifelse(colSums(wgdDeam[1:2,])==0,NA,1))
 
+#+ tWgdBox, fig.width=2
+boxplot(age*(1-tWgd), ylab="Time lag (yr)")
+
+#+ tWgdTumour, fig.width=7
 tWgd <- (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,])
-mg14:::ggPlot(tWgd, tumourType)
+par(las=2)
+mg14:::ggPlot(tWgd, tumourType, col=unlist(sapply(levels(tumourType)[order(aggregate(tWgd, list(tumourType), median, na.rm=TRUE)[,2], na.last=TRUE)], function(t) rep(col[t], table(tumourType)[t]))), pch=19, ylab="Relative time", las=2)
+mg14:::ggPlot(age*(1-tWgd), tumourType, col=unlist(sapply(levels(tumourType)[order(aggregate(age*(1-tWgd), list(tumourType), median, na.rm=TRUE)[,2], na.last=TRUE)], function(t) rep(col[t], table(tumourType)[t]))), pch=19, ylab="Time lag", las=2)
+
 
 #' ### Using TNC
 #+ wgdTnc, cache=TRUE
@@ -415,7 +447,7 @@ wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
 					ID <- meta(header(vcf))["ID","Value"]
 					if(which.max(mixmdl$posterior[rownames(purityPloidy)==ID,])!=3 | purityPloidy[ID,2] < 2)
 						return(matrix(NA,nrow=30, ncol=3))
-					c <- classifyMutations(vcf)
+					c <- classifyMutations(vcf, reclassify='all')
 					bb <- allBB[[ID]]
 					w <- which(vcf %over% bb[bb$minor_cn==2 & bb$major_cn==2] & c!="subclonal")
 					pre <- info(vcf)$MCN[w] == 2 &  info(vcf)$TCN[w] == 4
