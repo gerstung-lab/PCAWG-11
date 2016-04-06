@@ -210,7 +210,8 @@ classifyMutations <- function(vcf, reclassify=c("missing","all","none")) {
 			
 		}
 		cls[i$PEAR==0 & cls!="subclonal"] <- "clonal [NA]"
-		cls[cls!="subclonal" & (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- "clonal [NA]"
+		if(!is.null(i$MJCN))
+			cls[cls!="subclonal" & (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- "clonal [NA]"
 		cls <- factor(cls, levels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
 	}
 	cls <- .clsfy(i = i)
