@@ -215,8 +215,8 @@ classifyMutations <- function(vcf, reclassify=c("missing","all","none")) {
 	return(cls)
 }
 
-getGenotype <- function(vcf, ...){
-	cls <- classifyMutations(vcf = vcf)
+getGenotype <- function(vcf, reclassify='missing', ...){
+	cls <- classifyMutations(vcf = vcf, reclassify=reclassify)
 	t <- info(vcf)$TCN
 	if(is.null(t))
 		t <- info(vcf)$MNCN + info(vcf)$MJCN
