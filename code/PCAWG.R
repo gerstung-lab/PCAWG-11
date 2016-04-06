@@ -205,7 +205,9 @@ cdsByGene <- cdsBy(TxDb.Hsapiens.UCSC.hg19.knownGene, "gene")[na.omit(entrez[,2]
 cdsLength <- sapply(cdsByGene, function(x) sum(width(x)))
 names(cdsLength) <- entrez$SYMBOL[match(names(cdsLength), entrez$ENTREZID)]
 
-n <- t/rep(cdsLength[match(cancerGenesS, names(cdsLength))], each=5)
+n <-  t(asum(allGenotypes[cancerGenesS,,,,], c(2,4,5)))/rep(cdsLength[match(cancerGenesS, names(cdsLength))], each=5)
+b <- asum(allGenotypes[725,,,,], c(1,3,4))
+rownames(n) <- paste(rownames(n), round(b/sum(b),2))
 barplot(n[,order(-colSums(n))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2)
 
 n <- n[,!is.na(n[1,])]
