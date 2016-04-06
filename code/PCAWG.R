@@ -160,7 +160,7 @@ indelAnnotated <- mclapply(sampleIds, function(ID){
 			class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 4
 			class[info(vcf)$MCN > 1 & class==2 ] <- 1
 			i <- info(vcf)
-			class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- 3
+			class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1 & class != 4] <- 3
 			class <- factor(class, levels=1:4, labels=c("clonal [early]","clonal [late]","clonal [NA]", "subclonal"))
 			class[is.na(info(vcf)$MCN)] <- NA
 			
@@ -173,8 +173,8 @@ indelAnnotated <- mclapply(sampleIds, function(ID){
 #' ## Genotypes
 #' Compute all genotypes, including zygousity
 #+ genotypes, cache=TRUE
-subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=MCCORES, useNA='always'))
-indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=MCCORES, useNA='always'))
+subGenotypes <- simplify2array(mclapply(allVcf,  getGenotype, mc.cores=MCCORES, reclassify='all', useNA='always'))
+indelGenotypes <- simplify2array(mclapply(indelAnnotated,  getGenotype, mc.cores=MCCORES, reclassify='all',useNA='always'))
 
 allGenotypes <- aperm(abind::abind(subs=subGenotypes,indels=indelGenotypes, along=5), c(1,5,2,3,4))
 
@@ -243,7 +243,7 @@ tumourType <- factor(sub("-.+","",pcawg_info$dcc_project_code[match(sampleIds, p
 
 #' ### Total mutation frequencies, split by deaminations at CpG
 #+ tabDeam, cache=TRUE
-tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x)), mc.cores=MCCORES))
+tabDeam <- simplify2array(mclapply(allVcf, function(x) table(isDeamination(x), classifyMutations(x, reclassify="all")), mc.cores=MCCORES))
 
 #+ tabDeamPlot, fig.width=7
 nMut <- colSums(tabDeam,dims=2)
@@ -288,7 +288,7 @@ abline(0,1)
 #' #### Run all 30 signatures
 #+ sigDecomp30, cache=TRUE
 signatures <- read.table("http://cancer.sanger.ac.uk/cancergenome/assets/signatures_probabilities.txt", header=TRUE, sep="\t")
-sigTable <- simplify2array(mclapply(allVcf, function(vcf) table(classifyMutations(vcf), tncToPyrimidine(vcf)), mc.cores=MCCORES))
+sigTable <- simplify2array(mclapply(allVcf, function(vcf) table(classifyMutations(vcf, reclassify="all"), tncToPyrimidine(vcf)), mc.cores=MCCORES))
 sigTable <- aperm(sigTable, c(2,3,1))
 dimnames(sigTable)[[2]] <- sampleIds
 S <- as.matrix(signatures[match(dimnames(sigTable)[[1]],as.character(signatures[,3])),1:30+3])
@@ -443,7 +443,7 @@ wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
 					ID <- meta(header(vcf))["ID","Value"]
 					if(which.max(mixmdl$posterior[rownames(purityPloidy)==ID,])!=3 | purityPloidy[ID,2] < 2)
 						return(matrix(NA,nrow=30, ncol=3))
-					c <- classifyMutations(vcf)
+					c <- classifyMutations(vcf, reclassify='all')
 					bb <- allBB[[ID]]
 					w <- which(vcf %over% bb[bb$minor_cn==2 & bb$major_cn==2] & c!="subclonal")
 					pre <- info(vcf)$MCN[w] == 2 &  info(vcf)$MJCN[w] == 2 &  info(vcf)$MNCN[w] == 2
