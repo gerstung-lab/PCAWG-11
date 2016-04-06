@@ -183,7 +183,14 @@ allGenotypes <- aperm(abind::abind(subs=subGenotypes,indels=indelGenotypes, alon
 #' Most abundant
 #+ genesFrequency, fig.width=7
 t <- t(asum(allGenotypes[cancerGenesS,,,,], c(2,4,5)))
-barplot(t[,order(-colSums(t))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2)
+b <- asum(allGenotypes[725,,,,], c(1,3,4))
+rownames(t) <- paste(rownames(t), round(b/sum(b),2))
+barplot(t[,order(-colSums(t))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2, main="Clonal status")
+t <- t(asum(allGenotypes[cancerGenesS,,,,], c(2,3,5)))
+b <- asum(allGenotypes[725,,,,], c(1,2,4))
+rownames(t) <- paste(rownames(t), round(b/sum(b),2))
+barplot(t[,order(-colSums(t))[1:100]], col=RColorBrewer::brewer.pal(5,"Set1"), legend=TRUE ,las=2, main="Homozygousity")
+
 
 #' Normalised by CDS length
 #+ genesDensity, fig.width=7
@@ -352,6 +359,7 @@ mg14:::ggPlot(sigDecomp[1,,2]+1, tumourType, log='y', ylab="Signature 1")
 t <- t(asum(sigDecomp, 2))
 barplot(t, col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
 barplot(t/rep(colSums(t), each=4),col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
+barplot(t[1:2,]/rep(colSums(t[1:2,]), each=2),col=RColorBrewer::brewer.pal(4,"Set1"), legend=TRUE, las=2)
 
 
 
@@ -365,6 +373,9 @@ dimnames(tncProb)[[4]] <- rownames(S)
 
 
 #' ## WGD
+#+ wgdPlot, fig.width=7
+mg14:::ggPlot(purityPloidy[,2], tumourType, log='y', ylab="Avg. ploidy")
+
 #' ### Test for WGD
 library(mixtools)
 mixmdl = normalmixEM(purityPloidy[,2], k=3)
@@ -380,8 +391,8 @@ wgdDeam <- simplify2array(mclapply(allVcf, function(vcf){
 			if(which.max(mixmdl$posterior[rownames(purityPloidy)==ID,])!=3 | purityPloidy[ID,2] < 2)
 				return(rep(NA,3))
 			w <- isDeamination(vcf) & abs(info(vcf)$CNF - purityPloidy[ID,"purity"]) < 0.01
-			t <- table(factor(info(vcf)$MCN[w], levels=1:20), factor(info(vcf)$MJCN[w] + info(vcf)$MNCN[w], levels=1:20))
-			c(t["1","4"], t["2","4"], rowSums(t["2",,drop=FALSE]))
+			t <- table(factor(info(vcf)$MCN[w], levels=1:20), factor(info(vcf)$MJCN[w], levels=1:20), factor(info(vcf)$MNCN[w], levels=1:20))
+			c(t["1","2","2"], t["2","2","2"], rowSums(t["2",,,drop=FALSE]))
 		}, mc.cores=MCCORES))
 colnames(wgdDeam) <- sampleIds
 
@@ -394,13 +405,7 @@ legend("bottomright", c("MCN=2; CN=4", "MCN=2"), pch=c(1,19))
 
 
 #' #### Direct using age
-a <- jitter(age)
-plot(a, age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]), col=col[tumourType], pch=ifelse(colSums(wgdDeam[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
-d <- density(na.omit(a))
-lines(d$x, 500*d$y)
-d <- density(na.omit( ifelse(colSums(wgdDeam[1:2,])==0,NA,age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]))))
-lines(500*d$y,d$x)
-abline(0,1)
+#+ wgdAge, warning=FALSE
 ci <- sapply(1:1000, function(foo){
 			n1 <- rpois(n=length(wgdDeam[1,]),lambda=wgdDeam[1,]+1)
 			n2 <- rpois(n=length(wgdDeam[2,]),lambda=wgdDeam[2,]+1)
@@ -409,10 +414,28 @@ ci <- sapply(1:1000, function(foo){
 
 ci <- apply(ci,1, function(x) if(all(is.na(x))) rep(NA,2) else quantile(x,c(.025, 0.975), na.rm=TRUE))
 
+#' Plotting age dist
+#+ tWgd
+col <- rep(col, each=2)[1:nlevels(tumourType)]
+names(col) <- levels(tumourType)
+a <- jitter(age)
+plot(a, age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]), col=col[tumourType], pch=ifelse(colSums(wgdDeam[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
+d <- density(na.omit(a))
+lines(d$x, 500*d$y)
+d <- density(na.omit( ifelse(colSums(wgdDeam[1:2,])==0,NA,age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]))))
+lines(500*d$y,d$x)
+abline(0,1)
 segments(a,ci[1,], a,ci[2,], col=col[tumourType], lwd=ifelse(colSums(wgdDeam[1:2,])==0,NA,1))
 
+#+ tWgdBox, fig.width=2
+boxplot(age*(1-tWgd), ylab="Time lag (yr)")
+
+#+ tWgdTumour, fig.width=7
 tWgd <- (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,])
-mg14:::ggPlot(tWgd, tumourType)
+par(las=2)
+mg14:::ggPlot(tWgd, tumourType, col=unlist(sapply(levels(tumourType)[order(aggregate(tWgd, list(tumourType), median, na.rm=TRUE)[,2], na.last=TRUE)], function(t) rep(col[t], table(tumourType)[t]))), pch=19, ylab="Relative time", las=2)
+mg14:::ggPlot(age*(1-tWgd), tumourType, col=unlist(sapply(levels(tumourType)[order(aggregate(age*(1-tWgd), list(tumourType), median, na.rm=TRUE)[,2], na.last=TRUE)], function(t) rep(col[t], table(tumourType)[t]))), pch=19, ylab="Time lag", las=2)
+
 
 #' ### Using TNC
 #+ wgdTnc, cache=TRUE
@@ -446,6 +469,8 @@ wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
 
 rowMeans((1-wgdTnc[,1,])*rep(age[isWgd],30), na.rm=TRUE)
 
+#' A few plots
+apply((1-wgdTnc[,1,])*rep(age[isWgd],30),1, median, na.rm=TRUE)
 
 
 #' ## Selection
