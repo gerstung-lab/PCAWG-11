@@ -83,7 +83,7 @@ getAltCount <- function(vcf){
 	}
 }
 
-computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]]){
+computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], gender='female'){
 	if(nrow(vcf)==0)
 		return(DataFrame(MCN=numeric(),TCN=numeric(),CNF=numeric(),PMCN=numeric(), CNID=numeric()))
 	altCount <- getAltCount(vcf)
@@ -94,6 +94,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	f <- findOverlaps(vcf, bb)
 	majorCN <- split(bb$major_cn[subjectHits(f)], queryHits(f))
 	minorCN <- split(bb$minor_cn[subjectHits(f)], queryHits(f))	
+	
+	cnNormal <- 2 - (gender=='male' & seqnames(vcf)=="X" | seqnames(vcf)=="Y")
 	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(f)], queryHits(f))
 	n <- length(altCount)
@@ -106,7 +108,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 		mincni <- minorCN[[as.character(i)]]
 		cfi <- cloneFreq[[as.character(i)]]
 		effCnTumor <- sum((majcni + mincni)*cfi)
-		effCnNormal <- 2 * (1-purity)
+		effCnNormal <- (cnNormal[i]) * (1-purity)
 		
 		if(any(is.na(majcni))) next
 		
