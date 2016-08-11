@@ -77,8 +77,12 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 }
 
 #' Add mutation copy numbers
-vcf <-  addMutCn(vcf, bb, clusters)
-
+# vcf <-  addMutCn(vcf, bb, clusters)
+i = header(vcf)@header$INFO
+exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Major copy number","Minor copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","MJCN","MNCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
+MCN <- computeMutCn(vcf, bb, clusters)
+info(vcf) <- cbind(info(vcf), MCN$D)
+bb$timing_param <- MCN$P 
 
 #' Remove spurious clusters
 info(vcf)$DPC[!info(vcf)$DPC %in% clusters$cluster[clusters$proportion < 1] ] <- NA
@@ -98,5 +102,6 @@ info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String"
 #' Save output
 #fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileOut)
 writeVcf(vcf, file=vcfFileOut)
+save(bb, file=sub(".vcf",".bb_granges.RData",vcfFileOut))
 bgzip(vcfFileOut, overwrite=TRUE)
 save(vcf, file=paste0(vcfFileOut,".RData"))
