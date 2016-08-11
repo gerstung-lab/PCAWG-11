@@ -91,11 +91,11 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	names(altCount) <- names(tumDepth) <- NULL
 	ID <- meta(header(vcf))[["META"]]["ID",]
 	purity <- purityPloidy[ID, 'purity']
-	f <- findOverlaps(vcf, bb)
-	majorCN <- split(bb$major_cn[subjectHits(f)], queryHits(f))
-	minorCN <- split(bb$minor_cn[subjectHits(f)], queryHits(f))	
-	h <- selectHits(f, "first")
-	H <- selectHits(f, "last")
+	overlaps <- findOverlaps(vcf, bb)
+	majorCN <- split(bb$major_cn[subjectHits(overlaps)], queryHits(overlaps))
+	minorCN <- split(bb$minor_cn[subjectHits(overlaps)], queryHits(overlaps))	
+	h <- selectHits(overlaps, "first")
+	H <- selectHits(overlaps, "last")
 	
 	cnNormal <- 2 - (gender=='male' & seqnames(vcf)=="X" | seqnames(vcf)=="Y")
 	

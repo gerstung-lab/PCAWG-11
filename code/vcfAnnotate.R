@@ -11,6 +11,9 @@ source("functions.R")
 vcfFileIn <- args[1]
 vcfFileOut <- args[2]
 
+print(vcfFileIn)
+print(vcfFileOut)
+
 library(VariantAnnotation)
 library(Matrix)
 library(CoxHD)
