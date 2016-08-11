@@ -105,6 +105,6 @@ info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String"
 #' Save output
 #fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileOut)
 writeVcf(vcf, file=vcfFileOut)
-save(bb, file=sub(".vcf",".bb_granges.RData",vcfFileOut))
+save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 bgzip(vcfFileOut, overwrite=TRUE)
 save(vcf, file=paste0(vcfFileOut,".RData"))
