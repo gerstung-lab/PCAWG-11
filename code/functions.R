@@ -89,7 +89,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	altCount <- getAltCount(vcf)
 	tumDepth <- getTumorDepth(vcf)
 	names(altCount) <- names(tumDepth) <- NULL
-	ID <- meta(header(vcf))[["META"]]["ID",]
+	ID <- meta(header(vcf))["ID",]
 	purity <- purityPloidy[ID, 'purity']
 	overlaps <- findOverlaps(vcf, bb)
 	majorCN <- split(bb$major_cn[subjectHits(overlaps)], queryHits(overlaps))
