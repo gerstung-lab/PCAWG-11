@@ -89,101 +89,163 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	altCount <- getAltCount(vcf)
 	tumDepth <- getTumorDepth(vcf)
 	names(altCount) <- names(tumDepth) <- NULL
-	ID <- meta(header(vcf))["ID",]
+	ID <- meta(header(vcf))[["META"]]["ID",]
 	purity <- purityPloidy[ID, 'purity']
 	f <- findOverlaps(vcf, bb)
 	majorCN <- split(bb$major_cn[subjectHits(f)], queryHits(f))
 	minorCN <- split(bb$minor_cn[subjectHits(f)], queryHits(f))	
+	h <- selectHits(f, "first")
+	H <- selectHits(f, "last")
 	
 	cnNormal <- 2 - (gender=='male' & seqnames(vcf)=="X" | seqnames(vcf)=="Y")
 	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(f)], queryHits(f))
 	n <- length(altCount)
 	D <- DataFrame(MCN=rep(NA,n), MJCN=rep(NA,n), MNCN=rep(NA,n), CNF=rep(NA,n), CNID =as(f,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
-	cnStates <- matrix(0, nrow=10000, ncol=4)
-	colnames(cnStates) <- c("state","cn","p","piCn")
-	for( i in seq_along(altCount)){
+	P <- vector(mode='list', length(bb))
+	cnStates <- matrix(0, nrow=10000, ncol=5)
+	colnames(cnStates) <- c("state","m","f","n.m.s","pi.m.s")
+	for( i in which(diff(c(-1, h)) !=0 | is.na(diff(c(-1, h)) !=0) )){
 		if(!i %in% names(majorCN)) next
-		majcni <- majorCN[[as.character(i)]]
-		mincni <- minorCN[[as.character(i)]]
-		cfi <- cloneFreq[[as.character(i)]]
-		effCnTumor <- sum((majcni + mincni)*cfi)
-		effCnNormal <- (cnNormal[i]) * (1-purity)
-		
-		if(any(is.na(majcni))) next
-		
-		multFlag <- rep(FALSE, length(cfi))
-		
-		if(length(cfi)>1){ # multiple CN states, if so add clonal option (ie. mixture of both states)
-			majcni <- c(majcni, max(majcni))
-			mincni <- c(mincni, max(mincni))
-			cfi <- c(cfi, purity)
-			multFlag <- c(multFlag, TRUE)
-		}
-		
-		a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > 0.05)) # subclone(s) not coinciding with CN change
-		if(any(a)){ # assume subclones have derived from most abundant CN state
-			majcni <- c(majcni, rep(majcni[which.max(cfi)], sum(a)))
-			mincni <- c(mincni, rep(mincni[which.max(cfi)], sum(a)))
-			cfi <- c(cfi, clusters$proportion[a])
-			multFlag <- c(multFlag, rep(FALSE, sum(a)))
-		}
-		totcni <- majcni+mincni
-		piState <- sapply(cfi, function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
-		piState <- piState/sum(piState)
-		if(all(totcni==0)) next
-
-		k <- 0
-		for( j in seq_along(majcni)){
-			if(majcni[j]==0) {
-				p <- cn <- piCn <- 0
-				l <- 1
-			}else{
-				l <- 1:majcni[j]
-				cn <- l
-				piCn <- rep(1, length(l)) #multiplicity of cn states
-				if(!multFlag[j]){ # single subclone, or no subclonal cn
-					p <- l * cfi[j] / (effCnTumor + effCnNormal)
-					if(mincni[j] > 0)
-						piCn[1:mincni[j]] <- 2
-					piCn <- piCn/sum(piCn)
-				}else{ # coexisting cn subclones, use mixture
-					p <- (cfi[1] * pmin(l, majcni[1]) + cfi[2] * pmin(l,majcni[2])) / (effCnTumor + effCnNormal) # Variant on major allele
-					if(mincni[j] > 0){ # Variant on minor allele
-						ll <- 1:mincni[j]
-						p <- c(p,  (cfi[1] * pmin(ll, mincni[1]) + cfi[2] * pmin(ll,mincni[2])) / (effCnTumor + effCnNormal))
-						piCn <- c(piCn, rep(1, length(ll)))
-						cn <- c(l,ll)
-						l <- seq_along(cn)
-					}
-					piCn <- piCn/sum(piCn)
-				}
+		if(is.na(h[i])) next
+		if(if(i>1) h[i] != h[i-1] | is.na(h[i-1]) else TRUE){ #ie. new segment
+			majcni <- majorCN[[as.character(i)]]
+			mincni <- minorCN[[as.character(i)]]
+			cfi <- cloneFreq[[as.character(i)]]
+			effCnTumor <- sum((majcni + mincni)*cfi)
+			effCnNormal <- as.numeric(cnNormal[i]) * (1-purity)
+			
+			if(any(is.na(majcni))) next
+			
+			multFlag <- rep(FALSE, length(cfi))
+			
+			if(length(cfi)>1){ # multiple (subclonal) CN states, if so add clonal option (ie. mixture of both states), subclonal states only change by 1..delta(CN)
+				majcni <- c(rep(1, 2) + c(0, diff(majcni)), max(majcni))
+				mincni <- c(rep(1, 2) + c(0, diff(mincni)), max(mincni))
+				cfi <- c(cfi, purity)
+				multFlag <- c(multFlag, TRUE)
 			}
-			cnStates[k + l,"state"]=j
-			cnStates[k + l,"cn"]=cn
-			cnStates[k + l,"p"]=p
-			cnStates[k + l,"piCn"]=piCn
-			k <- k + length(l)
+			
+			a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > 0.05)) # subclone(s) not coinciding with CN change
+			if(any(a)){ # assume subclones have derived from most abundant CN state
+				majcni <- c(majcni, rep(majcni[which.max(cfi)]>0, sum(a))+0)
+				mincni <- c(mincni, rep(mincni[which.max(cfi)]>0, sum(a))+0)
+				cfi <- c(cfi, clusters$proportion[a])
+				multFlag <- c(multFlag, rep(FALSE, sum(a)))
+			}
+			totcni <- majcni+mincni
+			pi.s <- sapply(cfi, function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
+			pi.s <- pi.s/sum(pi.s)
+			if(all(totcni==0)) next
+			
+			k <- 0
+			for( j in seq_along(majcni)){
+				if(majcni[j]==0) {
+					f <- m <- pi.m.s <- n.m.s <- 0 # allele frequency
+					l <- 1
+				}else{
+					l <- 1:max(majcni[j], mincni[j]) # mincni>majcni can occur if minor allele changes subclonally
+					m <- l
+					n.m.s <- rep(1, length(l)) #multiplicity of cn states
+					if(!multFlag[j]){ # single subclone, or no subclonal cn
+						f <- l * cfi[j] / (effCnTumor + effCnNormal)
+						if(mincni[j] > 0)
+							n.m.s[1:min(majcni[j], mincni[j])] <- 2
+						pi.m.s <- n.m.s/sum(n.m.s)
+					}else{ # coexisting cn subclones, use mixture
+						f <- (cfi[1] * pmin(l, majcni[1]) + cfi[2] * pmin(l,majcni[2])) / (effCnTumor + effCnNormal) # Variant on major allele
+						if(mincni[j] > 0){ # Variant on minor allele
+							ll <- 1:mincni[j]
+							f <- c(f,  (cfi[1] * pmin(ll, mincni[1]) + cfi[2] * pmin(ll,mincni[2])) / (effCnTumor + effCnNormal))
+							d <- !duplicated(f) # remove duplicates
+							n.m.s <- table(f)[as.character(f[d])] # table duplicates
+							f <- f[d]
+							#piCnState[1:mincni[j]] <- 2 
+							m <- c(l,ll)[d]
+							l <- seq_along(m)
+						}
+						pi.m.s <- n.m.s/sum(n.m.s)
+					}
+				}
+				cnStates[k + l,"state"]=j
+				cnStates[k + l,"m"]=m
+				cnStates[k + l,"f"]=f
+				cnStates[k + l,"pi.m.s"]=pi.m.s
+				cnStates[k + l,"n.m.s"]=n.m.s
+				k <- k + length(l)
+			}
+			hh <- which(h==h[i])
+			L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbinom(altCount[hh],tumDepth[hh],pp)), ncol=k)
+			
+			# EM algorithm (mixture fitting) for pi
+			P.m.sX <- cnStates[1:k,"pi.m.s"]
+			for(em.it in 1:100){
+				P.xsm <- L * rep(pi.s[cnStates[1:k,"state"]] * P.m.sX, each=nrow(L)) # P(X,s,m)
+				P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
+				P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
+				P.s.X <- sapply(split(P.sm.X, cnStates[1:k,"state"]), sum)
+				P.m.sX <- P.sm.X / P.s.X[cnStates[1:k,"state"]]
+			}
+			
+#			boot <- sapply(1:100, function(foo) {Lb <- L[sample(1:nrow(L), replace=TRUE),]
+#						P.m.sX <- cnStates[1:k,"pi.m.s"]
+#						for(em.it in 1:100){
+#							P.xsm <- Lb * rep(pi.s[cnStates[1:k,"state"]] * P.m.sX, each=nrow(L)) # P(X,s,m)
+#							P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
+#							P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
+#							P.s.X <- sapply(split(P.sm.X, cnStates[1:k,"state"]), sum)
+#							P.m.sX <- P.sm.X / P.s.X[cnStates[1:k,"state"]]
+#						}
+#						return(P.m.sX)})
+#			
+#			
+#			S <- L * rep(pi.s[cnStates[1:k,"state"]], each=nrow(L)) / rowSums(L * rep(pi.s[cnStates[1:k,"state"]] * P.m.sX, each=nrow(L))) # Sufficient statistic
+#			S <- sapply(1:j, function(jj) rowSums(S[,cnStates[1:k,"state"]==jj, drop=FALSE]) - S[,cnStates[1:k,"state"]==jj, drop=FALSE][,1])
+#			V <- solve(t(S)%*% S) # Cramer-Rao bound on the variance of pi.m.s
+#			a <- P.m.sX*(1-P.m.sX)/diag(V) * P.m.sX - P.m.sX
+#			b <- a * (1-P.m.sX)/P.m.sX
+			
+			
+			
+			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
+			
+			D[hh, "PSUB"] <- rowSums(P.sm.x[, cnStates[1:k,"state"]!=which.max(cfi), drop=FALSE])
+			D[hh, "PEAR"] <- rowSums(P.sm.x[, cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]>1, drop=FALSE])
+			D[hh, "PLAT"] <- rowSums(P.sm.x[, cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]<=1, drop=FALSE])
+			
+			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
+			
+			D[hh, "MCN"] <- cnStates[w,"m"]
+			D[hh,"MNCN"] <- mincni[cnStates[w,"state"]]
+			D[hh,"MJCN"] <- majcni[cnStates[w,"state"]]
+			D[hh,"CNF"] <- cfi[cnStates[w,"state"]] 
+			D[hh,"PMCN"] <- sapply(seq_along(w), function(i) P.sm.x[i,w[i]])
+			
+			P[[h[i]]] <- cbind(cnStates[1:k,], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX)
+			if(H[1] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
 		}
-		L <- sapply(cnStates[1:k,"p"], function(s) dbinom(altCount[i],tumDepth[i],pmin(s,1))) + .Machine$double.eps
-		post <- L * piState[cnStates[1:k,"state"]] * cnStates[1:k,"piCn"]
-		post <- post/sum(post)
-		if(any(is.nan(post) | is.na(post))) next
-		D[i,"PSUB"] <- sum(post[cnStates[1:k,"state"]!=which.max(cfi)])
-		D[i,"PEAR"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"cn"]>1])
-		D[i,"PLAT"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"cn"]<=1])
 		
-		w <- which.max(post)
-		#idx <- as.numeric(strsplit(names(prob[w]), ":")[[1]])
-		#names(prob) <- NULL
-		D[i,"MCN"] <- cnStates[w,"cn"]
-		D[i,"MNCN"] <- mincni[cnStates[w,"state"]]
-		D[i,"MJCN"] <- majcni[cnStates[w,"state"]]
-		D[i,"CNF"] <- cfi[cnStates[w,"state"]] 
-		D[i,"PMCN"] <- post[w]
+		
+		#L <- dbinom(altCount[i],tumDepth[i],pmin(cnStates[1:k,"f"],1)) + .Machine$double.eps
+		#post <- L * piState[cnStates[1:k,"state"]] * cnStates[1:k,"pi.m.s"]
+		#post <- post/sum(post)
+#		post <- P.sm.x[hh==i,]
+#		if(any(is.nan(post) | is.na(post))) next
+#		D[i,"PSUB"] <- sum(post[cnStates[1:k,"state"]!=which.max(cfi)])
+#		D[i,"PEAR"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]>1])
+#		D[i,"PLAT"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]<=1])
+#		
+#		w <- which.max(post)
+#		#idx <- as.numeric(strsplit(names(prob[w]), ":")[[1]])
+#		#names(prob) <- NULL
+#		D[i,"MCN"] <- cnStates[w,"m"]
+#		D[i,"MNCN"] <- mincni[cnStates[w,"state"]]
+#		D[i,"MJCN"] <- majcni[cnStates[w,"state"]]
+#		D[i,"CNF"] <- cfi[cnStates[w,"state"]] 
+#		D[i,"PMCN"] <- post[w]
 		
 	}
-	return(D)
+	return(list(D=D,P=P))
 }
 
 addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClusters[[meta(header(vcf))["ID",]]]){
