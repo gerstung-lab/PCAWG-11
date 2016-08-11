@@ -222,7 +222,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			D[hh,"PMCN"] <- sapply(seq_along(w), function(i) P.sm.x[i,w[i]])
 			
 			P[[h[i]]] <- cbind(cnStates[1:k,], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX)
-			if(H[1] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
+			if(H[i] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
 		}
 		
 		
