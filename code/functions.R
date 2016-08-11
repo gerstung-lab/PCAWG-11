@@ -99,7 +99,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	
 	cnNormal <- 2 - (gender=='male' & seqnames(vcf)=="X" | seqnames(vcf)=="Y")
 	
-	cloneFreq <- split(bb$clonal_frequency[subjectHits(f)], queryHits(f))
+	cloneFreq <- split(bb$clonal_frequency[subjectHits(overlaps)], queryHits(overlaps))
 	n <- length(altCount)
 	D <- DataFrame(MCN=rep(NA,n), MJCN=rep(NA,n), MNCN=rep(NA,n), CNF=rep(NA,n), CNID =as(f,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
 	P <- vector(mode='list', length(bb))
