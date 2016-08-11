@@ -175,7 +175,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				k <- k + length(l)
 			}
 			hh <- which(h==h[i])
-			L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbinom(altCount[hh],tumDepth[hh],pp)), ncol=k)
+			L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbinom(altCount[hh],tumDepth[hh],pp) + .Machine$double.eps), ncol=k)
 			
 			# EM algorithm (mixture fitting) for pi
 			P.m.sX <- cnStates[1:k,"pi.m.s"]
@@ -214,6 +214,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			D[hh, "PLAT"] <- rowSums(P.sm.x[, cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]<=1, drop=FALSE])
 			
 			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
+			if(! all(is.na(w)))
 			
 			D[hh, "MCN"] <- cnStates[w,"m"]
 			D[hh,"MNCN"] <- mincni[cnStates[w,"state"]]
