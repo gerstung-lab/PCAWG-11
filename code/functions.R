@@ -101,7 +101,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(overlaps)], queryHits(overlaps))
 	n <- length(altCount)
-	D <- DataFrame(MCN=rep(NA,n), MJCN=rep(NA,n), MNCN=rep(NA,n), CNF=rep(NA,n), CNID =as(f,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
+	D <- DataFrame(MCN=rep(NA,n), MJCN=rep(NA,n), MNCN=rep(NA,n), CNF=rep(NA,n), CNID =as(overlaps,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
 	P <- vector(mode='list', length(bb))
 	cnStates <- matrix(0, nrow=10000, ncol=5)
 	colnames(cnStates) <- c("state","m","f","n.m.s","pi.m.s")
@@ -175,8 +175,9 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				k <- k + length(l)
 			}
 			hh <- which(h==h[i])
+			#L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbetabinom(altCount[hh],tumDepth[hh],pp, 0.01) + .Machine$double.eps), ncol=k)
 			L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbinom(altCount[hh],tumDepth[hh],pp) + .Machine$double.eps), ncol=k)
-			
+
 			# EM algorithm (mixture fitting) for pi
 			P.m.sX <- cnStates[1:k,"pi.m.s"]
 			for(em.it in 1:100){
