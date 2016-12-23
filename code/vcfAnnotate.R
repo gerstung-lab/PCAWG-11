@@ -83,7 +83,7 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Major copy number","Minor copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","MJCN","MNCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
-MCN <- computeMutCn(vcf, bb, clusters)
+MCN <- computeMutCn(vcf, bb, clusters, xmin=3)
 info(vcf) <- cbind(info(vcf), MCN$D)
 bb$timing_param <- MCN$P 
 
