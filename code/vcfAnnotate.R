@@ -110,7 +110,8 @@ bgzip(vcfFileOut, overwrite=TRUE)
 save(vcf, file=paste0(vcfFileOut,".RData"))
 
 pdf(file=sub(".vcf$",".pdf",vcfFileOut), 8,4)
-plot(getAltCount(vcf)/getTumorDepth(vcf),col=classifyMutations(vcf, reclassify='all'), xlab='Mutation', ylab="VAF")
+par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
+plot(getAltCount(vcf)/getTumorDepth(vcf),col=RColorBrewer::brewer.pal(4, "Set1")[c(3,2,1,4)][classifyMutations(vcf, reclassify='all')], xlab='Mutation', ylab="VAF", pch=16)
 dev.off()
 
 

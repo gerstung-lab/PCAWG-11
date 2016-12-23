@@ -100,7 +100,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	cnNormal <- 2 - (gender=='male' & seqnames(vcf)=="X" | seqnames(vcf)=="Y")
 	
 	# Fix cluster and purity discrepancies
-	clusters$proportion[which.min(abs(clusters$proportion - purity))] <- purity
+	clusters$proportion[which.max(clusters$proportion)] <- purity
 	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(overlaps)], queryHits(overlaps))
 	n <- length(altCount)
