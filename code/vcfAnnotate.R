@@ -108,3 +108,9 @@ writeVcf(vcf, file=vcfFileOut)
 save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 bgzip(vcfFileOut, overwrite=TRUE)
 save(vcf, file=paste0(vcfFileOut,".RData"))
+
+pdf(file=sub(".vcf$",".pdf",vcfFileOut), 8,4)
+plot(getAltCount(vcf)/getTumorDepth(vcf),col=classifyMutations(vcf, reclassify='all'), xlab='Mutation', ylab="VAF")
+dev.off()
+
+
