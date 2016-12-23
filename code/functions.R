@@ -158,7 +158,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			k <- 0
 			for( j in seq_along(majcni)){
 				if(majcni[j]==0 & mincni[j]==0) {
-					f <- m <- pi.m.s <- n.m.s <- 0 # allele frequency
+					f <- m <- 0 # allele frequency
+					pi.m.s <- n.m.s <- 1
 					l <- 1
 				}else{
 					l <- 1:max(majcni[j], mincni[j]) # mincni>majcni can occur if minor allele changes subclonally
@@ -221,14 +222,16 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
+			P[[h[i]]] <- cbind(cnStates[1:k,], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX)
+			if(H[i] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
+
+			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
+			if(all(is.na(w))) next
 			
 			D[hh, "PSUB"] <- rowSums(P.sm.x[, !cnStates[1:k,"state"] %in% which(clonalFlag), drop=FALSE])
 			D[hh, "PEAR"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag & !subclonalGainFlag) & cnStates[1:k,"m"]>1, drop=FALSE])
 			#D[hh, "PLAT"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
 			D[hh, "PLAT"] <-  1 - D[hh, "PSUB"] - D[hh, "PEAR"]			
-
-			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
-			if(! all(is.na(w)))
 			
 			D[hh,"MCN"]  <- cnStates[w,"m"]
 			D[hh,"MNCN"] <- mincni[cnStates[w,"state"]]
@@ -236,8 +239,6 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			D[hh,"CNF"]  <- cfi[cnStates[w,"state"]] 
 			D[hh,"PMCN"] <- sapply(seq_along(w), function(i) P.sm.x[i,w[i]])
 			
-			P[[h[i]]] <- cbind(cnStates[1:k,], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX)
-			if(H[i] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
 		}
 		
 		
