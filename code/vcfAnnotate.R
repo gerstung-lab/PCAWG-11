@@ -20,6 +20,7 @@ library(CoxHD)
 library(igraph)
 
 r = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
+refLengths <- scanFaIndex(file=r)
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
