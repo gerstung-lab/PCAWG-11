@@ -222,7 +222,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
-			P[[h[i]]] <- cbind(cnStates[1:k,], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX)
+			P[[h[i]]] <- cbind(cnStates[1:k,], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX, majCN=majcni, minCN=mincni, clonalFlag=clonalFlag, subclonalGainFlag=subclonalGainFlag, mixFlag=mixFlag)
 			if(H[i] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
 
 			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )

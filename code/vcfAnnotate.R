@@ -109,9 +109,26 @@ save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 bgzip(vcfFileOut, overwrite=TRUE)
 save(vcf, file=paste0(vcfFileOut,".RData"))
 
+w <- cumsum(c(0,as.numeric(width(refLengths))))
+names(w) <- c(seqlevels(refLengths), "NA")
+
+
 pdf(file=sub(".vcf$",".pdf",vcfFileOut), 8,4)
 par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
-plot(getAltCount(vcf)/getTumorDepth(vcf),col=RColorBrewer::brewer.pal(4, "Set1")[c(3,2,1,4)][classifyMutations(vcf, reclassify='all')], xlab='Mutation', ylab="VAF", pch=16)
+cls <- classifyMutations(vcf, reclassify='all')
+col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
+plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=16)
+abline(v = w, lty=3)
+for(i in seq_along(bb)) try({
+	s <- start(bb)[i]
+	e <- end(bb)[i]
+	x <- w[as.character(seqnames(bb)[i])]
+	y <- bb$timing_param[[i]][,"f"]
+	l <- bb$timing_param[[2]][,"pi.s"] * bb$timing_param[[2]][,"P.m.sX"]
+	segments(s+x,y,e+x,y, lwd=l*4+.1)
+	text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vcf))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
+})
+legend("topleft", pch=19, col=col, legend=levels(cls))
 dev.off()
 
 
