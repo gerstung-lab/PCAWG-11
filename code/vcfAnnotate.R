@@ -118,7 +118,7 @@ pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
 par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
 cls <- classifyMutations(vcf, reclassify='all')
 col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
-plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=16)
+plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=16, cex=info(vcf)$PMCN)
 abline(v = w, lty=3)
 for(i in seq_along(bb)) try({
 	s <- start(bb)[i]

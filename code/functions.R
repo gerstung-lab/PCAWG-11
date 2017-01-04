@@ -146,7 +146,9 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				cfi <- c(purity, purity,  cfi[derived])
 				mixFlag <- c(FALSE, TRUE, FALSE)
 				clonalFlag <- c(TRUE,TRUE,FALSE)
-				subclonalGainFlag <- c(FALSE, majdelta > 0 | mindelta > 0, TRUE)
+				subclonalGainFlag <- c(FALSE, FALSE, TRUE)
+				majdelta <- c(0, cfi[derived]/purity*majdelta, majdelta)
+				mindelta <- c(0, cfi[derived]/purity*mindelta, mindelta)
 			}
 			
 			a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > 0.05)) # subclone(s) not coinciding with CN change
@@ -157,6 +159,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				mixFlag <- c(mixFlag, rep(FALSE, sum(a)))
 				clonalFlag <- c(clonalFlag, rep(FALSE, sum(a)))
 				subclonalGainFlag <- c(subclonalGainFlag, rep(FALSE, sum(a)))
+				majdelta <- c(majdelta, rep(0,sum(a)))
+				mindelta <- c(mindelta, rep(0,sum(a)))
 			}
 			totcni <- majcni+mincni
 			pi.s <- sapply(cfi, function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
@@ -179,8 +183,9 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 							n.m.s[1:min(majcni[j], mincni[j])] <- 2
 						pi.m.s <- n.m.s/sum(n.m.s)
 					}else{ # coexisting cn subclones, use mixture
-						M <- max(mincni[j]*(mindelta!=0), majcni[j]*(majdelta!=0))
-						m <- 0:M + (M-floor(M))
+						d <- if(majdelta[j] != 0) majdelta[j] else mindelta[j] 
+						M <- max(mincni[j]*(mindelta[j]!=0), majcni[j]*(majdelta[j]!=0))
+						m <- (d > 0):M + (M-floor(M))
 						l <- seq_along(m)
 						f <- m *cfi[j] / (effCnTumor + effCnNormal) # Variant on major allele
 						n.m.s <- rep(1, length(l))
@@ -230,14 +235,17 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
-			P[[h[i]]] <- cbind(cnStates[1:k,,drop=FALSE], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX, majCN=majcni, minCN=mincni, clonalFlag=clonalFlag, subclonalGainFlag=subclonalGainFlag, mixFlag=mixFlag)
+			P[[h[i]]] <- cbind(cnStates[1:k,,drop=FALSE], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX, 
+					majCN=majcni[cnStates[1:k,"state"]], minCN=mincni[cnStates[1:k,"state"]], 
+					majDelta = majdelta[cnStates[1:k,"state"]], minDelta = mindelta[cnStates[1:k,"state"]], 
+					clonalFlag=clonalFlag[cnStates[1:k,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[1:k,"state"]], mixFlag=mixFlag[cnStates[1:k,"state"]])
 			if(H[i] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
 
 			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
 			if(all(is.na(w))) next
 			
 			D[hh, "PSUB"] <- rowSums(P.sm.x[, !cnStates[1:k,"state"] %in% which(clonalFlag), drop=FALSE])
-			D[hh, "PEAR"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag & !subclonalGainFlag) & cnStates[1:k,"m"]>1, drop=FALSE])
+			D[hh, "PEAR"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]>1 + majdelta[cnStates[1:k,"state"]] + mindelta[cnStates[1:k,"state"]], drop=FALSE])
 			#D[hh, "PLAT"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
 			D[hh, "PLAT"] <-  1 - D[hh, "PSUB"] - D[hh, "PEAR"]			
 			
