@@ -145,12 +145,12 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 						(majcni[!derived] + cfi[derived]/purity*majdelta), # clonal, sub on allele that does change
 						(majcni[derived] >0) + (majdelta > 0)) # subclonal, subs after or before CNA, m=1,delta
 				mincni <- c(min(mincni), (mincni[!derived] + cfi[derived]/purity*mindelta), (mincni[derived] >0) + (mindelta > 0))
+				majdelta <- c(0, cfi[derived]/purity*majdelta, majdelta)
+				mindelta <- c(0, cfi[derived]/purity*mindelta, mindelta)
 				cfi <- c(purity, purity,  cfi[derived])
 				mixFlag <- c(FALSE, TRUE, FALSE)
 				clonalFlag <- c(TRUE,TRUE,FALSE)
 				subclonalGainFlag <- c(FALSE, FALSE, TRUE)
-				majdelta <- c(0, cfi[derived]/purity*majdelta, majdelta)
-				mindelta <- c(0, cfi[derived]/purity*mindelta, mindelta)
 			}
 			
 			a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > 0.05)) # subclone(s) not coinciding with CN change
