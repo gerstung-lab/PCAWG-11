@@ -131,6 +131,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			mixFlag <- FALSE
 			subclonalGainFlag <- FALSE
 			clonalFlag <- TRUE
+			majdelta <- 0
+			mindelta <- 0
 			
 			if(length(cfi)>1){ # multiple (subclonal) CN states, if so add clonal option (ie. mixture of both states), subclonal states only change by 1..delta(CN)
 				d <- colSums(abs(rbind(majcni, mincni) - c(1,1) * (1+ (purityPloidy[ID,2] > 2.7))))
@@ -202,7 +204,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			hh <- which(h==h[i])
 			#L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbetabinom(altCount[hh],tumDepth[hh],pp, 0.01) + .Machine$double.eps), ncol=k)
 			dtrbinom <- function(x, size, prob, xmin=0) dbinom(x,size,prob) / pbinom(xmin-1, size, prob, lower.tail=FALSE)
-			L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dtrbinom(altCount[hh],tumDepth[hh],pp, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=k)
+			dtrbetabinom <- function(x, size, prob, rho, xmin=0) VGAM::dbetabinom(x,size,prob,rho) / (1-VGAM::pbetabinom(xmin-1, size, prob, rho))
+			L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=k)
 
 			# EM algorithm (mixture fitting) for pi
 			P.m.sX <- cnStates[1:k,"pi.m.s"]
