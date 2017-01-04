@@ -202,19 +202,20 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				k <- k + length(l)
 			}
 			hh <- which(h==h[i])
+			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
 			#L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbetabinom(altCount[hh],tumDepth[hh],pp, 0.01) + .Machine$double.eps), ncol=k)
 			dtrbinom <- function(x, size, prob, xmin=0) dbinom(x,size,prob) / pbinom(xmin-1, size, prob, lower.tail=FALSE)
 			dtrbetabinom <- function(x, size, prob, rho, xmin=0) VGAM::dbetabinom(x,size,prob,rho) / (1-VGAM::pbetabinom(xmin-1, size, prob, rho))
-			L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=k)
+			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=length(whichStates))
 
 			# EM algorithm (mixture fitting) for pi
-			P.m.sX <- cnStates[1:k,"pi.m.s"]
+			P.m.sX <- cnStates[whichStates,"pi.m.s"]
 			for(em.it in 1:100){
-				P.xsm <- L * rep(pi.s[cnStates[1:k,"state"]] * P.m.sX, each=nrow(L)) # P(X,s,m)
+				P.xsm <- L * rep(pi.s[cnStates[whichStates,"state"]] * P.m.sX, each=nrow(L)) # P(X,s,m)
 				P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 				P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
-				P.s.X <- sapply(split(P.sm.X, cnStates[1:k,"state"]), sum)
-				P.m.sX <- P.sm.X / P.s.X[cnStates[1:k,"state"]]
+				P.s.X <- sapply(split(P.sm.X, cnStates[whichStates,"state"]), sum)
+				P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"state"]]
 			}
 			
 #			boot <- sapply(1:100, function(foo) {Lb <- L[sample(1:nrow(L), replace=TRUE),]
@@ -238,17 +239,17 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
-			P[[h[i]]] <- cbind(cnStates[1:k,,drop=FALSE], cfi=cfi[cnStates[1:k,"state"]], pi.s=pi.s[cnStates[1:k,"state"]], P.m.sX=P.m.sX, 
-					majCN=majcni[cnStates[1:k,"state"]], minCN=mincni[cnStates[1:k,"state"]], 
-					majDelta = majdelta[cnStates[1:k,"state"]], minDelta = mindelta[cnStates[1:k,"state"]], 
-					clonalFlag=clonalFlag[cnStates[1:k,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[1:k,"state"]], mixFlag=mixFlag[cnStates[1:k,"state"]])
+			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"state"]], P.m.sX=P.m.sX, 
+					majCN=majcni[cnStates[whichStates,"state"]], minCN=mincni[cnStates[whichStates,"state"]], 
+					majDelta = majdelta[cnStates[whichStates,"state"]], minDelta = mindelta[cnStates[whichStates,"state"]], 
+					clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]])
 			if(H[i] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
 
 			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
 			if(all(is.na(w))) next
 			
-			D[hh, "PSUB"] <- rowSums(P.sm.x[, !cnStates[1:k,"state"] %in% which(clonalFlag), drop=FALSE])
-			D[hh, "PEAR"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]>1 + majdelta[cnStates[1:k,"state"]] + mindelta[cnStates[1:k,"state"]], drop=FALSE])
+			D[hh, "PSUB"] <- rowSums(P.sm.x[, !cnStates[whichStates,"state"] %in% which(clonalFlag), drop=FALSE])
+			D[hh, "PEAR"] <- rowSums(P.sm.x[, cnStates[whichStates,"state"] %in% which(clonalFlag) & cnStates[whichStates,"m"]>1 + majdelta[cnStates[whichStates,"state"]] + mindelta[cnStates[whichStates,"state"]], drop=FALSE])
 			#D[hh, "PLAT"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
 			D[hh, "PLAT"] <-  1 - D[hh, "PSUB"] - D[hh, "PEAR"]			
 			
