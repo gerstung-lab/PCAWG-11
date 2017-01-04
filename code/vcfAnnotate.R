@@ -114,7 +114,7 @@ w <- cumsum(c(0,as.numeric(width(refLengths))))
 names(w) <- c(seqlevels(refLengths), "NA")
 
 
-pdf(file=sub(".vcf$",".pdf",vcfFileOut), 8,4)
+pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
 par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
 cls <- classifyMutations(vcf, reclassify='all')
 col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
