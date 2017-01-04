@@ -12,6 +12,11 @@ colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
 
+gender <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/gender/2016_12_09_inferred_sex_all_samples.txt', header=TRUE, sep='\t')
+gender <- gender[!duplicated(gender$tumourid) & gender$tumourid != 'tumourid',]
+#write.table(gender,'/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/gender/2016_12_09_inferred_sex_all_samples_CORRECTED_MG.txt', row.names=FALSE, col.names=TRUE, sep='\t', quote=FALSE)
+rownames(gender) <- gender$tumourid
+
 addTNC <- function(vcf){	
 	r = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
 	if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
