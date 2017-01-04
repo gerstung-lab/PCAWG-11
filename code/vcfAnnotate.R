@@ -125,7 +125,7 @@ for(i in seq_along(bb)) try({
 	e <- end(bb)[i]
 	x <- w[as.character(seqnames(bb)[i])]
 	y <- bb$timing_param[[i]][,"f"]
-	l <- bb$timing_param[[2]][,"pi.s"] * bb$timing_param[[2]][,"P.m.sX"]
+	l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
 	segments(s+x,y,e+x,y, lwd=l*4+.1)
 	text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vcf))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
 })
