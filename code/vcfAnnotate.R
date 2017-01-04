@@ -69,8 +69,8 @@ info(vcf)$DPP <- pos$likelihood[!is.na(f)]
 # Add driver genes
 vcf <- addDriver(vcf, cancerGenes)
 
-# Add ID
-meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=ID, row.names="ID"))
+# Add ID & gender
+meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character(gender[ID, "pred_gender"])), row.names=c("ID", "gender")))
 
 # Add TNC
 if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
@@ -84,7 +84,7 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Major copy number","Minor copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","MJCN","MNCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
-MCN <- computeMutCn(vcf, bb, clusters, xmin=3)
+MCN <- computeMutCn(vcf, bb, clusters, xmin=3, gender=as.character(gender[ID, "pred_gender"]))
 info(vcf) <- cbind(info(vcf), MCN$D)
 bb$timing_param <- MCN$P 
 
