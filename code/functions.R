@@ -98,7 +98,10 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	purity <- purityPloidy[ID, 'purity']
 	overlaps <- findOverlaps(vcf, bb)
 	majorCN <- split(bb$major_cn[subjectHits(overlaps)], queryHits(overlaps))
-	minorCN <- split(bb$minor_cn[subjectHits(overlaps)], queryHits(overlaps))	
+	m <- bb$minor_cn #hack: minor_cn > 0 in male samples - Battenberg bug?
+	if(gender=='male')
+		m[as.character(seqnames(bb)) %in% c('X','Y')] <- 0
+	minorCN <- split(m[subjectHits(overlaps)], queryHits(overlaps))	
 	h <- selectHits(overlaps, "first")
 	H <- selectHits(overlaps, "last")
 	
