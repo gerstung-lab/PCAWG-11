@@ -90,7 +90,7 @@ getAltCount <- function(vcf){
 
 computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], gender='female', xmin=0){
 	n <- nrow(vcf)
-	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(overlaps,"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
+	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
 	P <- vector(mode='list', length(bb))
 	if(n==0)
 		return(list(D=D, P=P))
@@ -100,6 +100,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	ID <- meta(header(vcf))["ID",]
 	purity <- purityPloidy[ID, 'purity']
 	overlaps <- findOverlaps(vcf, bb)
+	D[["CNID"]] <- as(overlaps, "List")
 	majorCN <- split(bb$major_cn[subjectHits(overlaps)], queryHits(overlaps))
 	m <- bb$minor_cn #hack: minor_cn > 0 in male samples - Battenberg bug?
 	if(gender=='male')
