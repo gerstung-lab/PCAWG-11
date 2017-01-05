@@ -144,6 +144,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			if(length(cfi)>1){ # multiple (subclonal) CN states, if so add clonal option (ie. mixture of both states), subclonal states only change by 1..delta(CN)
 				d <- colSums(abs(rbind(majcni, mincni) - c(1,1) * (1+ (purityPloidy[ID,2] > 2.7))))
 				derived <- d == max(d) ## derived state further from diploid/tetraploid
+				if(all(derived)) next 
 				majanc <- majcni[!derived]
 				minanc <- mincni[!derived]
 				majder <- majcni[derived]
