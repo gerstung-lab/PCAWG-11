@@ -7,8 +7,8 @@
 #BSUB -M 4800
 #BSUB -n 1
 
-INPUT_FOLDER="../final/final_consensus_12oct_passonly/snv_mnv"
-OUTPUT_FOLDER="../final/annotated_vcf"
+INPUT_FOLDER="../final/final_consensus_12oct_passonly/indel"
+OUTPUT_FOLDER="../final/indel"
 OVERWRITE=true
 
 FILES=(`ls $INPUT_FOLDER/*mnv.vcf.gz`)
