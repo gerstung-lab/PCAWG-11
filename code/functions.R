@@ -220,7 +220,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				cnStates[k + l,"n.m.s"]=n.m.s
 				k <- k + length(l)
 			}
-			hh <- which(h==h[i])
+			hh <- which(h==h[i] & !is.na(altCount) &! is.na(tumDepth))
 			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
 			#L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbetabinom(altCount[hh],tumDepth[hh],pp, 0.01) + .Machine$double.eps), ncol=k)
 			dtrbinom <- function(x, size, prob, xmin=0) dbinom(x,size,prob) / pbinom(xmin-1, size, prob, lower.tail=FALSE)
