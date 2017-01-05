@@ -644,6 +644,7 @@ testIndel <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FA
 asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 
 #' official driver file
+library(VariantAnnotation)
 drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.txt", header=TRUE, sep="\t")
 r <- DNAStringSet(drivers$ref)
 a <- DNAStringSet(drivers$alt)
