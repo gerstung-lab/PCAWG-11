@@ -83,24 +83,18 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 #' Add mutation copy numbers
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
-exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Major copy number","Minor copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","MJCN","MNCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
-MCN <- computeMutCn(vcf, bb, clusters, xmin=3, gender=as.character(gender[ID, "pred_gender"]))
-info(vcf) <- cbind(info(vcf), MCN$D)
-bb$timing_param <- MCN$P 
+exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
+L <- computeMutCn(vcf, bb, clusters, xmin=3, gender=as.character(gender[ID, "pred_gender"]))
+info(vcf) <- cbind(info(vcf), L$D)
+bb$timing_param <- L$P 
 
 #' Remove spurious clusters
 info(vcf)$DPC[!info(vcf)$DPC %in% clusters$cluster[clusters$proportion < 1] ] <- NA
 
 #' Classify mutations
-class <- rep(2,nrow(vcf))
-class[info(vcf)$DPC < max(clusters$cluster[clusters$proportion < 1])] <- 4
-class[info(vcf)$MCN > 1 & class==2 ] <- 1
-i <- info(vcf)
-class[ (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1 & class != 4] <- 3
-class <- factor(class, levels=1:4, labels=c("clonal [early]","clonal [late]","clonal [NA]", "subclonal"))
-class[is.na(info(vcf)$DPC) | is.na(info(vcf)$MCN)] <- NA
+cls <- classifyMutations(vcf, reclassify='all')
 
-info(vcf)$CLS <- class
+info(vcf)$CLS <- cls
 info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
 
 #' Save output
@@ -116,9 +110,8 @@ names(w) <- c(seqlevels(refLengths), "NA")
 
 pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
 par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
-cls <- classifyMutations(vcf, reclassify='all')
 col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
-plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=16, cex=info(vcf)$PMCN)
+plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, 4 , 16))
 abline(v = w, lty=3)
 for(i in seq_along(bb)) try({
 	s <- start(bb)[i]
@@ -131,5 +124,7 @@ for(i in seq_along(bb)) try({
 })
 legend("topleft", pch=19, col=col, legend=levels(cls))
 dev.off()
+
+#plot(start(vcf) + w[as.character(seqnames(vcf))], qnorm(info(vcf)$pMutCNTail), col=col[cls], xlab='Position', ylab="pTail", pch=16)
 
 

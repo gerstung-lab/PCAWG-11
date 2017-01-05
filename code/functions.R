@@ -89,8 +89,11 @@ getAltCount <- function(vcf){
 }
 
 computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], gender='female', xmin=0){
-	if(nrow(vcf)==0)
-		return(DataFrame(MCN=numeric(),TCN=numeric(),CNF=numeric(),PMCN=numeric(), CNID=numeric()))
+	n <- nrow(vcf)
+	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(overlaps,"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
+	P <- vector(mode='list', length(bb))
+	if(n==0)
+		return(list(D=D, P=P))
 	altCount <- getAltCount(vcf)
 	tumDepth <- getTumorDepth(vcf)
 	names(altCount) <- names(tumDepth) <- NULL
@@ -111,9 +114,6 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	clusters$proportion[which.max(clusters$proportion)] <- purity
 	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(overlaps)], queryHits(overlaps))
-	n <- length(altCount)
-	D <- DataFrame(MCN=rep(NA,n), MJCN=rep(NA,n), MNCN=rep(NA,n), CNF=rep(NA,n), CNID =as(overlaps,"List"), PMCN=rep(NA,n), PEAR=rep(NA,n),PLAT=rep(NA,n),PSUB=rep(NA,n))
-	P <- vector(mode='list', length(bb))
 	cnStates <- matrix(0, nrow=10000, ncol=5)
 	colnames(cnStates) <- c("state","m","f","n.m.s","pi.m.s")
 	for( i in which(diff(c(-1, h)) !=0 | is.na(diff(c(-1, h)) !=0) )){
@@ -134,11 +134,16 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			majdelta <- 0
 			mindelta <- 0
 			
+			majanc <- majder <- majcni
+			minanc <- mindev <- mincni
+			
 			if(length(cfi)>1){ # multiple (subclonal) CN states, if so add clonal option (ie. mixture of both states), subclonal states only change by 1..delta(CN)
 				d <- colSums(abs(rbind(majcni, mincni) - c(1,1) * (1+ (purityPloidy[ID,2] > 2.7))))
 				derived <- d == max(d) ## derived state further from diploid/tetraploid
 				majanc <- majcni[!derived]
 				minanc <- mincni[!derived]
+				majder <- majcni[derived]
+				minder <- mincni[derived]
 				majdelta <- majcni[derived] - majcni[!derived]
 				mindelta <- mincni[derived] - mincni[!derived]
 				majcni <- c(min(majcni), # clonal, sub on allele that doesn't change
@@ -205,7 +210,13 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
 			#L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbetabinom(altCount[hh],tumDepth[hh],pp, 0.01) + .Machine$double.eps), ncol=k)
 			dtrbinom <- function(x, size, prob, xmin=0) dbinom(x,size,prob) / pbinom(xmin-1, size, prob, lower.tail=FALSE)
-			dtrbetabinom <- function(x, size, prob, rho, xmin=0) VGAM::dbetabinom(x,size,prob,rho) / (1-VGAM::pbetabinom(xmin-1, size, prob, rho))
+			dtrbetabinom <- function(x, size, prob, rho, xmin=0) {y <- VGAM::dbetabinom(x,size,prob,rho) / (1-VGAM::pbetabinom(xmin-1, size, prob, rho))
+				y[x<xmin] <- 0
+				return(y)}
+			ptrbetabinom <- function(x, size, prob, rho, xmin=0) {
+				pmin <- VGAM::pbetabinom(xmin-1, size, prob, rho)
+				pmax(0,(VGAM::pbetabinom(x,size,prob,rho) - pmin) / (1-pmin))}
+			
 			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=length(whichStates))
 
 			# EM algorithm (mixture fitting) for pi
@@ -217,6 +228,10 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				P.s.X <- sapply(split(P.sm.X, cnStates[whichStates,"state"]), sum)
 				P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"state"]]
 			}
+			
+			# Tail probs
+			pMutCNTail <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) ptrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin))), ncol=length(whichStates)) #%*% c(pi.s[cnStates[whichStates,"state"]] * P.m.sX)
+			
 			
 #			boot <- sapply(1:100, function(foo) {Lb <- L[sample(1:nrow(L), replace=TRUE),]
 #						P.m.sX <- cnStates[1:k,"pi.m.s"]
@@ -248,17 +263,21 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
 			if(all(is.na(w))) next
 			
-			D[hh, "PSUB"] <- rowSums(P.sm.x[, !cnStates[whichStates,"state"] %in% which(clonalFlag), drop=FALSE])
-			D[hh, "PEAR"] <- rowSums(P.sm.x[, cnStates[whichStates,"state"] %in% which(clonalFlag) & cnStates[whichStates,"m"]>1 + majdelta[cnStates[whichStates,"state"]] + mindelta[cnStates[whichStates,"state"]], drop=FALSE])
-			#D[hh, "PLAT"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
-			D[hh, "PLAT"] <-  1 - D[hh, "PSUB"] - D[hh, "PEAR"]			
+			D[hh, "pSub"] <- rowSums(P.sm.x[, !cnStates[whichStates,"state"] %in% which(clonalFlag), drop=FALSE])
+			D[hh, "pGain"] <- rowSums(P.sm.x[, cnStates[whichStates,"state"] %in% which(clonalFlag) & cnStates[whichStates,"m"] > 1.00001 + majdelta[cnStates[whichStates,"state"]] + mindelta[cnStates[whichStates,"state"]], drop=FALSE])
+			#D[hh, "pSingle"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
+			D[hh, "pSingle"] <-  1 - D[hh, "pSub"] - D[hh, "pGain"]			
 			
-			D[hh,"MCN"]  <- cnStates[w,"m"]
-			D[hh,"MNCN"] <- mincni[cnStates[w,"state"]]
-			D[hh,"MJCN"] <- majcni[cnStates[w,"state"]]
-			D[hh,"CNF"]  <- cfi[cnStates[w,"state"]] 
-			D[hh,"PMCN"] <- sapply(seq_along(w), function(i) P.sm.x[i,w[i]])
+			D[hh,"MutCN"]  <- cnStates[whichStates[w],"m"]
+			D[hh,"MutDeltaCN"]  <- majdelta[cnStates[whichStates[w],"state"]] + mindelta[cnStates[whichStates[w],"state"]]
+			D[hh,"MinCN"] <- minanc
+			D[hh,"MajCN"] <- majanc
+			D[hh,"MinDerCN"] <- minder
+			D[hh,"MajDerCN"] <- majder
 			
+			D[hh,"CNF"]  <- cfi[cnStates[whichStates[w],"state"]] 
+			D[hh,"pMutCN"] <- sapply(seq_along(w), function(i) P.sm.x[i,w[i]])
+			D[hh,"pMutCNTail"] <- sapply(seq_along(w), function(i) pMutCNTail[i,w[i]])
 		}
 		
 		
@@ -267,27 +286,33 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 		#post <- post/sum(post)
 #		post <- P.sm.x[hh==i,]
 #		if(any(is.nan(post) | is.na(post))) next
-#		D[i,"PSUB"] <- sum(post[cnStates[1:k,"state"]!=which.max(cfi)])
-#		D[i,"PEAR"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]>1])
-#		D[i,"PLAT"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]<=1])
+#		D[i,"pSub"] <- sum(post[cnStates[1:k,"state"]!=which.max(cfi)])
+#		D[i,"pGain"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]>1])
+#		D[i,"pSingle"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]<=1])
 #		
 #		w <- which.max(post)
 #		#idx <- as.numeric(strsplit(names(prob[w]), ":")[[1]])
 #		#names(prob) <- NULL
-#		D[i,"MCN"] <- cnStates[w,"m"]
-#		D[i,"MNCN"] <- mincni[cnStates[w,"state"]]
-#		D[i,"MJCN"] <- majcni[cnStates[w,"state"]]
+#		D[i,"MutCN"] <- cnStates[w,"m"]
+#		D[i,"MinCN"] <- mincni[cnStates[w,"state"]]
+#		D[i,"MajCN"] <- majcni[cnStates[w,"state"]]
 #		D[i,"CNF"] <- cfi[cnStates[w,"state"]] 
-#		D[i,"PMCN"] <- post[w]
+#		D[i,"pMutCN"] <- post[w]
 		
 	}
 	return(list(D=D,P=P))
 }
 
+mcnHeader <- function() {
+	DataFrame(Number=c(1,1,1,1,1,1,1,1,".",1,1,1),Type=c("Float","Float","Integer","Integer","Integer","Integer","Float","Float","Integer","Float","Float","Float","Float"), 
+			Description=c("Mutation copy number","Change in MutCN between ancestral and derived state","Major copy number (ancestral)","Minor copy number (ancestral)","Major copy number (derived)","Minor copy number (derived)","Copy number frequency (relative to all cancer cells)", "MutCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal", "Tail prob of mixture model"),
+			row.names=c("MutCN","MutDeltaCN","MajCN","MinCN","MajDerCN","MinDerCN","CNF","pMutCN","CNID","pGain","pSingle","pSub", "pMutCNTail"))
+}
+
 addMutCn <- function(vcf, bb=allBB[[meta(header(vcf))["ID",]]], clusters=allClusters[[meta(header(vcf))["ID",]]]){
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=c(1,1,1,1,1,".",1,1,1),Type=c("Integer","Integer","Integer","Float","Float","Integer","Float","Float","Float"), Description=c("Mutation copy number","Major copy number","Minor copy number","Copy number frequency (relative to all cancer cells)", "MCN probability","BB segment ids","Posterior prob: Early clonal","Posterior prob: Late clonal","Posterior prob: Subclonal"), row.names=c("MCN","MJCN","MNCN","CNF","PMCN","CNID","PEAR","PLAT","PSUB")))
-	info(vcf) <- cbind(info(vcf), computeMutCn(vcf, bb, clusters))
+	exptData(vcf)$header@header$INFO <- rbind(i, mcnHeader())
+	info(vcf) <- cbind(info(vcf), computeMutCn(vcf, bb, clusters)$D)
 	return(vcf)
 }
 
@@ -304,14 +329,14 @@ classifyMutations <- function(vcf, reclassify=c("missing","all","none")) {
 			cls <- as.character(cls)
 			cls[cls=="NA"] <- NA
 			if(reclassify=="missing" & any(is.na(cls)))
-				cls[is.na(cls)] <- paste(factor(apply(as.matrix(i[is.na(cls), c("PEAR","PLAT","PSUB")]), 1, function(x) if(all(is.na(x))) NA else which.max(x)), levels=1:3, labels=c("clonal [early]", "clonal [late]","subclonal"))) ## reclassify missing
+				cls[is.na(cls)] <- paste(factor(apply(as.matrix(i[is.na(cls), c("pGain","pSingle","pSub")]), 1, function(x) if(all(is.na(x))) NA else which.max(x)), levels=1:3, labels=c("clonal [early]", "clonal [late]","subclonal"))) ## reclassify missing
 		}else{
-			cls <- paste(factor(apply(as.matrix(i[, c("PEAR","PLAT","PSUB")]), 1, function(x) if(all(is.na(x))) NA else which.max(x)), levels=1:3, labels=c("clonal [early]", "clonal [late]","subclonal"))) ## reclassify missing
+			cls <- paste(factor(apply(as.matrix(i[, c("pGain","pSingle","pSub")]), 1, function(x) if(all(is.na(x))) NA else which.max(x)), levels=1:3, labels=c("clonal [early]", "clonal [late]","subclonal"))) ## reclassify missing
 			
 		}
-		cls[i$PEAR==0 & cls!="subclonal"] <- "clonal [NA]"
-		if(!is.null(i$MJCN))
-			cls[cls!="subclonal" & (i$MJCN == 1 | i$MNCN == 1) & i$MCN == 1] <- "clonal [NA]"
+		cls[i$pGain==0 & cls!="subclonal"] <- "clonal [NA]"
+		if(!is.null(i$MajCN))
+			cls[cls!="subclonal" & (i$MajCN == 1 | i$MinCN == 1) & abs(i$MutCN - i$MutDeltaCN -1) <= 0.0001] <- "clonal [NA]"
 		cls <- factor(cls, levels=c("clonal [early]", "clonal [late]", "clonal [NA]", "subclonal"))
 	}
 	cls <- .clsfy(i = i)
@@ -322,8 +347,8 @@ getGenotype <- function(vcf, reclassify='missing', ...){
 	cls <- classifyMutations(vcf = vcf, reclassify=reclassify)
 	t <- info(vcf)$TCN
 	if(is.null(t))
-		t <- info(vcf)$MNCN + info(vcf)$MJCN
-	hom <- factor(info(vcf)$MCN==t, levels=c(TRUE,FALSE))
+		t <- info(vcf)$MinCN + info(vcf)$MajCN
+	hom <- factor(info(vcf)$MutCN==t, levels=c(TRUE,FALSE))
 	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom, ...)
 }
 
@@ -441,8 +466,8 @@ reduceToCoverRelations <- function(rel){
 }
 
 cnWeights <- function(vcf){
-	t <- if(is.null(info(vcf)$TCN)) (info(vcf)$MJCN + info(vcf)$MNCN) else info(vcf)$TCN
-	info(vcf)$MCN / t
+	t <- if(is.null(info(vcf)$TCN)) (info(vcf)$MajCN + info(vcf)$MinCN) else info(vcf)$TCN
+	info(vcf)$MutCN / t
 }
 
 branchLengths <- function(vcf, type=c("all","deamination")){
@@ -594,7 +619,7 @@ wgdTest <- function(vcf){
 	ix <- which(bb$copy_number==4 & bb$minor_cn==2)
 	v <- vcf[vcf %over% bb[ix]]
 	#w <- sum(as.numeric(width(reduce(bb[ix]))))
-	t <- table(info(v)$MCN, info(v)$TCN, as.character(seqnames(v)), info(v)$DPC)
+	t <- table(info(v)$MutCN, info(v)$TCN, as.character(seqnames(v)), info(v)$DPC)
 }
 
 #' Power
