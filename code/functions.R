@@ -94,11 +94,14 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	P <- vector(mode='list', length(bb))
 	if(n==0)
 		return(list(D=D, P=P))
+	
 	altCount <- getAltCount(vcf)
 	tumDepth <- getTumorDepth(vcf)
 	names(altCount) <- names(tumDepth) <- NULL
 	ID <- meta(header(vcf))["ID",]
 	purity <- purityPloidy[ID, 'purity']
+	
+	# Match VCF and CN
 	overlaps <- findOverlaps(vcf, bb)
 	D[["CNID"]] <- as(overlaps, "List")
 	majorCN <- split(bb$major_cn[subjectHits(overlaps)], queryHits(overlaps))
@@ -136,7 +139,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			mindelta <- 0
 			
 			majanc <- majder <- majcni
-			minanc <- mindev <- mincni
+			minanc <- minder <- mincni
 			
 			if(length(cfi)>1){ # multiple (subclonal) CN states, if so add clonal option (ie. mixture of both states), subclonal states only change by 1..delta(CN)
 				d <- colSums(abs(rbind(majcni, mincni) - c(1,1) * (1+ (purityPloidy[ID,2] > 2.7))))
