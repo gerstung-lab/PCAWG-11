@@ -11,7 +11,7 @@ INPUT_FOLDER="../final/final_consensus_12oct_passonly/indel"
 OUTPUT_FOLDER="../final/indel"
 OVERWRITE=true
 
-FILES=(`ls $INPUT_FOLDER/*mnv.vcf.gz`)
+FILES=(`ls $INPUT_FOLDER/*.vcf.gz`)
 INPUT=${FILES[(($LSB_JOBINDEX-1))]}
 echo $INPUT
 STEM=`basename $INPUT | sed s/.vcf.gz//g`
