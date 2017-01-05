@@ -123,6 +123,8 @@ for(i in seq_along(bb)) try({
 	text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vcf))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
 })
 legend("topleft", pch=19, col=col, legend=levels(cls))
+dev.copy(device=png, file=sub(".vcf$",".png",vcfFileOut), width = 16, height = 8, units = "in", pointsize = 12, res=72)
+dev.off()
 dev.off()
 
 #plot(start(vcf) + w[as.character(seqnames(vcf))], qnorm(info(vcf)$pMutCNTail), col=col[cls], xlab='Position', ylab="pTail", pch=16)
