@@ -67,24 +67,33 @@ getTumorCounts <- function(vcf){
 }
 
 getTumorDepth <- function(vcf){
-	if("FAZ" %in% rownames(geno(header(vcf)))){
-		rowSums(getTumorCounts(vcf))
-	}else{
-		geno(vcf)$DEP[,2]
+	if("t_alt_count" %in% colnames(info(vcf))){ ## consensus data, snv and indel
+		info(vcf)$t_alt_count + info(vcf)$t_ref_count
+	}else{ ## older data
+		if("FAZ" %in% rownames(geno(header(vcf)))){
+			rowSums(getTumorCounts(vcf))
+		}else{
+			geno(vcf)$DEP[,2]
+		}
 	}
 }
 
 getAltCount <- function(vcf){
-	if("FAZ" %in% rownames(geno(header(vcf)))){ ## ie subs
-		c <- getTumorCounts(vcf)
-		t <- c[,1:4] + c[,5:8]
-		colnames(t) <- substring(colnames(t),2,2)
-		a <- as.character(unlist(alt(vcf)))
-		a[!a%in%c('A','T','C','G')] <- NA
-		sapply(seq_along(a), function(i) if(is.na(a[i])) NA else t[i, a[i]])
-	}else{ ## ie indel
-		#(geno(vcf)$PP + geno(vcf)$NP + geno(vcf)$PB + geno(vcf)$NB)[,"TUMOUR"]
-		geno(vcf)$MTR[,2]
+	if("t_alt_count" %in% colnames(info(vcf))){ ## consensus data, snv and indel
+		info(vcf)$t_alt_count
+	}else{ ## older formats
+		if("FAZ" %in% rownames(geno(header(vcf)))){ ## ie subs
+			c <- getTumorCounts(vcf)
+			t <- c[,1:4] + c[,5:8]
+			colnames(t) <- substring(colnames(t),2,2)
+			a <- as.character(unlist(alt(vcf)))
+			a[!a%in%c('A','T','C','G')] <- NA
+			sapply(seq_along(a), function(i) if(is.na(a[i])) NA else t[i, a[i]])
+		}
+		else{ ## ie indel
+			#(geno(vcf)$PP + geno(vcf)$NP + geno(vcf)$PB + geno(vcf)$NB)[,"TUMOUR"]
+			geno(vcf)$MTR[,2]
+		}
 	}
 }
 
@@ -634,3 +643,26 @@ testIndel <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FA
 
 asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 
+#' official driver file
+drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.txt", header=TRUE, sep="\t")
+r <- DNAStringSet(drivers$ref)
+a <- DNAStringSet(drivers$alt)
+driVers <- VRanges(seqnames = drivers$chr, ranges=IRanges(drivers$pos, width =  width(r)), ref=r, alt=a, sampleNames  = drivers$sample_id)
+mcols(driVers) <- drivers[,-c(1,3,4,5,6)]
+
+
+addFinalDriver <- function(vcf, driVers){
+	i = header(vcf)@header$INFO
+	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver gene", row.names="DG"))
+	if(nrow(vcf)==0){
+		info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(d$gene))
+		return(vcf)
+	}
+	ID <- meta(header(vcf))["ID",1]
+	d <- driVers[sampleNames(driVers)==ID]
+	overlaps <- findOverlaps(vcf, d)
+	g <- factor(rep(NA,nrow(vcf)), levels = levels(d$gene))
+	g[queryHits(overlaps)] <- d$gene[subjectHits(overlaps)]
+	info(vcf)$DG <- g
+	return(vcf)
+}
