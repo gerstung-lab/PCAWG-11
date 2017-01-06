@@ -127,8 +127,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	clusters$proportion[which.max(clusters$proportion)] <- purity
 	
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(overlaps)], queryHits(overlaps))
-	cnStates <- matrix(0, nrow=10000, ncol=5)
-	colnames(cnStates) <- c("state","m","f","n.m.s","pi.m.s")
+	cnStates <- matrix(0, nrow=10000, ncol=6)
+	colnames(cnStates) <- c("state","m","f","n.m.s","pi.m.s","s")
 	for( i in which(diff(c(-1, h)) !=0 | is.na(diff(c(-1, h)) !=0) )){
 		if(!i %in% names(majorCN)) next
 		if(is.na(h[i])) next
@@ -184,8 +184,6 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				mindelta <- c(mindelta, rep(0,sum(a)))
 			}
 			totcni <- majcni+mincni
-			pi.s <- sapply(cfi, function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
-			pi.s <- pi.s/sum(pi.s)
 			if(all(totcni==0)) next
 			
 			k <- 0
@@ -222,6 +220,14 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			}
 			hh <- which(h==h[i] & !is.na(altCount) &! is.na(tumDepth))
 			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
+			
+			# State probabilities - based on cancer cell fractions
+			pi.s <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
+			pi.s <- pi.s/sum(pi.s)
+			
+			cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=unique(cfi)))[cnStates[1:k,"state"]]
+			
+			# Density fucntions - truncated beta-binomial
 			#L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbetabinom(altCount[hh],tumDepth[hh],pp, 0.01) + .Machine$double.eps), ncol=k)
 			dtrbinom <- function(x, size, prob, xmin=0) dbinom(x,size,prob) / pbinom(xmin-1, size, prob, lower.tail=FALSE)
 			dtrbetabinom <- function(x, size, prob, rho, xmin=0) {y <- VGAM::dbetabinom(x,size,prob,rho) / (1-VGAM::pbetabinom(xmin-1, size, prob, rho))
@@ -231,16 +237,17 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				pmin <- VGAM::pbetabinom(xmin-1, size, prob, rho)
 				pmax(0,(VGAM::pbetabinom(x,size,prob,rho) - pmin) / (1-pmin))}
 			
+			# Likelihood
 			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=length(whichStates))
 
 			# EM algorithm (mixture fitting) for pi
 			P.m.sX <- cnStates[whichStates,"pi.m.s"]
 			for(em.it in 1:100){
-				P.xsm <- L * rep(pi.s[cnStates[whichStates,"state"]] * P.m.sX, each=nrow(L)) # P(X,s,m)
+				P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX, each=nrow(L)) # P(X,s,m)
 				P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 				P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
-				P.s.X <- sapply(split(P.sm.X, cnStates[whichStates,"state"]), sum)
-				P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"state"]]
+				P.s.X <- sapply(split(P.sm.X, cnStates[whichStates,"s"]), sum)
+				P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
 			}
 			
 			# Tail probs
@@ -268,7 +275,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
-			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"state"]], P.m.sX=P.m.sX, 
+			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=P.m.sX, 
 					majCN=majcni[cnStates[whichStates,"state"]], minCN=mincni[cnStates[whichStates,"state"]], 
 					majDelta = majdelta[cnStates[whichStates,"state"]], minDelta = mindelta[cnStates[whichStates,"state"]], 
 					clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]])
@@ -363,7 +370,8 @@ getGenotype <- function(vcf, reclassify='missing', ...){
 	if(is.null(t))
 		t <- info(vcf)$MinCN + info(vcf)$MajCN
 	hom <- factor(info(vcf)$MutCN==t, levels=c(TRUE,FALSE))
-	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom, ...)
+	dg <- factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes))
+	table(gene=dg, class=cls, homozygous=hom, ...)
 }
 
 tryExceptNull <- function(x) if(class(x)=="try-error") GRanges() else x
