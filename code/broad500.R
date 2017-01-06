@@ -31,7 +31,6 @@ ID <- sub("\\..+", "", s[length(s)])
 
 print(ID)
 clusters <- loadClusters(ID)
-clusters$proportion <- clusters$n_ssms / sum(clusters$n_ssms)
 
 purityPloidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/pp_table.txt", header=TRUE, sep='\t')
 rownames(purityPloidy) <- purityPloidy$sample
@@ -41,6 +40,9 @@ if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
 
 purity <- purityPloidy[ID,"purity"]
+
+clusters$proportion <- clusters$ccf * purity
+
 
 # Load BB
 bbPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Segments'
@@ -88,11 +90,17 @@ save(vcf, file=paste0(vcfFileOut,".RData"))
 w <- cumsum(c(0,as.numeric(width(refLengths))))
 names(w) <- c(seqlevels(refLengths), "NA")
 
+#' Some quantitative assessment
+truth <- read.table(paste0("../broad500/Mut_Assign/",ID,".mutation_assignments.txt"), header=TRUE, sep="\t")
+truth <- GRanges(truth$chr, IRanges(truth$pos, width=1), cluster=truth$cluster)
+seqlevels(truth) <-paste( 1:22)
+truth <- sort(truth)
 
 pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
-par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
+par(mar=c(3,3,3,1), bty="L", mgp=c(2,.5,0))
 col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
 plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, 4 , 16))
+title(paste0(ID,", " ,round(100*mean(info(vcf)$CNF == clusters$proportion[truth$cluster+1]),1), "% correct, ", round(100*mean(abs(info(vcf)$CNF - clusters$proportion[truth$cluster+1]) < 0.05),1), "% within 0.05 VAF"),font=1, line=1)
 abline(v = w, lty=3)
 for(i in seq_along(bb)) try({
 	s <- start(bb)[i]
