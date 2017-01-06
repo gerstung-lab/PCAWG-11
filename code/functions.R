@@ -55,7 +55,7 @@ loadCn <- function(ID){
 
 loadBB <- function(ID){
 	t <- try({
-				file <- grep(ID, dir(bbPath, pattern="_segments.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
+				file <- grep(ID, dir(bbPath, pattern="segments.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
 				if(grepl(".gz", file))
 					file <- gzfile(file)
 				tab <- read.table(file, header=TRUE, sep='\t')
