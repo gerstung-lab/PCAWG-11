@@ -17,7 +17,7 @@ echo $INPUT
 STEM=`basename $INPUT | sed s/.vcf//g`
 OUTPUT="$OUTPUT_FOLDER/$STEM"
 if [ ! -f "$OUTPUT_FOLDER/$STEM.complete_annotation.vcf.bgz" ] || [ "$OVERWRITE" = true ]; then
-Rscript vcfAnnotateFinal.R $INPUT $OUTPUT_FOLDER/$STEM.complete_annotation.vcf
+Rscript broad500.R $INPUT $OUTPUT_FOLDER/$STEM.complete_annotation.vcf
 else
 echo "$STEM.output exists. skipping."
 fi
