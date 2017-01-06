@@ -31,6 +31,7 @@ ID <- sub("\\..+", "", s[length(s)])
 
 print(ID)
 clusters <- loadClusters(ID)
+clusters$proportion <- clusters$n_ssms / sum(clusters$n_ssms)
 
 purityPloidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/pp_table.txt", header=TRUE, sep='\t')
 rownames(purityPloidy) <- purityPloidy$sample
@@ -39,6 +40,7 @@ purityPloidy <- purityPloidy[,2:3]
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
 
+purity <- purityPloidy[ID,"purity"]
 
 # Load BB
 bbPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Segments'
@@ -52,7 +54,7 @@ if(length(bb)==0){ # Missing BB, use consensus CN
 	#bb <- GRanges(m$chr, IRanges(m$pos, width=1), copy_number=m$tumour_copynumber, major_cn=m$nMaj1, minor_cn=m$nMin1, clonal_frequency=purityPloidy[ID,'purity'])
 	#meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value="False", row.names="Battenberg"))
 }
-	
+bb$clonal_frequency <- bb$ccf * purity	
 
 # Load vcf
 vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
