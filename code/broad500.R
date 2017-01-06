@@ -23,10 +23,7 @@ r = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(he
 refLengths <- scanFaIndex(file=r)
 
 dpPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Subclonal_Structure'
-dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
-
-sampleIds <- sub("_mutation_assignments.txt.gz","",dir(dpPath, pattern="_mutation_assignments.txt.gz"))
-sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".bgz$")))
+dpFiles <- dir(dpPath, pattern="subclonal_structure.txt", recursive=TRUE)
 
 s <- strsplit(vcfFileIn,"/")[[1]]
 ID <- sub("\\..+", "", s[length(s)])
