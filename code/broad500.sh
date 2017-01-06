@@ -7,8 +7,8 @@
 #BSUB -M 4800
 #BSUB -n 1
 
-INPUT_FOLDER="../final/broad500/VCF"
-OUTPUT_FOLDER="../final/broad500/annotated_vcf"
+INPUT_FOLDER="../broad500/VCF"
+OUTPUT_FOLDER="../broad500/annotated_vcf"
 OVERWRITE=true
 
 FILES=(`ls $INPUT_FOLDER/*.vcf`)
