@@ -36,6 +36,10 @@ print(ID)
 
 clusters <- loadClusters(ID)
 
+purityPloidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/pp_table.txt", header=TRUE, sep='\t')
+rownames(purityPloidy) <- purityPloidy$sample
+purityPloidy <- purityPloidy[,2:3]
+
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
 
