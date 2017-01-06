@@ -55,7 +55,9 @@ loadCn <- function(ID){
 
 loadBB <- function(ID){
 	t <- try({
-				file <- gzfile(paste0(bbPath, "/",ID,"_segments.txt.gz"))
+				file <- grep(ID, dir(bbPath, pattern="_segments.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
+				if(grepl(".gz", file))
+					file <- gzfile(file)
 				tab <- read.table(file, header=TRUE, sep='\t')
 				GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
 			})
