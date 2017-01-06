@@ -33,7 +33,7 @@ dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 bbFiles <- dir(bbPath, pattern="_segments.txt", recursive=TRUE)
 
 loadClusters <- function(ID){
-	file <- paste0(dpPath,"/",grep(ID, dpFiles, value=TRUE))
+	file <- paste0(dpPath,"/",grep(paste0(ID,"[[:punct:]]"), dpFiles, value=TRUE, perl=TRUE))
 	if(grepl(".gz", file))
 		file <- gzfile(file)
 	read.table(file, header=TRUE, sep="\t")
@@ -55,7 +55,7 @@ loadCn <- function(ID){
 
 loadBB <- function(ID){
 	t <- try({
-				file <- grep(ID, dir(bbPath, pattern="segments.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
+				file <- grep(paste0(ID,"[[:punct:]]"), dir(bbPath, pattern="segments.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
 				if(grepl(".gz", file))
 					file <- gzfile(file)
 				tab <- read.table(file, header=TRUE, sep='\t')
