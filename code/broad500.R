@@ -25,10 +25,6 @@ refLengths <- scanFaIndex(file=r)
 dpPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Subclonal_Structure'
 dpFiles <- dir(dpPath, pattern="subclonal_structure.txt", recursive=TRUE)
 
-s <- strsplit(vcfFileIn,"/")[[1]]
-ID <- sub("\\..+", "", s[length(s)])
-
-
 print(ID)
 clusters <- loadClusters(ID)
 
@@ -100,7 +96,7 @@ pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
 par(mar=c(3,3,3,1), bty="L", mgp=c(2,.5,0))
 col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
 plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, 4 , 16))
-title(paste0(ID,", " ,round(100*mean(info(vcf)$CNF == clusters$proportion[truth$cluster+1]),1), "% correct, ", round(100*mean(abs(info(vcf)$CNF - clusters$proportion[truth$cluster+1]) < 0.05),1), "% within 0.05 VAF"),font=1, line=1)
+title(paste0(ID,", " ,round(100*mean(info(vcf)$CNF == clusters$proportion[truth$cluster+1]),1), "% correct, ", round(100*mean((info(vcf)$CNF==purity) == (clusters$proportion[truth$cluster+1]==purity)),1), "% clonal v subclonal"),font=1, line=1)
 abline(v = w, lty=3)
 for(i in seq_along(bb)) try({
 	s <- start(bb)[i]
