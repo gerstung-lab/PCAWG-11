@@ -11,10 +11,10 @@ INPUT_FOLDER="../final/broad500/VCF"
 OUTPUT_FOLDER="../final/broad500/annotated_vcf"
 OVERWRITE=true
 
-FILES=(`ls $INPUT_FOLDER/*.vcf.gz`)
+FILES=(`ls $INPUT_FOLDER/*.vcf`)
 INPUT=${FILES[(($LSB_JOBINDEX-1))]}
 echo $INPUT
-STEM=`basename $INPUT | sed s/.vcf.gz//g`
+STEM=`basename $INPUT | sed s/.vcf//g`
 OUTPUT="$OUTPUT_FOLDER/$STEM"
 if [ ! -f "$OUTPUT_FOLDER/$STEM.complete_annotation.vcf.bgz" ] || [ "$OVERWRITE" = true ]; then
 Rscript vcfAnnotateFinal.R $INPUT $OUTPUT_FOLDER/$STEM.complete_annotation.vcf
