@@ -25,6 +25,10 @@ refLengths <- scanFaIndex(file=r)
 dpPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Subclonal_Structure'
 dpFiles <- dir(dpPath, pattern="subclonal_structure.txt", recursive=TRUE)
 
+s <- strsplit(vcfFileIn,"/")[[1]]
+ID <- sub("\\..+", "", s[length(s)])
+
+
 print(ID)
 clusters <- loadClusters(ID)
 
