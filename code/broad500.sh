@@ -8,7 +8,7 @@
 #BSUB -n 1
 
 INPUT_FOLDER="../broad500/VCF"
-OUTPUT_FOLDER="../broad500/annotated_vcf_bin_xmin0"
+OUTPUT_FOLDER="../broad500/annotated_vcf_xmin0"
 OVERWRITE=true
 
 FILES=(`ls $INPUT_FOLDER/*.vcf`)
