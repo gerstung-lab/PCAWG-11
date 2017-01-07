@@ -102,15 +102,27 @@ getAltCount <- function(vcf){
 # Density fucntions - truncated beta-binomial
 #L <- matrix(sapply(pmin(cnStates[1:k,"f"],1), function(pp) dbetabinom(altCount[hh],tumDepth[hh],pp, 0.01) + .Machine$double.eps), ncol=k)
 dtrbinom <- function(x, size, prob, xmin=0) dbinom(x,size,prob) / pbinom(xmin-1, size, prob, lower.tail=FALSE)
-dtrbetabinom <- function(x, size, prob, rho, xmin=0) {y <- VGAM::dbetabinom(x,size,prob,rho) / (1-VGAM::pbetabinom(xmin-1, size, prob, rho))
+pbetabinom <- function(x, size, prob, rho){
+	if(rho!=0)
+		VGAM::pbetabinom(x, size, prob, rho)
+	else
+		pbinom(x, size, prob)
+}
+dbetabinom <- function(x, size, prob, rho){
+	if(rho!=0)
+		VGAM::dbetabinom(x, size, prob, rho)
+	else
+		dbinom(x, size, prob)
+}
+dtrbetabinom <- function(x, size, prob, rho, xmin=0) {y <- dbetabinom(x,size,prob,rho) / (1-pbetabinom(xmin-1, size, prob, rho))
 	y[x<xmin] <- 0
 	return(y)}
 ptrbetabinom <- function(x, size, prob, rho, xmin=0) {
-	pmin <- VGAM::pbetabinom(xmin-1, size, prob, rho)
-	pmax(0,(VGAM::pbetabinom(x,size,prob,rho) - pmin) / (1-pmin))}
+	pmin <- pbetabinom(xmin-1, size, prob, rho)
+	pmax(0,(pbetabinom(x,size,prob,rho) - pmin) / (1-pmin))}
 
 
-computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], gender='female', xmin=0){
+computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], gender='female', xmin=0, rho=0.001){
 	n <- nrow(vcf)
 	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
 	P <- vector(mode='list', length(bb))
@@ -241,7 +253,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=unique(cfi)))[cnStates[1:k,"state"]]
 						
 			# Likelihood
-			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=length(whichStates))
+			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=rho, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=length(whichStates))
 
 			# EM algorithm (mixture fitting) for pi
 			P.m.sX <- cnStates[whichStates,"pi.m.s"]
@@ -367,9 +379,9 @@ classifyMutations <- function(vcf, reclassify=c("missing","all","none")) {
 	return(cls)
 }
 
-posteriorMutCN <- function(x,n, cnStates, xmin=3){
+posteriorMutCN <- function(x,n, cnStates, xmin=3, rho=0.01){
 	whichStates <- 1:nrow(cnStates)
-	L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(x,n,pp, rho=0.01, xmin=pmin(x,xmin)) + .Machine$double.eps), ncol=length(whichStates))
+	L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(x,n,pp, rho=rho, xmin=pmin(x,xmin)) + .Machine$double.eps), ncol=length(whichStates))
 	P.xsm <- L * rep(cnStates[whichStates,"pi.s"] * cnStates[whichStates,"P.m.sX"], each=nrow(L)) # P(X,s,m)
 	P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 	return(P.sm.x)

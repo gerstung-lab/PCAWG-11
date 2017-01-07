@@ -69,7 +69,7 @@ meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcf, bb, clusters, xmin=3)
+L <- computeMutCn(vcf, bb, clusters, xmin=0, rho=0)
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 
