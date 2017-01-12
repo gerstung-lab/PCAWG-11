@@ -14,6 +14,8 @@ INPUT_FOLDER="../broad500/VCF"
 OUTPUT_FOLDER="../broad500/annotated_vcf_rho$RHO_xmin$XMIN"
 OVERWRITE=true
 
+mkdir -p $OUTPUT_FOLDER
+
 FILES=(`ls $INPUT_FOLDER/*.vcf`)
 INPUT=${FILES[(($LSB_JOBINDEX-1))]}
 echo $INPUT
