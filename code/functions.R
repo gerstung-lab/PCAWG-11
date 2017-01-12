@@ -256,7 +256,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=rho, xmin=pmin(altCount[hh],0)) + .Machine$double.eps), ncol=length(whichStates))
 
 			# Power
-			power <- colMeans(matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) ptrbetabinom(pmin(altCount[hh],xmin),tumDepth[hh],pp, rho=rho, xmin=0)), ncol=length(whichStates)))
+			power <- colMeans(matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) 1-ptrbetabinom(pminx(altCount[hh],xmin),tumDepth[hh],pp, rho=rho, xmin=0)), ncol=length(whichStates)))
 			
 	
 			# EM algorithm (mixture fitting) for pi
