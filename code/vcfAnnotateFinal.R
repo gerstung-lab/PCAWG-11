@@ -53,7 +53,7 @@ if(length(bb)==0){ # Missing BB, use consensus CN
 	
 # Missing ploidy - recalculate from BB
 if(is.na(purityPloidy[ID,"ploidy"]))
-	purityPloidy[ID,"ploidy"] <- sum(width(bb) * bb$copy_number * bb$clonal_frequency) / sum(width(bb) * bb$clonal_frequency)
+	purityPloidy[ID,"ploidy"] <- sum(width(bb) * bb$copy_number * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
 
 # Load vcf
 vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
