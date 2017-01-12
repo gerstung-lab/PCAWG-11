@@ -154,6 +154,10 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	cloneFreq <- split(bb$clonal_frequency[subjectHits(overlaps)], queryHits(overlaps))
 	cnStates <- matrix(0, nrow=10000, ncol=6)
 	colnames(cnStates) <- c("state","m","f","n.m.s","pi.m.s","s")
+	
+	power.s <- rep(0, nrow(clusters))
+	
+	for(ii in 1:2)
 	for( i in which(diff(c(-1, h)) !=0 | is.na(diff(c(-1, h)) !=0) )){
 		if(!i %in% names(majorCN)) next
 		if(is.na(h[i])) next
@@ -256,18 +260,22 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=rho, xmin=pmin(altCount[hh],0)) + .Machine$double.eps), ncol=length(whichStates))
 
 			# Power
-			power <- colMeans(matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) 1-ptrbetabinom(pmin(altCount[hh],xmin),tumDepth[hh],pp, rho=rho, xmin=0)), ncol=length(whichStates)))
-			
+			power.sm <- colMeans(matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) 1-ptrbetabinom(pmin(altCount[hh],xmin),tumDepth[hh],pp, rho=rho, xmin=0)), ncol=length(whichStates)), na.rm=TRUE)
+			if(ii==2)
+				power.sm[cnStates[whichStates,"s"] > 1] <- power.s[-1]
 	
 			# EM algorithm (mixture fitting) for pi
 			P.m.sX <- cnStates[whichStates,"pi.m.s"]
 			for(em.it in 1:100){
-				P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power, each=nrow(L)) # P(X,s,m)
+				P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power.sm, each=nrow(L)) # P(X,s,m)
 				P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 				P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
 				P.s.X <- sapply(split(P.sm.X, cnStates[whichStates,"s"]), sum)
 				P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
 			}
+			
+			if(ii==1)
+			power.s <- power.s + sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth))
 			
 			# Tail probs
 			pMutCNTail <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) ptrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin))), ncol=length(whichStates)) #%*% c(pi.s[cnStates[whichStates,"state"]] * P.m.sX)
@@ -294,7 +302,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
-			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=P.m.sX, power=power,
+			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=P.m.sX, power=power.sm,
 					majCN=majcni[cnStates[whichStates,"state"]], minCN=mincni[cnStates[whichStates,"state"]], 
 					majDelta = majdelta[cnStates[whichStates,"state"]], minDelta = mindelta[cnStates[whichStates,"state"]], 
 					clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]])
