@@ -253,12 +253,16 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=unique(cfi)))[cnStates[1:k,"state"]]
 						
 			# Likelihood
-			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=rho, xmin=pmin(altCount[hh],xmin)) + .Machine$double.eps), ncol=length(whichStates))
+			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=rho, xmin=pmin(altCount[hh],0)) + .Machine$double.eps), ncol=length(whichStates))
 
+			# Power
+			power <- colMeans(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) ptrbetabinom(pmin(altCount[hh],xmin),tumDepth[hh],pp, rho=rho, xmin=0)), ncol=length(whichStates))
+			
+	
 			# EM algorithm (mixture fitting) for pi
 			P.m.sX <- cnStates[whichStates,"pi.m.s"]
 			for(em.it in 1:100){
-				P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX, each=nrow(L)) # P(X,s,m)
+				P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power, each=nrow(L)) # P(X,s,m)
 				P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 				P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
 				P.s.X <- sapply(split(P.sm.X, cnStates[whichStates,"s"]), sum)
@@ -290,7 +294,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
-			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=P.m.sX, 
+			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=P.m.sX, power=power,
 					majCN=majcni[cnStates[whichStates,"state"]], minCN=mincni[cnStates[whichStates,"state"]], 
 					majDelta = majdelta[cnStates[whichStates,"state"]], minDelta = mindelta[cnStates[whichStates,"state"]], 
 					clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]])
