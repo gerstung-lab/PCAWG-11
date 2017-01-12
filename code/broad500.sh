@@ -11,7 +11,7 @@ XMIN=3
 RHO=0
 
 INPUT_FOLDER="../broad500/VCF"
-OUTPUT_FOLDER="../broad500/annotated_vcf_rho$RHO_xmin$XMIN"
+OUTPUT_FOLDER="../broad500/annotated_vcf_rho${RHO}_xmin${XMIN}"
 OVERWRITE=true
 
 mkdir -p $OUTPUT_FOLDER
