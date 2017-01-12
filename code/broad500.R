@@ -10,6 +10,8 @@ source("functions.R")
 
 vcfFileIn <- args[1]
 vcfFileOut <- args[2]
+xmin <- as.numeric(args[3])
+rho <- as.numeric(args[4])
 
 print(vcfFileIn)
 print(vcfFileOut)
@@ -69,7 +71,7 @@ meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcf, bb, clusters, xmin=3, rho=0)
+L <- computeMutCn(vcf, bb, clusters, xmin=xmin, rho=rho)
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 
