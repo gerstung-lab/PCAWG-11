@@ -285,7 +285,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			}
 			
 			if(ii==1){
-				p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[match(clusters$proportion, unique(cfi))]
+				p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[match(round(clusters$proportion,3), round(unique(cfi),3))]
 				if(!any(is.na(p) | is.nan(p)))
 					power.c <- power.c + p 
 			}
