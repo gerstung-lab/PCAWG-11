@@ -3,8 +3,8 @@
 # Author: mg14
 ###############################################################################
 
-vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/subs/2016-03/annotated'
-basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/2016_04_02_vanloo_wedge_consensusSNV_battenbergCNA'
+vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consensus_12oct_passonly/snv_mnv'
+basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20161213_vanloo_wedge_consSNV_prelimConsCNAallStar'
 dpPath <- paste0(basePath,'/2_subclones/')
 cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
 purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=TRUE, row.names=1)

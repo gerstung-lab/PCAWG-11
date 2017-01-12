@@ -51,6 +51,9 @@ if(length(bb)==0){ # Missing BB, use consensus CN
 	#meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value="False", row.names="Battenberg"))
 }
 	
+# Missing ploidy - recalculate from BB
+if(is.na(purityPloidy[ID,"ploidy"]))
+	purityPloidy[ID,"ploidy"] <- sum(width(bb) * bb$copy_number * bb$clonal_frequency) / sum(width(bb) * bb$clonal_frequency)
 
 # Load vcf
 vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
@@ -73,7 +76,7 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcf, bb, clusters, xmin=3, gender=as.character(gender[ID, "pred_gender"]))
+L <- computeMutCn(vcf, bb, clusters=clusters, purity=purityPloidy[ID,1], xmin=3, gender=as.character(gender[ID, "pred_gender"]))
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 
