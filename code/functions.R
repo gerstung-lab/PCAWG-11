@@ -247,6 +247,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				k <- k + length(l)
 			}
 			hh <- which(h==h[i] & !is.na(altCount) &! is.na(tumDepth))
+			if(is.null(hh)) next
 			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
 			
 			# State probabilities - based on cancer cell fractions
