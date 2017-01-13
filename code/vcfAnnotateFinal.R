@@ -19,8 +19,8 @@ library(Matrix)
 library(CoxHD)
 library(igraph)
 
-r = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
-refLengths <- scanFaIndex(file=r)
+refFile = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
+refLengths <- scanFaIndex(file=refFile)
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
@@ -38,9 +38,10 @@ clusters <- loadClusters(ID)
 
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
+purity <- purityPloidy[ID,'purity']
 
 # Fix clusters with proportion > purity
-w <- clusters$proportion >= purity
+w <- clusters$proportion >= purity - 0.075 #ie ~ 1.5 reads 
 cl <- rbind(clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]))
 cl[nrow(cl),"proportion"] <- purity
 clusters <- cl
@@ -74,7 +75,7 @@ vcf <- addFinalDriver(vcf, driVers)
 
 # Add TNC
 if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
-    tnc=scanFa(file=r, resize(granges(vcf), 3,fix="center"))
+    tnc=scanFa(file=refFile, resize(granges(vcf), 3,fix="center"))
     i = header(vcf)@header$INFO
     exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Trinucleotide context", row.names="TNC"))
     info(vcf)$TNC <- as.character(tnc)
@@ -84,7 +85,7 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcf, bb, clusters=clusters, purity=purityPloidy[ID,1], xmin=3, gender=as.character(allGender[ID, "pred_gender"]))
+L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]))
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 
@@ -102,19 +103,19 @@ save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 bgzip(vcfFileOut, overwrite=TRUE)
 save(vcf, file=paste0(vcfFileOut,".RData"))
 
-w <- cumsum(c(0,as.numeric(width(refLengths))))
-names(w) <- c(seqlevels(refLengths), "NA")
+chrOffset <- cumsum(c(0,as.numeric(width(refLengths))))
+names(chrOffset) <- c(seqlevels(refLengths), "NA")
 
 
 pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
 par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
 col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
-plot(start(vcf) + w[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, 4 , 16))
-abline(v = w, lty=3)
+plot(start(vcf) + chrOffset[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, 4 , 16))
+abline(v = chrOffset, lty=3)
 for(i in seq_along(bb)) try({
 	s <- start(bb)[i]
 	e <- end(bb)[i]
-	x <- w[as.character(seqnames(bb)[i])]
+	x <- chrOffset[as.character(seqnames(bb)[i])]
 	y <- bb$timing_param[[i]][,"f"]
 	l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
 	segments(s+x,y,e+x,y, lwd=l*4+.1)
