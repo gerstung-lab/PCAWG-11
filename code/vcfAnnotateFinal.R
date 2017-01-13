@@ -44,7 +44,7 @@ purity <- purityPloidy[ID,'purity']
 
 # Fix clusters with proportion > purity
 w <- clusters$proportion >= purity - 0.075 #ie ~ 1.5 reads 
-cl <- rbind(clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]))
+cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE])))
 cl[nrow(cl),"proportion"] <- purity
 clusters <- cl
 #clusters <- mergeClusters(clusters, deltaFreq=0.05)
