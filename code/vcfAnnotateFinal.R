@@ -38,6 +38,7 @@ clusters <- loadClusters(ID)
 
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
+
 purity <- purityPloidy[ID,'purity']
 
 # Fix clusters with proportion > purity
@@ -50,16 +51,14 @@ clusters <- cl
 
 # Load BB
 bb <- loadBB(ID)
-if(length(bb)==0){ # Missing BB, use consensus CN
-	cnPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/cn/consensus_001/all"
-	file <- paste0(cnPath, "/",ID,"_segments.txt")
-	tab <- read.table(file, header=TRUE, sep='\t')
-	bb <- GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
-	#m <- read.table(gzfile(paste0(basePath, "/0_multiplicity/",ID,"_multiplicity.txt.gz")), header=TRUE)
-	#bb <- GRanges(m$chr, IRanges(m$pos, width=1), copy_number=m$tumour_copynumber, major_cn=m$nMaj1, minor_cn=m$nMin1, clonal_frequency=purityPloidy[ID,'purity'])
-	#meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value="False", row.names="Battenberg"))
+
+if(purity == 1){
+	purity <- max(clusters$proportion)
+	bb$clonal_frequency <- bb$clonal_frequency * purity
+	purityPloidy[ID,'purity'] <- purity
 }
 	
+
 # Missing ploidy - recalculate from BB
 if(is.na(purityPloidy[ID,"ploidy"]))
 	purityPloidy[ID,"ploidy"] <- sum(width(bb) * bb$copy_number * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
