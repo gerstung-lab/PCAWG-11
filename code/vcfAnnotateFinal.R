@@ -138,7 +138,7 @@ names(chrOffset) <- c(seqlevels(refLengths), "NA")
 
 for(v in c('vcf','vcfIndel')){
 	vv <- get(v)
-	pdf(file=sub(".vcf$",".pdf",get(paste0(v,"Out"))), 16,8)
+	pdf(file=sub(".vcf$",".pdf",get(paste0(v,"FileOut"))), 16,8)
 	par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
 	col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
 	cls <- info(vv)$CLS
