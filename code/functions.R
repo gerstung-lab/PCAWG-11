@@ -145,7 +145,6 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	altCount <- getAltCount(vcf)
 	tumDepth <- getTumorDepth(vcf)
 	names(altCount) <- names(tumDepth) <- NULL
-	ID <- meta(header(vcf))["ID",]
 	
 	# Match VCF and CN
 	overlaps <- findOverlaps(vcf, bb)
@@ -266,10 +265,12 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
 			
 			# State probabilities - based on cell fractions
-			pi.s <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
+			cfi.s <- unique(cfi)
+			pi.s <- sapply(cfi.s, function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
 			pi.s <- pi.s/sum(pi.s)
 			
-			which.c <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, which.min(abs(clusters$proportion - p)), NA)) # map to cluster
+			c.to.s <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, which.min(abs(clusters$proportion - p)), NA)) # map to cluster
+			s.to.c <- sapply(clusters$proportion, function(c) which.min(abs(cfi.s - c)))
 			
 			cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=unique(cfi)))[cnStates[1:k,"state"]]
 						
@@ -281,7 +282,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			if(globalIt==2){
 				P.m.sX <- P[[h[i]]][,"P.m.sX"]
 				power.s <- sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) # Power for state
-				power.s[!is.na(which.c)] <- power.c[which.c]
+				power.s[!is.na(c.to.s)] <- power.c[c.to.s]
 				power.m.s <- power.sm # Relative power of m states (local) conditioned on s (global).
 		        for(s in unique(cnStates[whichStates,"s"])) power.m.s[cnStates[whichStates,"s"]==s] <- power.m.s[cnStates[whichStates,"s"]==s] / max(power.m.s[cnStates[whichStates,"s"]==s]) #power.s[s]
 			}else{ # First iteration
@@ -300,7 +301,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			}
 			
 			if(globalIt==1){
-				p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[sapply(clusters$proportion, function(c) which.min(abs(cfi - c)))]
+				p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[s.to.c]
 				if(!any(is.na(p) | is.nan(p)))
 					power.c <- power.c + p 
 			}
@@ -353,10 +354,9 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			D[hh,"CNF"]  <- cfi[cnStates[whichStates[w],"state"]] 
 			D[hh,"pMutCN"] <- sapply(seq_along(w), function(i) P.sm.x[i,w[i]])
 			D[hh,"pMutCNTail"] <- sapply(seq_along(w), function(i) pMutCNTail[i,w[i]])
-		}
-		
-		if(any(is.na(power.c) | power.c==0)) break # Cancel 2nd iteration 
 		}		
+		}		
+		if(any(is.na(power.c) | power.c==0)) break # Cancel 2nd iteration 
 	}
 	return(list(D=D,P=P, power.c=power.c))
 }
@@ -404,7 +404,7 @@ classifyMutations <- function(vcf, reclassify=c("missing","all","none")) {
 posteriorMutCN <- function(x,n, cnStates, xmin=3, rho=0.01){
 	whichStates <- 1:nrow(cnStates)
 	L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(x,n,pp, rho=rho, xmin=pmin(x,xmin)) + .Machine$double.eps), ncol=length(whichStates))
-	P.xsm <- L * rep(cnStates[whichStates,"pi.s"] * cnStates[whichStates,"P.m.sX"], each=nrow(L)) # P(X,s,m)
+	P.xsm <- L * rep(cnStates[whichStates,"pi.s"] * cnStates[whichStates,"P.m.sX"] / cnStates[whichStates,"power.s"] / cnStates[whichStates,"power.m.s"], each=nrow(L)) # P(X,s,m)
 	P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 	return(P.sm.x)
 }
