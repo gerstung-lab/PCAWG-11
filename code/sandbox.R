@@ -2081,3 +2081,87 @@ getDriverGenotype <- function(vcf, drivers, reclassify='missing', ...){
 	hom <- factor(info(vcf)$MCN==t, levels=c(TRUE,FALSE))
 	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom, ...)
 }
+
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/snv_mnv"
+finalVcfSnv <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f){
+			e <- new.env()
+			load(f, envir=e)
+			return(e$vcf)
+		}, mc.cores=6)
+
+cancerGenesBak <- cancerGenes
+cancerGenes <- levels(driVers$gene)
+
+finalGenotypesSnv <- simplify2array(mclapply(finalVcfSnv, getGenotype, mc.cores=6, useNA="always"))
+
+g <- asum(finalGenotypesSnv, c(3:4))
+g <- g[order(rowSums(g), decreasing=TRUE),]
+barplot(t(g[1:50,]/rowSums(g)[1:50]), col=col, las=2)
+
+col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
+
+pGainToTime <- function(vcf){
+	P <- matrix(NA, nrow=nrow(vcf), ncol=4, dimnames=list(NULL, c("pEarly","pLate","pClonal[NA]","pSub")))
+	P[,c("pEarly","pClonal[NA]","pSub")] <- as.matrix(info(vcf)[,c("pGain","pSingle","pSub")])
+	biAllelicGain <- (info(vcf)$MajCN > 1 & info(vcf)$MinCN > 1)
+	w <- which(biAllelicGain)
+	P[w, "pLate"] <- P[w, "pClonal[NA]"]
+	P[w, "pClonal[NA]"] <- 0
+	P[which(!biAllelicGain),"pLate"] <- 0
+	return(P)
+}
+	
+dpPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Subclonal_Structure'
+dpFiles <- dir(dpPath, pattern="subclonal_structure.txt", recursive=TRUE)
+simPurityPloidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/pp_table.txt", header=TRUE, sep='\t')
+rownames(simPurityPloidy) <- simPurityPloidy$sample
+simPurityPloidy <- simPurityPloidy[,2:3]
+
+prec <- simplify2array(mclapply(dir("../broad500", pattern="annotated_vcf", full.names=TRUE), function(d){
+			x <- sapply(dir(d, pattern=".vcf.RData", full.names=TRUE), function(f){
+						e <- new.env()
+						load(f, envir=e)
+						ID <- meta(header(e$vcf))["ID",1]
+						truth <- read.table(paste0("../broad500/Mut_Assign/",ID,".mutation_assignments.txt"), header=TRUE, sep="\t")
+						truth <- GRanges(truth$chr, IRanges(truth$pos, width=1), cluster=truth$cluster)
+						seqlevels(truth) <-paste( 1:22)
+						truth <- sort(truth)
+						purity <- simPurityPloidy[ID,"purity"]						
+						clusters <- loadClusters(ID)
+						clusters$proportion <- clusters$ccf * purity
+						x <- mean(info(e$vcf)$CNF == clusters$proportion[truth$cluster+1])
+						y <- mean((info(e$vcf)$CNF==purity) == (clusters$proportion[truth$cluster+1]==purity))
+						return(c(prec.all=x,prec.clonal=y))
+					})
+			colnames(x) <- sub("(.+)(Sim_.+)(.no_rea.+)","\\2",colnames(x))
+			return(x)
+		}, mc.cores=6))
+dimnames(prec)[[3]] <- sub("annotated_vcf_*", "",dir("../broad500", pattern="annotated_vcf"))
+#dimnames(prec)[[3]][1] <- "betabin_xmin3"
+#dimnames(prec)[[3]][4] <- "betabin_xmin0"
+
+prec[[3]] <- prec[[3]][,match(colnames(prec[[2]]),colnames(prec[[3]]))]
+prec <- simplify2array(prec)
+
+boxplot(prec[2,,])
+
+load("../broad500/annotated_vcf_rho0_xmin3_local/Sim_500_209.no_real_info.complete_annotation.bb_granges.RData")
+bb_local <- bb
+load("../broad500/annotated_vcf_rho0_xmin3_global/Sim_500_209.no_real_info.complete_annotation.bb_granges.RData")
+bb_global <- bb
+
+p <- sapply(c("bb_local","bb_global"), function(b){
+			unlist(sapply(1:length(bb_local), function(i){
+			b <- get(b)
+			t <- b$timing_param[[i]]
+			try(return(t[,"power.s"] * t[,"power.m.s"]))
+			try(return(t[,"power"]))
+		}))})
+
+load("../broad500/annotated_vcf_rho0_xmin3_global/Sim_500_209.no_real_info.complete_annotation.vcf.RData")
+
+simClust <- sapply(rownames(simPurityPloidy), function(i){
+			cl <- loadClusters(i)
+			cl$proportion <- cl$ccf * simPurityPloidy[i,'purity']
+			return(cl)
+		}, simplify=FALSE)
