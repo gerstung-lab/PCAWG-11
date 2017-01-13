@@ -135,7 +135,7 @@ mergeClusters <- function(clusters, deltaFreq=0.05){
 	))
 }
 
-computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], purity =purityPloidy[meta(header(vcf))["ID",], 'purity'], gender='female', xmin=0, rho=0.001){
+computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], purity=purityPloidy[meta(header(vcf))["ID",], 'purity'], gender='female', isWgd= purityPloidy[meta(header(vcf))["ID",],2] > 2.7, xmin=3, rho=0){
 	n <- nrow(vcf)
 	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
 	P <- vector(mode='list', length(bb))
@@ -170,9 +170,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	power.c <- rep(0, nrow(clusters))
 	
 	deltaFreq <- 0.05 # merge clusters withing deltaFreq
-	isWgd <- (purityPloidy[ID,2] > 2.7)
 	
-	for(ii in 1:2)
+	for(globalIt in 1:2){ # 2 iterations, fist local (ie per segment) fit, then global
 	for( i in which(diff(c(-1, h)) !=0 | is.na(diff(c(-1, h)) !=0) )){
 		if(!i %in% names(majorCN)) next
 		if(is.na(h[i])) next
@@ -279,7 +278,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 
 			# Power
 			power.sm <- colMeans(matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) 1-ptrbetabinom(pmin(altCount[hh],xmin),tumDepth[hh],pp, rho=rho, xmin=0)), ncol=length(whichStates)), na.rm=TRUE)
-			if(ii==2){
+			if(globalIt==2){
 				P.m.sX <- P[[h[i]]][,"P.m.sX"]
 				power.s <- sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) # Power for state
 				power.s[!is.na(which.c)] <- power.c[which.c]
@@ -300,7 +299,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
 			}
 			
-			if(ii==1){
+			if(globalIt==1){
 				p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[sapply(clusters$proportion, function(c) which.min(abs(cfi - c)))]
 				if(!any(is.na(p) | is.nan(p)))
 					power.c <- power.c + p 
@@ -356,25 +355,8 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			D[hh,"pMutCNTail"] <- sapply(seq_along(w), function(i) pMutCNTail[i,w[i]])
 		}
 		
-		
-		#L <- dbinom(altCount[i],tumDepth[i],pmin(cnStates[1:k,"f"],1)) + .Machine$double.eps
-		#post <- L * piState[cnStates[1:k,"state"]] * cnStates[1:k,"pi.m.s"]
-		#post <- post/sum(post)
-#		post <- P.sm.x[hh==i,]
-#		if(any(is.nan(post) | is.na(post))) next
-#		D[i,"pSub"] <- sum(post[cnStates[1:k,"state"]!=which.max(cfi)])
-#		D[i,"pGain"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]>1])
-#		D[i,"pSingle"] <- sum(post[cnStates[1:k,"state"]==which.max(cfi) & cnStates[1:k,"m"]<=1])
-#		
-#		w <- which.max(post)
-#		#idx <- as.numeric(strsplit(names(prob[w]), ":")[[1]])
-#		#names(prob) <- NULL
-#		D[i,"MutCN"] <- cnStates[w,"m"]
-#		D[i,"MinCN"] <- mincni[cnStates[w,"state"]]
-#		D[i,"MajCN"] <- majcni[cnStates[w,"state"]]
-#		D[i,"CNF"] <- cfi[cnStates[w,"state"]] 
-#		D[i,"pMutCN"] <- post[w]
-		
+		if(any(is.na(power.c) | power.c==0)) break # Cancel 2nd iteration 
+		}		
 	}
 	return(list(D=D,P=P, power.c=power.c))
 }
