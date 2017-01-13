@@ -12,10 +12,10 @@ colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
 
-gender <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/gender/2016_12_09_inferred_sex_all_samples.txt', header=TRUE, sep='\t')
-gender <- gender[!duplicated(gender$tumourid) & gender$tumourid != 'tumourid',]
+allGender <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/gender/2016_12_09_inferred_sex_all_samples.txt', header=TRUE, sep='\t')
+allGender <- allGender[!duplicated(allGender$tumourid) & allGender$tumourid != 'tumourid',]
 #write.table(gender,'/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/gender/2016_12_09_inferred_sex_all_samples_CORRECTED_MG.txt', row.names=FALSE, col.names=TRUE, sep='\t', quote=FALSE)
-rownames(gender) <- gender$tumourid
+rownames(allGender) <- allGender$tumourid
 
 addTNC <- function(vcf){	
 	r = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
@@ -122,6 +122,19 @@ ptrbetabinom <- function(x, size, prob, rho, xmin=0) {
 	pmax(0,(pbetabinom(x,size,prob,rho) - pmin) / (1-pmin))}
 
 
+mergeClusters <- function(clusters, deltaFreq=0.05){
+	if(nrow(clusters) <= 1) return(clusters)
+	h <- hclust(dist(clusters$proportion))
+	ct <- cutree(h, h=deltaFreq)
+	cp <- as.matrix(cophenetic(h))
+	Reduce("rbind",lapply(unique(ct), function(i) {
+						n_ssms <- sum(clusters$n_ssms[ct==i])
+						w <- max(cp[ct==i,ct==i])
+						data.frame(new.cluster=i, n_ssms=n_ssms, proportion=sum(clusters$proportion[ct==i]*clusters$n_ssms[ct==i])/n_ssms, width=w)
+					}
+	))
+}
+
 computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]]], purity =purityPloidy[meta(header(vcf))["ID",], 'purity'], gender='female', xmin=0, rho=0.001){
 	n <- nrow(vcf)
 	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
@@ -156,6 +169,9 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	
 	power.c <- rep(0, nrow(clusters))
 	
+	deltaFreq <- 0.05 # merge clusters withing deltaFreq
+	isWgd <- (purityPloidy[ID,2] > 2.7)
+	
 	for(ii in 1:2)
 	for( i in which(diff(c(-1, h)) !=0 | is.na(diff(c(-1, h)) !=0) )){
 		if(!i %in% names(majorCN)) next
@@ -179,7 +195,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			minanc <- minder <- mincni
 			
 			if(length(cfi)>1){ # multiple (subclonal) CN states, if so add clonal option (ie. mixture of both states), subclonal states only change by 1..delta(CN)
-				d <- colSums(abs(rbind(majcni, mincni) - c(1,1) * (1+ (purityPloidy[ID,2] > 2.7))))
+				d <- colSums(abs(rbind(majcni, mincni) - c(1,1) * (1+ isWgd)))
 				derived <- d == max(d) ## derived state further from diploid/tetraploid
 				if(all(derived)) next 
 				majanc <- majcni[!derived]
@@ -200,7 +216,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				subclonalGainFlag <- c(FALSE, FALSE, TRUE)
 			}
 			
-			a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > 0.05)) # subclone(s) not coinciding with CN change
+			a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > deltaFreq)) # subclone(s) not coinciding with CN change
 			if(any(a)){ # assume subclones have derived from most abundant CN state
 				majcni <- c(majcni, rep(majcni[which.max(cfi)]>0, sum(a))+0)
 				mincni <- c(mincni, rep(mincni[which.max(cfi)]>0, sum(a))+0)
@@ -250,11 +266,11 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			if(length(hh)==0) next
 			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
 			
-			# State probabilities - based on cancer cell fractions
-			pi.s <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
+			# State probabilities - based on cell fractions
+			pi.s <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
 			pi.s <- pi.s/sum(pi.s)
 			
-			which.c <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < 0.05, which.min(abs(clusters$proportion - p)), NA)) # map to cluster
+			which.c <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, which.min(abs(clusters$proportion - p)), NA)) # map to cluster
 			
 			cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=unique(cfi)))[cnStates[1:k,"state"]]
 						
@@ -285,7 +301,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			}
 			
 			if(ii==1){
-				p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[match(round(clusters$proportion,3), round(unique(cfi),3))]
+				p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[sapply(clusters$proportion, function(c) which.min(abs(cfi - c)))]
 				if(!any(is.na(p) | is.nan(p)))
 					power.c <- power.c + p 
 			}
