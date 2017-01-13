@@ -33,10 +33,18 @@ ID <- sub("\\..+", "", s[length(s)])
 
 print(ID)
 
+# Load clusters
 clusters <- loadClusters(ID)
 
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
+
+# Fix clusters with proportion > purity
+w <- clusters$proportion >= purity
+cl <- rbind(clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]))
+cl[nrow(cl),"proportion"] <- purity
+clusters <- cl
+#clusters <- mergeClusters(clusters, deltaFreq=0.05)
 
 
 # Load BB
@@ -59,7 +67,7 @@ if(is.na(purityPloidy[ID,"ploidy"]))
 vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 
 # Add ID & gender
-meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character(gender[ID, "pred_gender"])), row.names=c("ID", "gender")))
+meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
 
 # Add driver genes
 vcf <- addFinalDriver(vcf, driVers)
@@ -76,7 +84,7 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcf, bb, clusters=clusters, purity=purityPloidy[ID,1], xmin=3, gender=as.character(gender[ID, "pred_gender"]))
+L <- computeMutCn(vcf, bb, clusters=clusters, purity=purityPloidy[ID,1], xmin=3, gender=as.character(allGender[ID, "pred_gender"]))
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 
