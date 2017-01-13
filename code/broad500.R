@@ -64,7 +64,7 @@ bb$clonal_frequency <- bb$ccf * purity
 vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 
 # Add ID & gender
-meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character(gender[ID, "pred_gender"])), row.names=c("ID", "gender")))
+meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
 
 
 #' Add mutation copy numbers
