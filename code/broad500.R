@@ -98,6 +98,14 @@ truth <- GRanges(truth$chr, IRanges(truth$pos, width=1), cluster=truth$cluster)
 seqlevels(truth) <-paste( 1:22)
 truth <- sort(truth)
 
+#' Output
+f <- factor(info(vcf)$CNF)
+assignment <- data.frame(chr=seqnames(vcf), pos=start(vcf), cluster=as.numeric(f))
+write.table(file=sub(".vcf$","_mutation_assignments.txt"), assignment, row.names=FALSE, quote=FALSE, sep='\t')
+t <- t(table(f, useNA='a'))
+clusterTable <- data.frame(cluster=as.numeric(factor(colnames(t))), n_ssms=as.numeric(t), proportion=as.numeric(colnames(t)))
+write.table(file=sub(".vcf$","_subclonal_structure.txt"), clusterTable, row.names=FALSE, quote=FALSE, sep='\t')
+
 pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
 par(mar=c(3,3,3,1), bty="L", mgp=c(2,.5,0))
 col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
