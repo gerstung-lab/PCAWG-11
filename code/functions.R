@@ -175,6 +175,10 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 		if(!i %in% names(majorCN)) next
 		if(is.na(h[i])) next
 		if(if(i>1) h[i] != h[i-1] | is.na(h[i-1]) else TRUE){ #ie. new segment
+			
+			hh <- which(h==h[i] & !is.na(altCount) &! is.na(tumDepth))
+			if(length(hh)==0) next
+			
 			majcni <- majorCN[[as.character(i)]]
 			mincni <- minorCN[[as.character(i)]]
 			cfi <- cloneFreq[[as.character(i)]]
@@ -213,6 +217,9 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				clonalFlag <- c(TRUE,TRUE,FALSE)
 				subclonalGainFlag <- c(FALSE, FALSE, TRUE)
 			}
+			
+			if(is.null(bb$timing_param)){
+				
 			
 			a <- sapply(clusters$proportion, function(p) all(abs(p-cfi) > deltaFreq)) # subclone(s) not coinciding with CN change
 			if(any(a)){ # assume subclones have derived from most abundant CN state
@@ -260,8 +267,6 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				cnStates[k + l,"n.m.s"]=n.m.s
 				k <- k + length(l)
 			}
-			hh <- which(h==h[i] & !is.na(altCount) &! is.na(tumDepth))
-			if(length(hh)==0) next
 			whichStates <- (1:k)[cnStates[1:k,"f"]>0]
 			
 			# State probabilities - based on cell fractions
@@ -269,10 +274,10 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			pi.s <- sapply(cfi.s, function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, clusters$n_ssms[which.min(abs(clusters$proportion - p))], 1))
 			pi.s <- pi.s/sum(pi.s)
 			
-			c.to.s <- sapply(unique(cfi), function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, which.min(abs(clusters$proportion - p)), NA)) # map to cluster
+			c.to.s <- sapply(cfi.s, function(p) ifelse(min(abs(clusters$proportion - p)) < deltaFreq, which.min(abs(clusters$proportion - p)), NA)) # map to cluster
 			s.to.c <- sapply(clusters$proportion, function(c) which.min(abs(cfi.s - c)))
 			
-			cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=unique(cfi)))[cnStates[1:k,"state"]]
+			cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=cfi.s))[cnStates[1:k,"state"]]
 						
 			# Likelihood
 			L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(altCount[hh],tumDepth[hh],pp, rho=rho, xmin=pmin(altCount[hh],0)) + .Machine$double.eps), ncol=length(whichStates))
@@ -282,7 +287,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			if(globalIt==2){
 				P.m.sX <- P[[h[i]]][,"P.m.sX"]
 				power.s <- sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) # Power for state
-				power.s[!is.na(c.to.s)] <- power.c[c.to.s]
+				power.s[!is.na(c.to.s)] <- power.c[na.omit(c.to.s)]
 				power.m.s <- power.sm # Relative power of m states (local) conditioned on s (global).
 		        for(s in unique(cnStates[whichStates,"s"])) power.m.s[cnStates[whichStates,"s"]==s] <- power.m.s[cnStates[whichStates,"s"]==s] / max(power.m.s[cnStates[whichStates,"s"]==s]) #power.s[s]
 			}else{ # First iteration
@@ -296,6 +301,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power.m.s / power.s[cnStates[whichStates,"s"]], each=nrow(L)) # P(X,s,m)
 				P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 				P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
+				if(em.it==100) break
 				P.s.X <- sapply(split(P.sm.X, cnStates[whichStates,"s"]), sum)
 				P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
 			}
@@ -305,8 +311,6 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 				if(!any(is.na(p) | is.nan(p)))
 					power.c <- power.c + p 
 			}
-			# Tail probs
-			pMutCNTail <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) ptrbetabinom(altCount[hh],tumDepth[hh],pp, rho=0.01, xmin=pmin(altCount[hh],xmin))), ncol=length(whichStates)) #%*% c(pi.s[cnStates[whichStates,"state"]] * P.m.sX)
 			
 			
 #			boot <- sapply(1:100, function(foo) {Lb <- L[sample(1:nrow(L), replace=TRUE),]
@@ -330,28 +334,39 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 			
 			
 			P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
-			P[[h[i]]] <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=P.m.sX, power.s=power.s[cnStates[whichStates,"s"]], power.m.s = power.m.s,
+			
+			timing_param <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=P.m.sX, power.s=power.s[cnStates[whichStates,"s"]], power.m.s = power.m.s,
 					majCN=majcni[cnStates[whichStates,"state"]], minCN=mincni[cnStates[whichStates,"state"]], 
 					majDelta = majdelta[cnStates[whichStates,"state"]], minDelta = mindelta[cnStates[whichStates,"state"]], 
 					clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]])
+			}else{
+				timing_param <- bb$timing_param[[h[i]]]
+				P.sm.x <- posteriorMutCN(x=altCount[hh],n=tumDepth[hh], cnStates=timing_param, xmin=0, rho=rho)
+			}
+			
+			# Tail probs
+			pMutCNTail <- matrix(sapply(pmin(timing_param[,"f"],1), function(pp) ptrbetabinom(altCount[hh],tumDepth[hh],pp, rho=rho, xmin=pmin(altCount[hh],xmin))), ncol=nrow(timing_param)) #%*% c(pi.s[cnStates[whichStates,"state"]] * P.m.sX)
+			
+			
+			P[[h[i]]] <- timing_param
 			if(H[i] != h[i]) P[[H[[i]]]] <- P[[h[i]]]
 
 			w <- apply(P.sm.x, 1, function(x) if(any(is.na(x))) NA else which.max(x) )
 			if(all(is.na(w))) next
 			
-			D[hh, "pSub"] <- rowSums(P.sm.x[, !cnStates[whichStates,"state"] %in% which(clonalFlag), drop=FALSE])
-			D[hh, "pGain"] <- rowSums(P.sm.x[, cnStates[whichStates,"state"] %in% which(clonalFlag) & cnStates[whichStates,"m"] > 1.00001 + majdelta[cnStates[whichStates,"state"]] + mindelta[cnStates[whichStates,"state"]], drop=FALSE])
+			D[hh, "pSub"] <- rowSums(P.sm.x[, !timing_param[,"clonalFlag"], drop=FALSE])
+			D[hh, "pGain"] <- rowSums(P.sm.x[, timing_param[,"clonalFlag"] & timing_param[,"m"] > 1.00001 + timing_param[,"majDelta"] + timing_param[,"minDelta"], drop=FALSE])
 			#D[hh, "pSingle"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
 			D[hh, "pSingle"] <-  1 - D[hh, "pSub"] - D[hh, "pGain"]			
 			
-			D[hh,"MutCN"]  <- cnStates[whichStates[w],"m"]
-			D[hh,"MutDeltaCN"]  <- majdelta[cnStates[whichStates[w],"state"]] + mindelta[cnStates[whichStates[w],"state"]]
+			D[hh,"MutCN"]  <- timing_param[w,"m"]
+			D[hh,"MutDeltaCN"]  <- timing_param[w,"majDelta"] + timing_param[w,"minDelta"]
 			D[hh,"MinCN"] <- minanc
 			D[hh,"MajCN"] <- majanc
 			D[hh,"MinDerCN"] <- minder
 			D[hh,"MajDerCN"] <- majder
 			
-			D[hh,"CNF"]  <- cfi[cnStates[whichStates[w],"state"]] 
+			D[hh,"CNF"]  <- timing_param[w,"cfi"]
 			D[hh,"pMutCN"] <- sapply(seq_along(w), function(i) P.sm.x[i,w[i]])
 			D[hh,"pMutCNTail"] <- sapply(seq_along(w), function(i) pMutCNTail[i,w[i]])
 		}		
