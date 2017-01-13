@@ -341,6 +341,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 					clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]])
 			}else{
 				timing_param <- bb$timing_param[[h[i]]]
+				if(is.null(timing_param)) next
 				P.sm.x <- posteriorMutCN(x=altCount[hh],n=tumDepth[hh], cnStates=timing_param, xmin=0, rho=rho)
 			}
 			

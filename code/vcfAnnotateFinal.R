@@ -33,6 +33,7 @@ ID <- sub("\\..+", "", s[length(s)])
 
 print(ID)
 
+#' ## CLUSTERS
 # Load clusters
 clusters <- loadClusters(ID)
 
@@ -49,7 +50,7 @@ clusters <- cl
 #clusters <- mergeClusters(clusters, deltaFreq=0.05)
 
 
-# Load BB
+#' ## COPYNUMBER
 bb <- loadBB(ID)
 
 if(purity == 1){
@@ -63,7 +64,8 @@ if(purity == 1){
 if(is.na(purityPloidy[ID,"ploidy"]))
 	purityPloidy[ID,"ploidy"] <- sum(width(bb) * bb$copy_number * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
 
-# Load vcf
+#' ## VCF 
+#' Load vcf
 vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 
 # Add ID & gender
@@ -96,34 +98,64 @@ info(vcf)$CLS <- cls
 info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
 
 #' Save output
-#fnew <- sub(".vcf",".complete_annotation.vcf",vcfFileOut)
 writeVcf(vcf, file=vcfFileOut)
-save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 bgzip(vcfFileOut, overwrite=TRUE)
+unlink(vcfFileOut)
+save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 save(vcf, file=paste0(vcfFileOut,".RData"))
+
+
+#' ## INDEL
+vcfIndelFileIn <- sub("20160830","20161006",gsub("snv_mnv","indel", vcfFileIn))
+vcfIndelFileOut <-  sub("20160830","20161006",gsub("snv_mnv","indel", vcfFileOut))
+#' Load vcf
+vcfIndel <- readVcf(vcfIndelFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
+#' Add ID & gender
+meta(header(vcfIndel)) <- rbind(meta(header(vcfIndel)), DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
+#' Add driver genes
+vcfIndel <- addFinalDriver(vcfIndel, driVers)
+#' Add mutation copy numbers
+i = header(vcfIndel)@header$INFO
+exptData(vcfIndel)$header@header$INFO <- rbind(i,mcnHeader())
+L <- computeMutCn(vcfIndel, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]))
+info(vcfIndel) <- cbind(info(vcfIndel), L$D)
+#' Classify mutation
+clsIndel <- classifyMutations(vcfIndel, reclassify='all')
+info(vcfIndel)$CLS <- clsIndel
+info(header(vcfIndel)) <- rbind(info(header(vcfIndel)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
+#' Save
+writeVcf(vcfIndel, file=vcfIndelFileOut)
+bgzip(vcfIndelFileOut, overwrite=TRUE)
+unlink(vcfIndelFileOut)
+save(bb, file=sub(".vcf$",".bb_granges.RData",vcfIndelFileOut))
+save(vcf, file=paste0(vcfIndelFileOut,".RData"))
+
+
+#' ## PLOT
 
 chrOffset <- cumsum(c(0,as.numeric(width(refLengths))))
 names(chrOffset) <- c(seqlevels(refLengths), "NA")
 
-
-pdf(file=sub(".vcf$",".pdf",vcfFileOut), 16,8)
-par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
-col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
-plot(start(vcf) + chrOffset[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, 4 , 16))
-abline(v = chrOffset, lty=3)
-for(i in seq_along(bb)) try({
-	s <- start(bb)[i]
-	e <- end(bb)[i]
-	x <- chrOffset[as.character(seqnames(bb)[i])]
-	y <- bb$timing_param[[i]][,"f"]
-	l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
-	segments(s+x,y,e+x,y, lwd=l*4+.1)
-	text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vcf))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
-})
-legend("topleft", pch=19, col=col, legend=levels(cls))
-#dev.copy(device=png, file=sub(".vcf$",".png",vcfFileOut), width = 16, height = 8, units = "in", pointsize = 12, res=72)
-#dev.off()
-dev.off()
+for(v in c('vcf','vcfIndel')){
+	vv <- get(v)
+	pdf(file=sub(".vcf$",".pdf",get(paste0(v,"Out"))), 16,8)
+	par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
+	col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
+	cls <- info(vv)$CLS
+	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16))
+	abline(v = chrOffset, lty=3)
+	for(i in seq_along(bb)) try({
+					s <- start(bb)[i]
+					e <- end(bb)[i]
+					x <- chrOffset[as.character(seqnames(bb)[i])]
+					y <- bb$timing_param[[i]][,"f"]
+					l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
+					segments(s+x,y,e+x,y, lwd=l*4+.1)
+					text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vv))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
+				})
+	legend("topleft", pch=19, col=col, legend=levels(cls))
+	dev.off()
+}
 
 #plot(start(vcf) + w[as.character(seqnames(vcf))], qnorm(info(vcf)$pMutCNTail), col=col[cls], xlab='Position', ylab="pTail", pch=16)
 
