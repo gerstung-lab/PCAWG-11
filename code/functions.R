@@ -170,7 +170,7 @@ computeMutCn <- function(vcf, bb, clusters=allClusters[[meta(header(vcf))["ID",]
 	
 	deltaFreq <- 0.05 # merge clusters withing deltaFreq
 	
-	boundaryHits <- countOverlaps(vcfIndel, unique(bb)) > 1 # indels overlapping with CN boundaries
+	boundaryHits <- countOverlaps(vcf, unique(bb)) > 1 # indels overlapping with CN boundaries
 	
 	for(globalIt in 1:2){ # 2 iterations, fist local (ie per segment) fit, then global
 	for( i in which( (diff(c(-1, h)) !=0 | is.na(diff(c(-1, h)) !=0) ) & ! boundaryHits )){
