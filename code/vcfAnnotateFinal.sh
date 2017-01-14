@@ -18,7 +18,7 @@ STEM=`basename $INPUT | sed s/.vcf.gz//g`
 ID=`echo $STEM | awk '{x=$0; gsub("\\\..*","",x); print x}'`
 DPFILE="../dp/20161213_vanloo_wedge_consSNV_prelimConsCNAallStar/2_subclones/$ID_subclonal_structure.txt.gz"
 if [ ! -f "$DPFILE" ]; then
-echo "No DP file. Exit."
+echo "No DP file $DPFILE. Exit."
 exit 0
 fi
 OUTPUT="$OUTPUT_FOLDER/$STEM"
