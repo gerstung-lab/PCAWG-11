@@ -15,7 +15,7 @@ FILES=(`ls $INPUT_FOLDER/*.vcf.gz`)
 INPUT=${FILES[(($LSB_JOBINDEX-1))]}
 echo $INPUT
 STEM=`basename $INPUT | sed s/.vcf.gz//g`
-ID=`echo $STEM | awk 'x=$0; gsub("\\\..*","",x); print x'`
+ID=`echo $STEM | awk '{x=$0; gsub("\\\..*","",x); print x}'`
 if [ ! -f ""../dp/20161213_vanloo_wedge_consSNV_prelimConsCNAallStar/2_subclones/$ID_subclonal_structure.txt.gz" ]; then
 echo "No DP file. Exit."
 exit 0
