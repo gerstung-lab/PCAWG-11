@@ -726,7 +726,7 @@ mcols(driVers) <- drivers[,-c(1,3,4,5,6)]
 addFinalDriver <- function(vcf, driVers){
 	i = header(vcf)@header$INFO
 	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver gene", row.names="DG"))
-	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(d$gene))
+	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(driVers$gene))
 	if(nrow(vcf)==0)
 		return(vcf)
 	ID <- meta(header(vcf))["ID",1]
