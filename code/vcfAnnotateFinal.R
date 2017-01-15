@@ -140,8 +140,8 @@ for(v in c('vcf','vcfIndel')){
 	vv <- get(v)
 	pdf(file=sub(".vcf$",".pdf",get(paste0(v,"FileOut"))), 16,8)
 	par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
-	col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
-	cls <- info(vv)$CLS
+	col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1,9)]
+	cls <- factor(paste(as.character(info(vv)$CLS)), levels = c(levels(info(vv)$CLS), "NA"))
 	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]))
 	abline(v = chrOffset[1:24], lty=3)
 	for(i in seq_along(bb)) try({
