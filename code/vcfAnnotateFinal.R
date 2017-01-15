@@ -140,7 +140,7 @@ for(v in c('vcf','vcfIndel')){
 	vv <- get(v)
 	pdf(file=sub(".vcf$",".pdf",get(paste0(v,"FileOut"))), 16,8)
 	par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
-	col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1,9)]
+	col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)]
 	cls <- factor(paste(as.character(info(vv)$CLS)), levels = c(levels(info(vv)$CLS), "NA"))
 	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]))
 	abline(v = chrOffset[1:24], lty=3)
@@ -153,7 +153,7 @@ for(v in c('vcf','vcfIndel')){
 					segments(s+x,y,e+x,y, lwd=l*4+.1)
 					text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vv))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
 				})
-	legend("topleft", pch=19, col=col, legend=levels(cls))
+	legend("topleft", pch=19, col=col, legend=paste(as.numeric(table(cls)), levels(cls)), bg='white')
 	dev.off()
 }
 
