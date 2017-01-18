@@ -128,7 +128,7 @@ writeVcf(vcfIndel, file=vcfIndelFileOut)
 bgzip(vcfIndelFileOut, overwrite=TRUE)
 unlink(vcfIndelFileOut)
 save(bb, file=sub(".vcf$",".bb_granges.RData",vcfIndelFileOut))
-save(vcf, file=paste0(vcfIndelFileOut,".RData"))
+save(vcfIndel, file=paste0(vcfIndelFileOut,".RData"))
 
 
 #' ## PLOT
