@@ -162,6 +162,13 @@ mergeClusters <- function(clusters, deltaFreq=0.05){
 	))
 }
 
+clustersFromBB <- function(bb){
+	w <- bb$clonal_frequency == max(bb$clonal_frequency, na.rm=TRUE) | bb$clonal_frequency < 0.5 * max(bb$clonal_frequency, na.rm=TRUE)
+	t <- table(bb$clonal_frequency[w])
+	cl <- data.frame(cluster=seq_along(t), n_ssms=as.numeric(t), proportion=as.numeric(names(t)))
+	mergeClusters(cl, deltaFreq=0.1)
+}
+
 defineMcnStates <- function(bb, clusters, purity, gender='female', isWgd= FALSE){
 	P <- vector(mode='list', length(bb))
 	uniqueBB <- unique(bb)

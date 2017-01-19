@@ -63,7 +63,9 @@ if(purity == 1){
 	bb$clonal_frequency <- bb$clonal_frequency * purity
 	purityPloidy[ID,'purity'] <- purity
 }
-	
+
+if(NO_CLUSTER)
+	clusters <- clustersFromBB(bb)
 
 # Missing ploidy - recalculate from BB
 if(is.na(purityPloidy[ID,"ploidy"]))
