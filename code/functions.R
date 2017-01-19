@@ -7,8 +7,8 @@ vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consen
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20161213_vanloo_wedge_consSNV_prelimConsCNAallStar'
 dpPath <- paste0(basePath,'/2_subclones/')
 cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
-purityPloidy <- read.table(paste0(basePath,'/1_purity_ploidy/purity_ploidy.txt'), header=TRUE, row.names=1)
-colnames(purityPloidy) <- c("purity","ploidy")
+purityPloidy <- read.table( '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus.20170119.purity.ploidy.annotated.txt', header=TRUE, row.names=1)
+#colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
 
@@ -62,6 +62,33 @@ loadBB <- function(ID){
 				GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
 			})
 	if(class(t)=='try-error') GRanges(copy_number=numeric(), major_cn=numeric(), minor_cn=numeric(), clonal_frequency=numeric()) else t
+}
+
+loadConsensusCNA <- function(ID, purity=1, path="/lustre/scratch112/sanger/cgppipe/PanCancerDownloads/workspace/mg14/final/consensus.20170119.somatic.cna.annotated"){
+	file <- grep(paste0(ID,"[[:punct:]]"), dir(path, pattern="cna.annotated.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
+	if(grepl(".gz", file))
+		file <- gzfile(file)
+	tab <- read.table(file, header=TRUE, sep='\t')
+	subclonalIndex <- !is.na(tab$total_cn) & !is.na(tab$battenberg_nMaj2_A) & !is.na(tab$battenberg_nMin2_A) & !is.na(tab$battenberg_frac2_A) & (tab$battenberg_nMaj1_A == tab$major_cn & tab$battenberg_nMin1_A == tab$minor_cn | tab$battenberg_nMaj2_A == tab$major_cn & tab$battenberg_nMin2_A == tab$minor_cn)
+	ix <- c(1:nrow(tab), which(subclonalIndex))
+	gr <- GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", clonal_frequency=1, tab[-3:-1])[ix]
+	if(any(subclonalIndex)){
+		gr$clonal_frequency[which(subclonalIndex)] <- tab$battenberg_frac1_A[subclonalIndex]
+		gr$major_cn[which(subclonalIndex)] <- tab$battenberg_nMaj1_A[subclonalIndex]
+		gr$minor_cn[which(subclonalIndex)] <- tab$battenberg_nMin1_A[subclonalIndex]
+		gr$clonal_frequency[-(1:nrow(tab))] <- tab$battenberg_frac2_A[subclonalIndex]
+		gr$major_cn[-(1:nrow(tab))] <- tab$battenberg_nMaj2_A[subclonalIndex]
+		gr$minor_cn[-(1:nrow(tab))] <- tab$battenberg_nMin2_A[subclonalIndex]
+	}
+	sort(gr)
+}
+
+averagePloidy <- function(bb) {
+	sum(width(bb) * bb$copy_number * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
+}
+
+averageEvenPloidy <- function(bb){
+	sum(width(bb) * (!bb$major_cn %% 2 & !bb$minor_cn %% 2) * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
 }
 
 getTumorCounts <- function(vcf){
@@ -705,27 +732,28 @@ wnmSolve <- function(D, P, weights =  rep(0, ncol(P)), maxIter = 500, tol=1e-3) 
 }
 
 
-bbplot <- function(bb){
+bbplot <- function(bb, ylim=c(0,max(max(bb$copy_number, na.rm=TRUE)))){
+	col=RColorBrewer::brewer.pal(4,"Set1")
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
 	names(l) <- s
-	plot(NA,NA, xlab="",ylab="",xlim=c(0,sum(l)), ylim=c(0,max(max(bb$copy_number, na.rm=TRUE))), xaxt="n")
+	plot(NA,NA, ylab="Copy number",xlab="",xlim=c(0,sum(l)), ylim=ylim, xaxt="n")
 	c <- cumsum(l)[-length(l)]
 	axis(side=1, at=c, labels=rep('', length(l)-1))
 	mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=2)
 	abline(v=c, lty=3)
 	x0 <- start(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
 	x1 <- end(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
-	segments(x0=x0, bb$major_cn ,x1, bb$major_cn, col=2, lwd=5* bb$clonal_frequency)
-	segments(x0=x0, bb$minor_cn,x1, bb$minor_cn, col=3, lwd=5* bb$clonal_frequency)
+	segments(x0=x0, bb$major_cn-.125 ,x1, bb$major_cn-.125, col=col[1], lwd=5* bb$clonal_frequency)
+	segments(x0=x0, bb$minor_cn -.25,x1, bb$minor_cn-.25, col=col[2], lwd=5* bb$clonal_frequency)
 	segments(x0=x0, bb$copy_number,x1, bb$copy_number, col=1, lwd=5* bb$clonal_frequency)
-	cv <- coverage(bb)
-	cv <- cv[s[s%in%names(cv)]]
-	par(xpd=NA)
-	for(n in names(cv)){
-		cc <- cv[[n]]
-		segments(start(cc) + cumsum(l)[n] - l[n] ,-runValue(cc)/2,end(cc)+ cumsum(l)[n] - l[n], -runValue(cc)/2, col=4)
-	}
+#	cv <- coverage(bb)
+#	cv <- cv[s[s%in%names(cv)]]
+#	par(xpd=NA)
+#	for(n in names(cv)){
+#		cc <- cv[[n]]
+#		segments(start(cc) + cumsum(l)[n] - l[n] ,-runValue(cc)/2,end(cc)+ cumsum(l)[n] - l[n], -runValue(cc)/2, col=4)
+#	}
 }
 
 wgdTest <- function(vcf){

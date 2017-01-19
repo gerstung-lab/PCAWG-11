@@ -35,7 +35,12 @@ print(ID)
 
 #' ## CLUSTERS
 # Load clusters
-clusters <- loadClusters(ID)
+clusters <- try(loadClusters(ID))
+NO_CLUSTER <- FALSE
+if(class(clusters)=='try-error'){
+	clusters <- data.frame(cluster=1, n_ssms=1000, proportion=1)
+	NO_CLUSTER <- TRUE
+}
 
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
@@ -51,7 +56,7 @@ clusters <- cl
 
 
 #' ## COPYNUMBER
-bb <- loadBB(ID)
+bb <- loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity'])
 
 if(purity == 1){
 	purity <- max(clusters$proportion)
@@ -62,7 +67,9 @@ if(purity == 1){
 
 # Missing ploidy - recalculate from BB
 if(is.na(purityPloidy[ID,"ploidy"]))
-	purityPloidy[ID,"ploidy"] <- sum(width(bb) * bb$copy_number * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
+	purityPloidy[ID,"ploidy"] <- averagePloidy(bb = bb)
+
+IS_WGD <- purityPloidy[ID, "ploidy"] > 3 | averageEvenPloidy(bb) > .33
 
 #' ## VCF 
 #' Load vcf
@@ -86,7 +93,7 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]))
+L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]), isWgd=IS_WGD)
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 
@@ -117,7 +124,7 @@ vcfIndel <- addFinalDriver(vcfIndel, driVers)
 #' Add mutation copy numbers
 i = header(vcfIndel)@header$INFO
 exptData(vcfIndel)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcfIndel, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]))
+L <- computeMutCn(vcfIndel, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]), isWgd=IS_WGD)
 info(vcfIndel) <- cbind(info(vcfIndel), L$D)
 #' Classify mutation
 clsIndel <- classifyMutations(vcfIndel, reclassify='all')
@@ -143,6 +150,7 @@ for(v in c('vcf','vcfIndel')){
 	col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)]
 	cls <- factor(paste(as.character(info(vv)$CLS)), levels = c(levels(info(vv)$CLS), "NA"))
 	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]))
+	title(main=paste(ID, if(IS_WGD) "WGD", if(NO_CLUSTER) "(No clusters available)"), line=0, font.main=1, cex.main=1)
 	abline(v = chrOffset[1:24], lty=3)
 	for(i in seq_along(bb)) try({
 					s <- start(bb)[i]
