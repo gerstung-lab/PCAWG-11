@@ -780,13 +780,16 @@ testIndel <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FA
 asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 
 #' official driver file
-library(VariantAnnotation)
-drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.txt", header=TRUE, sep="\t")
-r <- DNAStringSet(drivers$ref)
-a <- DNAStringSet(drivers$alt)
-driVers <- VRanges(seqnames = drivers$chr, ranges=IRanges(drivers$pos, width =  width(r)), ref=r, alt=a, sampleNames  = drivers$sample_id)
-mcols(driVers) <- drivers[,-c(1,3,4,5,6)]
-
+#library(VariantAnnotation)
+#drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.txt", header=TRUE, sep="\t")
+finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
+#r <- DNAStringSet(drivers$ref)
+#a <- DNAStringSet(drivers$alt)
+#m <- sapply(levels(drivers$sample_id), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
+#driVers <- VRanges(seqnames = drivers$chr, ranges=IRanges(drivers$pos, width =  width(r)), ref=r, alt=a, sampleNames = finalData$icgc_donor_id[m[drivers$sample_id]])
+#mcols(driVers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample_id]], drivers[,-c(1,3,4,5,6)])
+#save(driVers, file = "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.RData")
+load("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.RData")
 
 addFinalDriver <- function(vcf, driVers){
 	i = header(vcf)@header$INFO
@@ -795,7 +798,7 @@ addFinalDriver <- function(vcf, driVers){
 	if(nrow(vcf)==0)
 		return(vcf)
 	ID <- meta(header(vcf))["ID",1]
-	d <- driVers[sampleNames(driVers)==ID]
+	d <- driVers[grep(ID, driVers$samples)]
 	if(length(d)==0)
 		return(vcf)
 	overlaps <- findOverlaps(vcf, d)
