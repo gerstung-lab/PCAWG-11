@@ -6,7 +6,7 @@
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consensus_12oct_passonly/snv_mnv'
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20161213_vanloo_wedge_consSNV_prelimConsCNAallStar'
 dpPath <- paste0(basePath,'/2_subclones/')
-cancerGenes <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
+CANCERGENES <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
 purityPloidy <- read.table( '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus.20170119.purity.ploidy.annotated.txt', header=TRUE, row.names=1)
 #colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
@@ -491,13 +491,34 @@ posteriorMutCN <- function(x,n, cnStates, xmin=3, rho=0.01){
 	return(P.sm.x)
 }
 
+pGainToTime <- function(vcf){
+	P <- matrix(NA, nrow=nrow(vcf), ncol=4, dimnames=list(NULL, c("pEarly","pLate","pClonal[NA]","pSub")))
+	P[,c("pEarly","pClonal[NA]","pSub")] <- as.matrix(info(vcf)[,c("pGain","pSingle","pSub")])
+	biAllelicGain <- (info(vcf)$MajCN > 1 & info(vcf)$MinCN > 1)
+	w <- which(biAllelicGain)
+	P[w, "pLate"] <- P[w, "pClonal[NA]"]
+	P[w, "pClonal[NA]"] <- 0
+	P[which(!biAllelicGain),"pLate"] <- 0
+	return(P)
+}
+
+probGenotype <- function(vcf){
+	dg <- factor(paste(unlist(info(vcf)$DG)), levels=c("NA",as.character(CANCERGENES)))
+	P <- pGainToTime(vcf)
+	G <- matrix(0, ncol=5, nrow=nlevels(dg), dimnames=list(levels(dg), c(colnames(P),"NA")))
+	t <- table(dg)
+	for(g in names(t[t>0]))
+		G[g,] <- c(colSums(P[dg==g,,drop=FALSE],na.rm=TRUE), "NA"=sum(is.na(P[dg==g,1])))
+	return(G)
+}
+
 getGenotype <- function(vcf, reclassify='missing', ...){
 	cls <- classifyMutations(vcf = vcf, reclassify=reclassify)
 	t <- info(vcf)$TCN
 	if(is.null(t))
 		t <- info(vcf)$MinCN + info(vcf)$MajCN
 	hom <- factor(info(vcf)$MutCN==t, levels=c(TRUE,FALSE))
-	dg <- factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes))
+	dg <- factor(unlist(info(vcf)$DG), levels=as.character(CANCERGENES))
 	table(gene=dg, class=cls, homozygous=hom, ...)
 }
 
@@ -509,7 +530,7 @@ loadVcf <- function(ID){
 	vcf <- readVcf(file, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 	f <- findOverlaps(pos, vcf, select="first")
 	vcf <- vcf[na.omit(f)]
-	vcf <- addDriver(vcf, cancerGenes)
+	vcf <- addDriver(vcf, CANCERGENES)
 	i = header(vcf)@header$INFO
 	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster", row.names="DPC"))
 	i = header(vcf)@header$INFO
@@ -790,6 +811,7 @@ finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final
 #mcols(driVers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample_id]], drivers[,-c(1,3,4,5,6)])
 #save(driVers, file = "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.RData")
 load("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.RData")
+CANCERGENES <- levels(driVers$gene)
 
 addFinalDriver <- function(vcf, driVers){
 	i = header(vcf)@header$INFO
