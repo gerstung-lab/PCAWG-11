@@ -477,3 +477,19 @@ addFinalDriver <- function(vcf, driVers){
 	info(vcf)$DG <- g
 	return(vcf)
 }
+
+
+t <- read.table("../ref/PCAWG_colors.tsv", sep='\t', header=FALSE, comment="")
+tissueColors <- as.character(t$V4)
+names(tissueColors) <- t$V2
+clinicalData <- read.table("../ref/pcawg_donor_clinical_August2016_v7-2.tsv", header=TRUE, sep="\t", comment="", quote="")
+specimenData <- read.table("../ref/pcawg_specimen_histology_August2016_v6.tsv", header=TRUE, sep="\t", comment="", quote="")
+
+s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",")
+sample2donor <- finalData$icgc_donor_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))]
+names(sample2donor) <- unlist(s)
+
+donor2type <- specimenData$histology_abbreviation
+names(donor2type) <- specimenData$icgc_donor_id
+
+
