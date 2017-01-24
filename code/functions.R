@@ -492,4 +492,4 @@ names(sample2donor) <- unlist(s)
 donor2type <- specimenData$histology_abbreviation
 names(donor2type) <- specimenData$icgc_donor_id
 
-
+source("ComputeMCN.R")
