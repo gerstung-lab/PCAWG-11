@@ -489,7 +489,8 @@ s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",
 sample2donor <- finalData$icgc_donor_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))]
 names(sample2donor) <- unlist(s)
 
-donor2type <- specimenData$histology_abbreviation
+donor2type <- factor(specimenData$histology_abbreviation, levels=c(levels(specimenData$histology_abbreviation)[-1], ""))
 names(donor2type) <- specimenData$icgc_donor_id
+levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
 
 source("ComputeMCN.R")

@@ -113,6 +113,7 @@ unlink(vcfFileOut)
 save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 save(vcf, file=paste0(vcfFileOut,".RData"))
 
+#@TODO: Include SNV and INDEL counts for each segment  countQueryHits(findOverlaps(bb, bb))
 
 #' ## INDEL
 vcfIndelFileIn <- sub("20160830","20161006",gsub("snv_mnv","indel", vcfFileIn))
