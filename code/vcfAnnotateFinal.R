@@ -22,7 +22,8 @@ library(igraph)
 refFile = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
 refLengths <- scanFaIndex(file=refFile)
 
-dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
+dpPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d/2_subclones"
+dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt.gz", recursive=TRUE)
 
 sampleIds <- sub("_mutation_assignments.txt.gz","",dir(dpPath, pattern="_mutation_assignments.txt.gz"))
 sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".bgz$")))
@@ -42,36 +43,39 @@ if(class(clusters)=='try-error'){
 	NO_CLUSTER <- TRUE
 }
 
-if(all(is.na(purityPloidy[ID,]))) # Missing purity
-	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
-
-purity <- purityPloidy[ID,'purity']
-
-# Fix clusters with proportion > purity
-w <- clusters$proportion >= purity - 0.075 #ie ~ 1.5 reads 
-cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE])))
-cl[nrow(cl),"proportion"] <- purity
-clusters <- cl
+#' ### 1. Remove spurious superclonal clusters with less than 10% mutations
+m <- which.max(clusters$n_ssms)
+w <- clusters$proportion >= clusters$proportion[m]
+if(sum(clusters$n_ssms[w])/clusters$n_ssms[m] < 1.1 & sum(w)>1){
+	cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]*clusters[w,"n_ssms"])/sum(clusters[w,"n_ssms"])))
+	cl[nrow(cl),"n_ssms"] <- sum(clusters[w,"n_ssms"])
+    clusters <- cl
+}
 #clusters <- mergeClusters(clusters, deltaFreq=0.05)
 
+if(all(is.na(purityPloidy[ID,]))) # Missing purity
+	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
+purity <- purityPloidy[ID,'purity']
 
 #' ## COPYNUMBER
 bb <- loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity'])
 
-if(purity == 1){
-	purity <- max(clusters$proportion)
-	bb$clonal_frequency <- bb$clonal_frequency * purity
-	purityPloidy[ID,'purity'] <- purity
-}
-
 if(NO_CLUSTER)
 	clusters <- clustersFromBB(bb)
 
-# Missing ploidy - recalculate from BB
+#' ### Mismatch in CN purity and clusters, use DP purity
+if(purity == 1 | abs(max(clusters$proportion) - purity) > 0.05){
+	bb$clonal_frequency <- bb$clonal_frequency * max(clusters$proportion) / purity
+	purity <- max(clusters$proportion)
+	purityPloidy[ID,'purity'] <- purity
+}
+
+
+#' ### Missing ploidy - recalculate from BB
 if(is.na(purityPloidy[ID,"ploidy"]))
 	purityPloidy[ID,"ploidy"] <- averagePloidy(bb = bb)
 
-IS_WGD <- purityPloidy[ID, "ploidy"] > 3 | averageEvenPloidy(bb) > .33
+IS_WGD <- classWgd(bb)
 
 #' ## VCF 
 #' Load vcf
@@ -152,9 +156,10 @@ for(v in c('vcf','vcfIndel')){
 	par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
 	col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)]
 	cls <- factor(paste(as.character(info(vv)$CLS)), levels = c(levels(info(vv)$CLS), "NA"))
-	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='Position', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]))
+	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
 	title(main=paste(ID, if(IS_WGD) "WGD", if(NO_CLUSTER) "(No clusters available)"), line=0, font.main=1, cex.main=1)
-	abline(v = chrOffset[1:24], lty=3)
+	abline(v = chrOffset[1:25], lty=3)
+	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
 	for(i in seq_along(bb)) try({
 					s <- start(bb)[i]
 					e <- end(bb)[i]

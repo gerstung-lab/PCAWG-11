@@ -83,6 +83,11 @@ loadConsensusCNA <- function(ID, purity=1, path="/lustre/scratch112/sanger/cgppi
 	sort(gr)
 }
 
+refFile = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
+refLengths <- scanFaIndex(file=refFile)
+chrOffset <- cumsum(c(0,as.numeric(width(refLengths))))
+names(chrOffset) <- c(seqlevels(refLengths), "NA")
+
 averagePloidy <- function(bb) {
 	sum(width(bb) * bb$copy_number * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
 }
@@ -408,7 +413,7 @@ wnmSolve <- function(D, P, weights =  rep(0, ncol(P)), maxIter = 500, tol=1e-3) 
 }
 
 
-bbplot <- function(bb, ylim=c(0,max(max(bb$copy_number, na.rm=TRUE)))){
+bbplot <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE)))){
 	col=RColorBrewer::brewer.pal(4,"Set1")
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
@@ -416,13 +421,13 @@ bbplot <- function(bb, ylim=c(0,max(max(bb$copy_number, na.rm=TRUE)))){
 	plot(NA,NA, ylab="Copy number",xlab="",xlim=c(0,sum(l)), ylim=ylim, xaxt="n")
 	c <- cumsum(l)[-length(l)]
 	axis(side=1, at=c, labels=rep('', length(l)-1))
-	mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=2)
+	mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
 	abline(v=c, lty=3)
 	x0 <- start(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
 	x1 <- end(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
 	segments(x0=x0, bb$major_cn-.125 ,x1, bb$major_cn-.125, col=col[1], lwd=5* bb$clonal_frequency)
 	segments(x0=x0, bb$minor_cn -.25,x1, bb$minor_cn-.25, col=col[2], lwd=5* bb$clonal_frequency)
-	segments(x0=x0, bb$copy_number,x1, bb$copy_number, col=1, lwd=5* bb$clonal_frequency)
+	segments(x0=x0, bb$total_cn,x1, bb$total_cn, col=1, lwd=5* bb$clonal_frequency)
 #	cv <- coverage(bb)
 #	cv <- cv[s[s%in%names(cv)]]
 #	par(xpd=NA)
@@ -486,11 +491,53 @@ clinicalData <- read.table("../ref/pcawg_donor_clinical_August2016_v7-2.tsv", he
 specimenData <- read.table("../ref/pcawg_specimen_histology_August2016_v6.tsv", header=TRUE, sep="\t", comment="", quote="")
 
 s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",")
-sample2donor <- finalData$icgc_donor_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))]
+sample2donor <- as.character(finalData$icgc_donor_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))])
 names(sample2donor) <- unlist(s)
 
 donor2type <- factor(specimenData$histology_abbreviation, levels=c(levels(specimenData$histology_abbreviation)[-1], ""))
 names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
+
+
+piToTime <- function(timing_param, type=c("Single Gain","CN-LOH", "WGD")){
+	type <- match.arg(type)
+	pi <- timing_param[timing_param[,"state"]==1,"P.m.sX"]
+	m <- timing_param[timing_param[,"state"]==1,"m"]
+	t <- if(type=="Single Gain"){
+				3*pi[2]/(2*pi[2] + pi[1])
+			}else if(type=="CN-LOH"){
+				2*pi[2]/(2*pi[2] + pi[1])
+			}else if(type=="WGD"){
+				2*pi[2]/(2*pi[2] + pi[1])
+			}
+	return(pmin(t,1))
+}
+
+bbToTime <- function(bb){
+	uniqueBB <- unique(bb)
+	sub <- countQueryHits(findOverlaps(bb, bb))
+	maj <- bb$major_cn
+	min <- bb$minor_cn
+	type <- sapply(seq_along(bb), function(i){
+				if(maj[i] != 2 | is.na(maj[i])) return(NA)
+				type <- if(min[i]==1){ "Single Gain" 
+						}else if(min[i]==0){"CN-LOH"}
+						else "WGD"
+				return(type)
+			})
+	time <- sapply(seq_along(bb), function(i){
+				if(sub[i] == 2 | is.na(type[i])) return(NA) # Exclude segments with subclonal CN
+				else(piToTime(bb$timing_param[[i]],type[i]))
+			})
+	data.frame(type=factor(type, levels=c("Single Gain","CN-LOH","WGD")), time=time)
+}
+
+averageHom <- function(bb){
+	sum(width(bb) * (bb$minor_cn == 0) * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
+}
+
+.classWgd <- function(ploidy, hom) 2.9 -2*hom > ploidy
+
+classWgd <- function(bb) .classWgd(averagePloidy(bb), averageHom(bb))
 
 source("ComputeMCN.R")
