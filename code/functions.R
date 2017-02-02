@@ -3,6 +3,8 @@
 # Author: mg14
 ###############################################################################
 
+library(Rsamtools)
+
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consensus_12oct_passonly/snv_mnv'
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20161213_vanloo_wedge_consSNV_prelimConsCNAallStar'
 dpPath <- paste0(basePath,'/2_subclones/')
