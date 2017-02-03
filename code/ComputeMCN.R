@@ -355,7 +355,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 					if(globalIt==2){
 						b.m.sX <- sapply(1:200, function(foo){
 									L <- rbind(L, rep(1e-3, each=ncol(L))) #add an uniformative row
-									L <- L[sample(1:nrow(L), replace=TRUE),]
+									L <- L[sample(1:nrow(L), replace=TRUE),,drop=FALSE]
 									P.m.sX <- cnStates[whichStates,"pi.m.s"]
 									for(em.it in 1:50){
 										P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power.m.s / power.s[cnStates[whichStates,"s"]], each=nrow(L)) # P(X,s,m)
