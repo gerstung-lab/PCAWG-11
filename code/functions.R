@@ -501,10 +501,8 @@ names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
 
 
-piToTime <- function(timing_param, type=c("Single Gain","CN-LOH", "WGD")){
+piToTime <- function(timing_param, type=c("Single Gain","CN-LOH", "WGD"), 	pi = timing_param[timing_param[,"state"]==1,"P.m.sX"]){
 	type <- match.arg(type)
-	pi <- timing_param[timing_param[,"state"]==1,"P.m.sX"]
-	m <- timing_param[timing_param[,"state"]==1,"m"]
 	t <- if(type=="Single Gain"){
 				3*pi[2]/(2*pi[2] + pi[1])
 			}else if(type=="CN-LOH"){
