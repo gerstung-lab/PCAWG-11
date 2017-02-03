@@ -9,7 +9,7 @@
 
 INPUT_FOLDER="../final/final_consensus_12oct_passonly/snv_mnv"
 OUTPUT_FOLDER="../final/annotated_006/snv_mnv"
-OVERWRITE=true
+OVERWRITE=false
 
 FILES=(`ls $INPUT_FOLDER/*.vcf.gz`)
 INPUT=${FILES[(($LSB_JOBINDEX-1))]}
