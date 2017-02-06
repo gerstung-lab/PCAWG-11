@@ -560,11 +560,6 @@ timeToBeta <- function(time){
 	return(c(alpha, beta))
 }
 
-d <- rowMeans(apply(t[,2:4],1, function(x){
-					b <- timeToBeta(x)
-					dbeta(seq(0,1,0.01), b[1], b[2])
-				}), na.rm=TRUE)
-
 plotTiming <- function(bb, time, col=RColorBrewer::brewer.pal(5,"Set2")[c(3:5)]){
 	plot(NA,NA, xlab='', ylab="Time", ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
 	for(i in seq_along(bb)) try({
