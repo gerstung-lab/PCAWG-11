@@ -1724,15 +1724,7 @@ wgdFit <- function(ID){
 	# correct for acceleration
 	max.a <- 10
 	
-	correct.t <- function(pi, ta, a){
-		pi <- pi[1:2]/sum(pi[1:2])
-		t <- pi[1]/(pi[1]+2*pi[2])
-		if(t < ta)
-			crct <- c(1+(a-1)*(ta-t)/(1-t),1)
-		else
-			crct <- c(a,1+(a-1)*(t-ta)/t)
-		return(crct)
-	}
+
 	
 	ctn <- sapply(1:100, function(foo){
 				a <- runif(1,1,max.a)
@@ -1743,6 +1735,22 @@ wgdFit <- function(ID){
 	T.ct <- t(T.ct)/ colSums(T.ct)
 	colnames(T.ct) <- names(T)
 	return(list(T=T, T.ct=T.ct))
+}
+
+correct.t <- function(pi, ta, a){
+	pi <- pi[1:2]/sum(pi[1:2])
+	t <- 2*pi[2]/(pi[1]+2*pi[2])
+	if(t < ta)
+		crct <- c(1+(a-1)*(ta-t)/(1-t),1)
+	else
+		crct <- c(a,1+(a-1)*(t-ta)/t)
+	return(crct)
+}
+
+t.accel <- function(pi, ta, a){
+	tmin <- (pi[1]*(a-1)*ta + 2*pi[2]*a)/(pi[1]*a + 2*pi[2]*a)
+	tmax <- (2*pi[2] * (ta + a*(1-ta)))/(pi[1]+ 2*pi[2])
+	if(ta < tmin) tmin else tmax
 }
 
 wgd.fits <- sapply(sampleIds[isWgd], function(ID) {try(wgdFit(ID))})
@@ -2082,42 +2090,15 @@ getDriverGenotype <- function(vcf, drivers, reclassify='missing', ...){
 	table(gene=factor(unlist(info(vcf)$DG), levels=as.character(cancerGenes)), class=cls, homozygous=hom, ...)
 }
 
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/snv_mnv"
-finalVcfSnv <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f){
-			e <- new.env()
-			load(f, envir=e)
-			return(e$vcf)
-		}, mc.cores=6)
 
-cancerGenesBak <- cancerGenes
-cancerGenes <- levels(driVers$gene)
-
-finalGenotypesSnv <- simplify2array(mclapply(finalVcfSnv, getGenotype, mc.cores=6, useNA="always"))
-
-g <- asum(finalGenotypesSnv, c(3:4))
-g <- g[order(rowSums(g), decreasing=TRUE),]
-barplot(t(g[1:50,]/rowSums(g)[1:50]), col=col, las=2)
-
-col <- RColorBrewer::brewer.pal(4, "Set1")[c(3,4,2,1)]
-
-pGainToTime <- function(vcf){
-	P <- matrix(NA, nrow=nrow(vcf), ncol=4, dimnames=list(NULL, c("pEarly","pLate","pClonal[NA]","pSub")))
-	P[,c("pEarly","pClonal[NA]","pSub")] <- as.matrix(info(vcf)[,c("pGain","pSingle","pSub")])
-	biAllelicGain <- (info(vcf)$MajCN > 1 & info(vcf)$MinCN > 1)
-	w <- which(biAllelicGain)
-	P[w, "pLate"] <- P[w, "pClonal[NA]"]
-	P[w, "pClonal[NA]"] <- 0
-	P[which(!biAllelicGain),"pLate"] <- 0
-	return(P)
-}
-	
+#' ## Broad 500
 dpPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Subclonal_Structure'
 dpFiles <- dir(dpPath, pattern="subclonal_structure.txt", recursive=TRUE)
 simPurityPloidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/pp_table.txt", header=TRUE, sep='\t')
 rownames(simPurityPloidy) <- simPurityPloidy$sample
 simPurityPloidy <- simPurityPloidy[,2:3]
 
-prec <- simplify2array(mclapply(dir("../broad500", pattern="annotated_vcf", full.names=TRUE), function(d){
+prec <- simplify2array(mclapply(dir("../broad500", pattern="annotated_vcf", full.names=TRUE)[-3], function(d){
 			x <- sapply(dir(d, pattern=".vcf.RData", full.names=TRUE), function(f){
 						e <- new.env()
 						load(f, envir=e)
@@ -2165,3 +2146,334 @@ simClust <- sapply(rownames(simPurityPloidy), function(i){
 			cl$proportion <- cl$ccf * simPurityPloidy[i,'purity']
 			return(cl)
 		}, simplify=FALSE)
+
+
+precClip <- sapply(dir("../broad500/clip/CliP", pattern="mutation_assignment.txt.gz", full.names=TRUE), function(f){
+			ass <- read.table(gzfile(f), header=TRUE, sep="\t")
+			ar <- GRanges(ass$chr, IRanges(ass$pos, width=1))
+			cl <- read.table(gzfile(sub("mutation_assignment","subclonal_structure",f)), header=TRUE, sep="\t")
+			cc <- factor(ass$cluster, labels=cl$proportion)
+			cf <- as.numeric(as.character(cc))
+			ID <- sub("(.+)(Sim_.+)(_mut.+)","\\2", f)
+			truth <- read.table(paste0("../broad500/Mut_Assign/",ID,".mutation_assignments.txt"), header=TRUE, sep="\t")
+			truth <- GRanges(truth$chr, IRanges(truth$pos, width=1), cluster=truth$cluster)
+			seqlevels(truth) <-paste( 1:22)
+			truth <- sort(truth)
+			o <- findOverlaps(ar, truth, select='first')
+			purity <- simPurityPloidy[ID,"purity"]						
+			clusters <- loadClusters(ID)
+			clusters$proportion <- clusters$ccf * purity
+			x <- mean(abs(cf- clusters$proportion[truth$cluster[o]+1]) < 0.01)
+			y <- mean((cf==max(cf)) == (clusters$proportion[truth$cluster[o]+1]==purity))
+			return(c(prec.all=x,prec.clonal=y))
+		})
+colnames(x) <- sub("(.+)(Sim_.+)(.no_rea.+)","\\2",colnames(x))
+
+
+#' ## WGD
+wgdTime <- function(vcf, bb, clusters, purity){
+	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
+	v <- vcf[w]
+	if(nrow(v)<=100) return(NULL)
+	seqnames(rowRanges(v)) <- factor(rep(1, nrow(v)), levels=seqlevels(v))
+	b <- GRanges(1, IRanges(1,max(end(v))), copy_number=4, major_cn=2, minor_cn=2, clonal_frequency=purity)
+	computeMutCn(v, b, clusters, purity, isWgd=TRUE)
+}
+
+
+finalPloidy <- sapply(finalBB, averagePloidy)
+names(finalPloidy) <- names(finalBB)
+aep <- sapply(finalBB, averageEvenPloidy)
+
+l <- function(ID){
+	clusters <- try(loadClusters(ID))
+	if(class(clusters)=="try-error") clusters <- clustersFromBB(finalBB[[ID]])
+	purity <- purityPloidy[ID,'purity']
+    # Fix clusters with proportion > purity
+	w <- clusters$proportion >= purity - 0.075 #ie ~ 1.5 reads 
+	cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE])))
+	cl[nrow(cl),"proportion"] <- purity
+	return(cl)
+}
+finalClusters <- sapply(names(finalBB), l, simplify=FALSE)
+
+isWgd <- finalPloidy >= 3 | aep > .33
+
+finalWgdParam <- mclapply(names(finalVcfSnv)[isWgd], function(ID){
+			wgdTime(finalVcfSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=purityPloidy[ID,1])
+		},  mc.cores=6)
+
+finalWgdPi <- sapply(finalWgdParam[!sapply(finalWgdParam, is.null)], function(x) {
+			pi <- x$P[[1]][,"P.m.sX"] * x$P[[1]][,"pi.s"] 
+			pi.clonal <- pi[1:2]
+			pi.subclonal <- sum(pi[!x$P[[1]][,"clonalFlag"]])
+			c(pi.clonal, pi.subclonal)
+})
+
+t <- seq(0,1,0.01)
+ta <- seq(0,1,0.01)
+a <- seq(1,10,0.1)
+correctionFactors <- sapply(a, function(aa) sapply(ta, function(taa) sapply(t, function(tt) correct.t(c(tt,(1-tt)/2), taa, aa)), simplify='array'), simplify='array')
+
+m <- asum(correctionFactors, 3:4, na.rm=TRUE)/length(a)/length(ta)
+
+correctAccel <- function(pi, ta, a){
+	t0 <- 2*pi[2]/(2*pi[2]+pi[1]) ##  no acc
+	t1 <- t0 + (1-t0) *(a-1)/a*ta #acc before dup
+	t2 <- t0 * (ta + a*(1-ta)) ## after
+	tWgdClonal <- pmin(t1, t2) # as fraction of clonal
+	aEffClonal <- ta + (1-ta)*a # effective rate, avg over clonal
+	gEffClonal <- 2*tWgdClonal + 4*(1-tWgdClonal) # effective genome size
+	piClonal <- sum(pi[1:2])
+	piSub <- sum(pi[-2:-1])
+	tSub <- piSub / 4 / a
+	tClonal <- piClonal / gEffClonal/ aEffClonal
+	tClonal <- tClonal / (tClonal + tSub)
+	return(c(tWgd=tWgdClonal * tClonal, tClonal=tClonal))
+}
+
+correctAccelRand <- function(pi, ta=seq(0.5,1,0.01), a=seq(1,10,1)){
+	x <- sapply(ta, function(taa) sapply(a, function(aa) correctAccel(pi, taa, aa)), simplify='array')
+}
+
+finalWgdPiAdj <- sapply(1:ncol(finalWgdPi), function(i) correctAccelRand(finalWgdPi[,i]), simplify='array')
+
+age <- clinicalData$donor_age_at_diagnosis
+names(age) <- clinicalData$icgc_donor_id
+
+n <- names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)]
+finalWgdTime <- finalWgdPiAdj * rep(age[sample2donor[n]], each=2)
+
+d <- droplevels(donor2type[sample2donor[n]])
+t <- sapply(levels(d), function(l) {
+			i <- d==l
+			a <- (1-finalWgdPiAdj[1,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdPiAdj)[2:3]))
+			m <- mg14:::asum(a, 3, na.rm=TRUE)/sum(!is.na(age[sample2donor[n]][i]))
+			quantile(m, c(.025,.25,.5,.75,.975), na.rm=TRUE)
+		})
+m <- t[3,]
+
+o <- order(m)
+
+par(mfrow=c(1,1), mar=c(7,3,1,1), mgp=c(2,.5,0), cex=.8)
+barplot(sort(m), col=tissueColors[names(m)[o]], ylim=c(0,25), names.arg=rep("", sum(!is.na(m))), ylab="Approximate years before diagnosis") -> b
+segments(b,t[1,o],b,t[5,o])
+mg14::rotatedLabel(b, labels=names(m)[o][1:sum(!is.na(m))])
+
+t <- 12/8
+dev.copy2pdf(file="realTimeWgd.pdf", width=4*t, height=3*t, pointsize=8*t)
+
+
+ID <- grep("0176cf1d", sampleIds, value=TRUE)
+par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
+bbplot(finalBB[[ID]], ylim=c(-0.25,5))
+legend("topright", col=c("black",RColorBrewer::brewer.pal(4,"Set1")[c(1,2)]), lty=1, lwd=4, c("Total","Major","Minor"))
+dev.copy2pdf(file=paste0(ID,".CN.pdf"), width=16, height=4)
+
+
+
+
+#' ### CN-LOH cases
+w <- which(finalPloidy < 2.6 & aep > .5)
+w
+
+#ID <- "20d1b88b-3ff6-4201-a748-6a993500c652"
+par(mfrow=c(10,2),mar=c(3,3,2,1)+.1, cex=.5, mgp=c(2,.5,0))
+for(ID in names(w)){
+	t <- bbToTime(finalBB[[ID]])
+	bbplot(finalBB[[ID]])
+	title(main=ID)
+	n <- countQueryHits(findOverlaps(finalBB[[ID]], finalVcfSnv[[ID]]))
+	i <- t[,"type"]=="cnloh" & n >= 50
+	if(sum(i, na.rm=TRUE) > 0)
+		plot(t[i,"time"], ylim=c(0,1), ylab="time", xlab="segment")
+	else plot.new()
+}
+
+dev.copy2pdf(file="CNLOH.pdf", width=8, height=10, pointsize=12)
+
+
+w <- c(which(isWgd)[1:13], grep("c9ad6b1|ec3998|1dbdbb", names(finalBB)))
+par(mfrow=c(4,4),mar=c(3,3,2,1)+.1, cex=.5, mgp=c(2,.5,0), xpd=FALSE, las=2)
+for(ID in w){
+	n <- countQueryHits(findOverlaps(finalBB[[ID]], finalVcfSnv[[ID]]))
+	t <- bbToTime(finalBB[[ID]])
+	l <- width(finalBB[[ID]])
+	i <- n>100 & l > 10e6
+	plot(NA,NA, xlab='Position', ylab="Time", ylim=c(0,1), xlim=c(0,chrOffset["MT"]))
+	abline(v = chrOffset[1:24], lty=3)
+	if(length(which(i)>0))
+		for(j in which(i)){
+			s <- start(finalBB[[ID]])[j]
+			e <- end(finalBB[[ID]])[j]
+			x <- chrOffset[as.character(seqnames(finalBB[[ID]])[j])]
+			segments(s+x,t[j,"time"], e+x, t[j,"time"], pch=19,col=as.numeric(factor(t[,"type"]))[j], ylim=c(0,1), lwd=2)
+		}
+	title(main=names(finalBB)[ID], line=0)
+	if(ID==1) legend("topright",col=1:3, lwd=2, legend=levels(factor(t[,"type"])))
+}
+
+
+
+.wgdTime <- function(vcf, bb, clusters, purity){
+	wgd <- info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1
+	cnloh <- info(vcf)$MajCN==2 & info(vcf)$MinCN==0& sapply(info(vcf)$CNID, length)==1
+	single <- info(vcf)$MajCN==2 & info(vcf)$MinCN==1& sapply(info(vcf)$CNID, length)==1
+	w <- which(wgd|single|cnloh)
+	v <- vcf[w]
+	seqnames(rowRanges(v)[which(wgd[w])]) <- factor(rep(4, sum(wgd, na.rm=TRUE)), levels=seqlevels(v))
+	seqnames(rowRanges(v)[which(cnloh[w])]) <- factor(rep(2, sum(cnloh, na.rm=TRUE)), levels=seqlevels(v))
+	seqnames(rowRanges(v)[which(single[w])]) <- factor(rep(3, sum(single, na.rm=TRUE)), levels=seqlevels(v))
+
+	b <- c(GRanges(4, IRanges(1,max(end(v))), copy_number=4, major_cn=2, minor_cn=2, clonal_frequency=purity),
+			GRanges(2, IRanges(1,max(end(v))), copy_number=2, major_cn=2, minor_cn=0, clonal_frequency=purity),
+			GRanges(3, IRanges(1,max(end(v))), copy_number=3, major_cn=2, minor_cn=1, clonal_frequency=purity))
+			
+	l <- computeMutCn(v, b, clusters, purity, isWgd=TRUE)
+	b$timing_param <- l$P
+	t <- bbToTime(b)
+	data.frame(seqnames=NA, start=NA, end=NA, n=c(sum(wgd, na.rm=TRUE),sum(cnloh, na.rm=TRUE),sum(single, na.rm=TRUE) ), t, sample=meta(header(vcf))['ID',1])
+}
+
+
+allSegments <- mclapply(names(finalBB), function(ID){try({
+			#if(!isWgd[ID]){
+				n <- countQueryHits(findOverlaps(finalBB[[ID]], finalVcfSnv[[ID]]))
+				t <- bbToTime(finalBB[[ID]])
+				w <- !is.na(t[,2])
+				data.frame(as.data.frame(granges(finalBB[[ID]]))[w,1:3], n=n[w], t[w,], sample=rep(ID, sum(w)) )
+			#}else{
+			#	.wgdTime(finalVcfSnv[[ID]], finalBB[[ID]], finalClusters[[ID]], purityPloidy[ID,1])
+			#}
+					})
+		}, mc.cores=6)
+
+finalSegments <- do.call("rbind", allSegments[sapply(allSegments, class)!='try-error'])
+w <- finalSegments$sample %in% names(which(isWgd))
+finalSegments$seqnames[w] <- finalSegments$start[w] <- finalSegments$end[w] <- NA
+
+weighted.sd <- function(x, w){ m <- sum(x*w)/sum(w); sqrt(sum(w * (x-m)^2/sum(w)) * length(x)/length(x[-1]))}
+finalSegmentsAggregated <- do.call("rbind",lapply(split(finalSegments, paste(finalSegments$sample, finalSegments$seqnames, finalSegments$type)), function(x) data.frame(chr=x$seqnames[1], start=min(x$start), end=max(x$end), width=sum(x$end-x$start), n=sum(x$n), time=sum(x$time * x$n)/sum(x$n), sd.time=weighted.sd(x$time, x$n), type=x$type[1], sample=x$sample[1])))
+
+write.table(finalSegments, file="2017-01-27-segments-time.txt", col.names=TRUE, sep='\t', quote=FALSE, row.names=FALSE)
+
+write.table(finalSegmentsAggregated, file="2017-02-01-segmentsAggregated-time.txt", col.names=TRUE, sep='\t', quote=FALSE, row.names=FALSE)
+
+#' WGD cases
+w <- finalSegmentsAggregated[is.na(finalSegmentsAggregated$chr),c("type","time","n","sample","sd.time")]
+n <- names(which(isWgd))
+s <- split(w[,c("time","sample")], w$type)
+x <- sapply(s, function(x) x$time[match(n,x$sample)])
+plot(as.data.frame(x))
+
+averageCNLOH <- function(bb){
+	sum(width(bb) * (bb$major_cn == 2 & bb$minor_cn == 0) * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
+}
+
+
+
+averageStar <- sapply(finalBB, function(bb) sum(width(bb) * bb$star * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE))
+aStar <- cut(averageStar, 0:3)
+
+ac <- sapply(finalBB, averageCNLOH)
+finalHom <- sapply(finalBB, averageHom)
+names(finalHom) <- names(finalBB)
+
+plot(finalHom, finalPloidy, col=.classWgd( finalPloidy, finalHom)+1, xlim=c(0,1))
+
+x <- seq(0,1,0.01)
+lines(x, pmax(2, 3-2*x))
+
+write.table(file="HomPloidy,txt",data.frame(homozygousity=finalHom, ploidy=finalPloidy), col.names=TRUE, quote=FALSE, sep="\t")
+
+d <- rowMeans(apply(t[,2:4],1, function(x){
+					b <- timeToBeta(x)
+					dbeta(seq(0,1,0.01), b[1], b[2])
+				}), na.rm=TRUE)
+
+#' ## WGD-possible
+w <- which(finalPloidy < 2.8 & finalHom > .3 & .classWgd( finalPloidy, finalHom))
+
+pdf("WGD-timing.pdf", 12,6.5)
+for(ID in names(w)){
+	print(ID)
+	for(f in dir("../final/annotated_006/snv_mnv", pattern=paste0(ID,".+bb_granges.RData"), full.names=TRUE)) load(f)
+	t <- bbToTime(bb)
+	
+	par(mfrow=c(2,1), mar=c(2,3,2,1), mgp=c(2,.5,0), bty="L", cex=1, las=2)
+	plotBB(bb, ylim=c(0,8))
+	title(main=paste0(ID,", ", donor2type[sample2donor[ID]], ", ploidy=",round(finalPloidy[ID],2), ", hom=",round(finalHom[ID],2)), font.main=1, line=0)
+	par(mar=c(3,3,1,1))
+	plotTiming(bb, t)
+}
+dev.off()
+
+
+mclapply(names(finalBB), function(ID){
+	#print(ID)
+	pdf(paste0("../final/annotated_006/timing/",ID,".pdf"), 12,6.5)
+	bb <- finalBB[[ID]]
+	t <- bbToTime(bb)	
+	par(mfrow=c(2,1), mar=c(2,3,2,1), mgp=c(2,.5,0), bty="L", cex=1, las=2)
+	plotBB(bb, ylim=c(0,8))
+	title(main=paste0(ID,", ", donor2type[sample2donor[ID]], ", ploidy=",round(finalPloidy[ID],2), ", hom=",round(finalHom[ID],2), if(.classWgd( finalPloidy[ID], finalHom[ID])) ", WGD" else ""), font.main=1, line=0)
+	par(mar=c(3,3,1,1))
+	plotTiming(bb, t)
+	dev.off()
+}, mc.cores=6)
+
+d <- data.frame(as.data.frame(granges(finalBB[[grep("^ec39",names(finalBB))]])), bbToTime(finalBB[[grep("^ec39",names(finalBB))]]))
+
+ID <- grep('^ec39', names(finalVcfSnv), value=TRUE)
+v <- finalVcfSnv[[ID]]
+v <- v[seqnames(v)=="15"]
+b <- finalBB[[ID]]
+b <- b[seqnames(b)=="15"]
+
+boot <- sapply(1:10, function(foo){
+			set.seed(foo)
+			vv <- v[sort(sample(1:nrow(v), replace=TRUE))]
+			b$timing_param <- NULL
+			c <- computeMutCn(vv,b,finalClusters[[ID]], purity=purityPloidy[ID,1], isWgd=TRUE)
+			d <- b
+			d$timing_param <- c$P
+			bbToTime(d)$time
+		})
+boxplot(t(bo))
+
+b0 <- GRanges(seqnames=15, IRanges(15800000, 32090715), total_cn=2, major_cn=2, minor_cn=0, clonal_frequency=0.34)
+
+boot.merged <- sapply(1:50, function(foo){
+			set.seed(foo)
+			vv <- v[sort(sample(1:nrow(v), replace=TRUE))]
+			c <- computeMutCn(vv,b0,finalClusters[[ID]], purity=purityPloidy[ID,1], isWgd=TRUE)
+			d <- b0
+			d$timing_param <- c$P
+			bbToTime(d)$time
+		})
+
+cnStates <- b$timing_param[[2]]
+whichStates <- 1:nrow(cnStates)
+w <- v %over% b[3]
+x <- getAltCount(v[w])
+n <- getTumorDepth(v[w])
+L <- matrix(sapply(pmin(cnStates[whichStates,"f"],1), function(pp) dtrbetabinom(x,n,pp, rho=rho, xmin=pmin(x,xmin)) + .Machine$double.eps), ncol=length(whichStates))
+L <- rbind(L, rep(1,ncol(L)))
+
+pi <- cnStates[,"P.m.sX"]
+N <- as.numeric(L %*% pi)
+H <- t(L/N) %*% (L/N) 
+solve(H)
+
+bi <- sapply(1:100, function(foo){
+			LL <- L[sample(1:nrow(L), replace=TRUE),]
+			p <- pi
+			for(i in 1:100){
+				P <- LL*rep(p / cnStates[,"power.m.s"], each=nrow(LL))
+				P <- P/rowSums(P)
+				p <- colMeans(P)
+			}
+			return(p)
+		})
+
+
