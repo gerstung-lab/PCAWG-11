@@ -6,7 +6,7 @@
 library(Rsamtools)
 
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consensus_12oct_passonly/snv_mnv'
-basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20161213_vanloo_wedge_consSNV_prelimConsCNAallStar'
+basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
 dpPath <- paste0(basePath,'/2_subclones/')
 CANCERGENES <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
 purityPloidy <- read.table( '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus.20170119.purity.ploidy.annotated.txt', header=TRUE, row.names=1)
@@ -181,7 +181,7 @@ probGenotype <- function(vcf){
 }
 
 getGenotype <- function(vcf, reclassify='missing', ...){
-	cls <- classifyMutations(vcf = vcf, reclassify=reclassify)
+	cls <- classifyMutations(vcf, reclassify=reclassify)
 	t <- info(vcf)$TCN
 	if(is.null(t))
 		t <- info(vcf)$MinCN + info(vcf)$MajCN
