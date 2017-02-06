@@ -91,7 +91,8 @@ chrOffset <- cumsum(c(0,as.numeric(width(refLengths))))
 names(chrOffset) <- c(seqlevels(refLengths), "NA")
 
 averagePloidy <- function(bb) {
-	sum(width(bb) * bb$copy_number * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
+	c <- if(!is.null(bb$copy_number)) bb$copy_number else bb$total_cn
+	sum(width(bb) * c * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
 }
 
 averageEvenPloidy <- function(bb){
