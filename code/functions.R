@@ -149,6 +149,18 @@ mergeClusters <- function(clusters, deltaFreq=0.05){
 	))
 }
 
+
+removeSuperclones <- function(clusters) {
+	m <- which.max(clusters$n_ssms)
+	w <- clusters$proportion >= clusters$proportion[m]
+	if(sum(clusters$n_ssms[w])/clusters$n_ssms[m] < 1.1 & sum(w)>1){
+		cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]*clusters[w,"n_ssms"])/sum(clusters[w,"n_ssms"])))
+		cl[nrow(cl),"n_ssms"] <- sum(clusters[w,"n_ssms"])
+		clusters <- cl
+	}
+	return(clusters)
+}
+
 clustersFromBB <- function(bb){
 	w <- bb$clonal_frequency == max(bb$clonal_frequency, na.rm=TRUE) | bb$clonal_frequency < 0.5 * max(bb$clonal_frequency, na.rm=TRUE)
 	t <- table(bb$clonal_frequency[w])
