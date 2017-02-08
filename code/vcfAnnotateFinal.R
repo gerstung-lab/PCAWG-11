@@ -44,13 +44,7 @@ if(class(clusters)=='try-error'){
 }
 
 #' ### 1. Remove spurious superclonal clusters with less than 10% mutations
-m <- which.max(clusters$n_ssms)
-w <- clusters$proportion >= clusters$proportion[m]
-if(sum(clusters$n_ssms[w])/clusters$n_ssms[m] < 1.1 & sum(w)>1){
-	cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]*clusters[w,"n_ssms"])/sum(clusters[w,"n_ssms"])))
-	cl[nrow(cl),"n_ssms"] <- sum(clusters[w,"n_ssms"])
-    clusters <- cl
-}
+clusters <- removeSuperclones(clusters = clusters)
 #clusters <- mergeClusters(clusters, deltaFreq=0.05)
 
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
@@ -110,11 +104,15 @@ cls <- classifyMutations(vcf, reclassify='all')
 info(vcf)$CLS <- cls
 info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
 
+#' Timing
+t <- bbToTime(bb)	
+mcols(bb) <- DataFrame(mcols(bb), t)
+bb$n.snv_mnv <- countOverlaps(bb, vcf)
+
 #' Save output
 writeVcf(vcf, file=vcfFileOut)
 bgzip(vcfFileOut, overwrite=TRUE)
 unlink(vcfFileOut)
-save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 save(vcf, file=paste0(vcfFileOut,".RData"))
 
 #@TODO: Include SNV and INDEL counts for each segment  countQueryHits(findOverlaps(bb, bb))
@@ -141,8 +139,13 @@ info(header(vcfIndel)) <- rbind(info(header(vcfIndel)), DataFrame(Number="1",Typ
 writeVcf(vcfIndel, file=vcfIndelFileOut)
 bgzip(vcfIndelFileOut, overwrite=TRUE)
 unlink(vcfIndelFileOut)
-save(bb, file=sub(".vcf$",".bb_granges.RData",vcfIndelFileOut))
 save(vcfIndel, file=paste0(vcfIndelFileOut,".RData"))
+
+#' Save BB
+bb$n.indel <- countOverlaps(bb, vcfIndel)
+seqlevels(bb) <- c(1:22, "X","Y")
+bb <- sort(bb)
+save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 
 
 #' ## PLOT
@@ -150,14 +153,18 @@ save(vcfIndel, file=paste0(vcfIndelFileOut,".RData"))
 chrOffset <- cumsum(c(0,as.numeric(width(refLengths))))
 names(chrOffset) <- c(seqlevels(refLengths), "NA")
 
+pdf(file=sub(".vcf$",".pdf",vcfFileOut), 12,18)
+par(mar=c(1,3,3,1), bty="L", mgp=c(2,.5,0), mfrow=c(4,1),cex=1, las=2)
+j <- 1
 for(v in c('vcf','vcfIndel')){
 	vv <- get(v)
-	pdf(file=sub(".vcf$",".pdf",get(paste0(v,"FileOut"))), 16,8)
-	par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0))
 	col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)]
 	cls <- factor(paste(as.character(info(vv)$CLS)), levels = c(levels(info(vv)$CLS), "NA"))
+	if(j>1) par(mar=c(3,3,1,1))
 	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
-	title(main=paste(ID, if(IS_WGD) "WGD", if(NO_CLUSTER) "(No clusters available)"), line=0, font.main=1, cex.main=1)
+	if(j==1){
+		title(main=paste0(ID,", ", donor2type[sample2donor[ID]], "\nploidy=",round(averagePloidy(bb),2), ", hom=",round(averageHom(bb),2), if(IS_WGD) ", WGD" else "", if(NO_CLUSTER) ", (No clusters available)" else(paste0(", clusters=(",paste(round(clusters$proportion, 2), collapse="; "),")"))), font.main=1, line=1, cex.main=1)
+	} 
 	abline(v = chrOffset[1:25], lty=3)
 	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
 	for(i in seq_along(bb)) try({
@@ -167,12 +174,14 @@ for(v in c('vcf','vcfIndel')){
 					y <- bb$timing_param[[i]][,"f"]
 					l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
 					segments(s+x,y,e+x,y, lwd=l*4+.1)
-					text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vv))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
-				})
+					#text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vv))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
+				}, silent=TRUE)
 	legend("topleft", pch=19, col=col, legend=paste(as.numeric(table(cls)), levels(cls)), bg='white')
-	dev.off()
+	j <- j+1
 }
-
+plotBB(bb, ylim=c(0,10))
+plotTiming(bb, t)
+dev.off()
 #plot(start(vcf) + w[as.character(seqnames(vcf))], qnorm(info(vcf)$pMutCNTail), col=col[cls], xlab='Position', ylab="pTail", pch=16)
 
 

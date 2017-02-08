@@ -151,7 +151,7 @@ mergeClusters <- function(clusters, deltaFreq=0.05){
 
 
 removeSuperclones <- function(clusters) {
-	m <- which.max(clusters$n_ssms)
+	m <- which(clusters$proportion == max(clusters$proportion[clusters$n_ssms >= 0.1 * sum(clusters$n_ssms)]))
 	w <- clusters$proportion >= clusters$proportion[m]
 	if(sum(clusters$n_ssms[w])/clusters$n_ssms[m] < 1.1 & sum(w)>1){
 		cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]*clusters[w,"n_ssms"])/sum(clusters[w,"n_ssms"])))
@@ -491,15 +491,15 @@ names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
 
 
-piToTime <- function(timing_param, type=c("Single Gain","CN-LOH", "WGD")){
+piToTime <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-allelic Gain")){
 	type <- match.arg(type)
 	pi <-  timing_param[timing_param[,"state"]==1,c("P.m.sX","P.m.sX.lo","P.m.sX.up")]
 	pi[1,2:3] <- pi[1,3:2]
-	t <- if(type=="Single Gain"){
+	t <- if(type=="Mono-allelic Gain"){
 				3*pi[2,]/(2*pi[2,] + pi[1,])
 			}else if(type=="CN-LOH"){
 				2*pi[2,]/(2*pi[2,] + pi[1,])
-			}else if(type=="WGD"){
+			}else if(type=="Bi-allelic Gain"){
 				2*pi[2,]/(2*pi[2,] + pi[1,])
 			}
 	names(t) <- c("","lo","up")
@@ -515,16 +515,18 @@ bbToTime <- function(bb){
 	min <- bb$minor_cn
 	type <- sapply(seq_along(bb), function(i){
 				if(maj[i] != 2 | is.na(maj[i])) return(NA)
-				type <- if(min[i]==1){ "Single Gain" 
+				type <- if(min[i]==1){ "Mono-allelic Gain" 
 						}else if(min[i]==0){"CN-LOH"}
-						else "WGD"
+						else "Bi-allelic Gain"
 				return(type)
 			})
 	time <- t(sapply(seq_along(bb), function(i){
 				if(sub[i] == 2 | is.na(type[i])) return(c(NA,NA,NA)) # Exclude segments with subclonal CN
 				else piToTime(bb$timing_param[[i]],type[i])
 			}))
-	data.frame(type=factor(type, levels=c("Single Gain","CN-LOH","WGD")), time=time)
+	res <- data.frame(type=factor(type, levels=c("Mono-allelic Gain","CN-LOH","Bi-allelic Gain")), time=time)
+	colnames(res) <- c("type","time","time.lo","time.up")
+	return(res)
 }
 
 averageHom <- function(bb){
@@ -559,12 +561,12 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE)))){
 #	}
 	abline(v = chrOffset[1:25], lty=3)
 	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	legend("topleft", c("Total CN","Major CN","Minor CN"), col=c("black", col[1:2]), lty=1, lwd=2)
+	legend("topleft", c("Total CN","Major CN","Minor CN"), col=c("black", col[1:2]), lty=1, lwd=2, bg='white')
 }
 
 timeToBeta <- function(time){
 	mu <- time[1]
-	if(is.na(mu)) return(c(NA,NA))
+	if(any(is.na(time))) return(c(NA,NA))
 	if(mu == 1) mu <- 1 - 1e-3
 	if(mu == 0) mu <- 1e-3
 	v <- (0.5 * (time[3]-time[2]))^2
@@ -574,7 +576,7 @@ timeToBeta <- function(time){
 }
 
 plotTiming <- function(bb, time, col=RColorBrewer::brewer.pal(5,"Set2")[c(3:5)]){
-	plot(NA,NA, xlab='', ylab="Time", ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
+	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
 	for(i in seq_along(bb)) try({
 					s <- start(bb)[i]
 					e <- end(bb)[i]
@@ -585,7 +587,7 @@ plotTiming <- function(bb, time, col=RColorBrewer::brewer.pal(5,"Set2")[c(3:5)])
 				}, silent=TRUE)
 	abline(v = chrOffset[1:25], lty=3)
 	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	legend("topleft", levels(t[,1]), fill=col)
+	legend("topleft", levels(t[,1]), fill=col, bg="white")
 }
 
 source("ComputeMCN.R")
