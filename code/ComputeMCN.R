@@ -260,7 +260,7 @@ defineMcnStates <- function(bb, clusters, purity, gender='female', isWgd= FALSE)
 #' 
 #' @author mg14
 #' @export
-computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALSE, xmin=3, rho=0){
+computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALSE, xmin=3, rho=0, n.boot=200){
 	n <- nrow(vcf)
 	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
 	P <- defineMcnStates(bb,clusters, purity, gender, isWgd)
@@ -353,7 +353,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 					
 					# Bootstrapping for CIs
 					if(globalIt==2){
-						b.m.sX <- sapply(1:200, function(foo){
+						b.m.sX <- if(n.boot>0) sapply(1:n.boot, function(foo){
 									L <- rbind(L, rep(1e-3, each=ncol(L))) #add an uniformative row
 									L <- L[sample(1:nrow(L), replace=TRUE),,drop=FALSE]
 									P.m.sX <- cnStates[whichStates,"pi.m.s"]
@@ -365,7 +365,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 										P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
 									}
 									return(P.m.sX)
-								})
+								}) else NA
 						try({
 									CI.m.s.X <- apply(b.m.sX, 1, quantile, c(0.025, 0.975))
 									cnStates[,"P.m.sX.lo"] <- CI.m.s.X[1,] 
