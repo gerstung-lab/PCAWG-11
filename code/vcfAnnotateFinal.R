@@ -147,6 +147,8 @@ seqlevels(bb) <- c(1:22, "X","Y")
 bb <- sort(bb)
 save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
 
+#' Save clusters & purity
+save(clusters, purity, file=sub(".vcf$",".clusters_purity.RData",vcfFileOut))
 
 #' ## PLOT
 
@@ -161,7 +163,7 @@ for(v in c('vcf','vcfIndel')){
 	col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)]
 	cls <- factor(paste(as.character(info(vv)$CLS)), levels = c(levels(info(vv)$CLS), "NA"))
 	if(j>1) par(mar=c(3,3,1,1))
-	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
+	plot(start(vv) + chrOffset[as.character(seqnames(vv))], getAltCount(vv)/getTumorDepth(vv),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vv)$pMutCNTail < 0.025 | info(vv)$pMutCNTail > 0.975, 4 , 16), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n", cex=.66)
 	if(j==1){
 		title(main=paste0(ID,", ", donor2type[sample2donor[ID]], "\nploidy=",round(averagePloidy(bb),2), ", hom=",round(averageHom(bb),2), if(IS_WGD) ", WGD" else "", if(NO_CLUSTER) ", (No clusters available)" else(paste0(", clusters=(",paste(round(clusters$proportion, 2), collapse="; "),")"))), font.main=1, line=1, cex.main=1)
 	} 
