@@ -115,7 +115,6 @@ bgzip(vcfFileOut, overwrite=TRUE)
 unlink(vcfFileOut)
 save(vcf, file=paste0(vcfFileOut,".RData"))
 
-#@TODO: Include SNV and INDEL counts for each segment  countQueryHits(findOverlaps(bb, bb))
 
 #' ## INDEL
 vcfIndelFileIn <- sub("20160830","20161006",gsub("snv_mnv","indel", vcfFileIn))
@@ -145,17 +144,13 @@ save(vcfIndel, file=paste0(vcfIndelFileOut,".RData"))
 bb$n.indel <- countOverlaps(bb, vcfIndel)
 seqlevels(bb) <- c(1:22, "X","Y")
 bb <- sort(bb)
-save(bb, file=sub(".vcf$",".bb_granges.RData",vcfFileOut))
+save(bb, file=sub("snv_mnv","cn",sub(".vcf$",".bb_granges.RData",vcfFileOut)))
 
 #' Save clusters & purity
-save(clusters, purity, file=sub(".vcf$",".clusters_purity.RData",vcfFileOut))
+save(clusters, purity, file=sub("snv_mnv","clusters",sub(".vcf$",".clusters_purity.RData",vcfFileOut)))
 
 #' ## PLOT
-
-chrOffset <- cumsum(c(0,as.numeric(width(refLengths))))
-names(chrOffset) <- c(seqlevels(refLengths), "NA")
-
-pdf(file=sub(".vcf$",".pdf",vcfFileOut), 12,18)
+pdf(file=sub("snv_mnv","other",sub(".vcf$",".pdf",vcfFileOut)), 12,18)
 par(mar=c(1,3,3,1), bty="L", mgp=c(2,.5,0), mfrow=c(4,1),cex=1, las=2)
 j <- 1
 for(v in c('vcf','vcfIndel')){
