@@ -575,16 +575,16 @@ timeToBeta <- function(time){
 	return(c(alpha, beta))
 }
 
-plotTiming <- function(bb, time, col=RColorBrewer::brewer.pal(5,"Set2")[c(3:5)]){
+plotTiming <- function(bb, time, col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88")){
 	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
-	for(i in seq_along(bb)) try({
-					s <- start(bb)[i]
-					e <- end(bb)[i]
-					x <- chrOffset[as.character(seqnames(bb)[i])]
-					y <- time[i,2]
-					rect(s+x,time[i,3],e+x,time[i,4], border=NA, col=paste0(col[time[i,1]],"88"))
+		try({
+					s <- start(bb)
+					e <- end(bb)
+					x <- chrOffset[as.character(seqnames(bb))]
+					y <- time[,2]
+					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]])
 					segments(s+x,y,e+x,y)
-				}, silent=TRUE)
+				}, silent=FALSE)
 	abline(v = chrOffset[1:25], lty=3)
 	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
 	legend("topleft", levels(t[,1]), fill=col, bg="white")

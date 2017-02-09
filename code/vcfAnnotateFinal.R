@@ -177,7 +177,7 @@ for(v in c('vcf','vcfIndel')){
 	j <- j+1
 }
 plotBB(bb, ylim=c(0,10))
-plotTiming(bb, t)
+plotTiming(bb, mcols(bb)[,c("type","time","time.lo","time.up")])
 dev.off()
 #plot(start(vcf) + w[as.character(seqnames(vcf))], qnorm(info(vcf)$pMutCNTail), col=col[cls], xlab='Position', ylab="pTail", pch=16)
 
