@@ -14,6 +14,11 @@ vcfFileOut <- args[2]
 print(vcfFileIn)
 print(vcfFileOut)
 
+
+s <- strsplit(vcfFileIn,"/")[[1]]
+ID <- sub("\\..+", "", s[length(s)])
+
+
 library(VariantAnnotation)
 library(Matrix)
 library(CoxHD)
