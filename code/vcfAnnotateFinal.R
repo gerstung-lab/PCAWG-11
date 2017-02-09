@@ -43,9 +43,9 @@ if(class(clusters)=='try-error'){
 	NO_CLUSTER <- TRUE
 }
 
-#' ### 1. Remove spurious superclonal clusters with less than 10% mutations
-clusters <- removeSuperclones(clusters = clusters)
-#clusters <- mergeClusters(clusters, deltaFreq=0.05)
+#' ### 1. Remove spurious superclonal clusters with less than 10% mutations and (max - 10% VAF)
+clusters <- removeSuperclones(clusters)
+clusters <- mergeClusters(clusters, deltaFreq=0.05)
 
 if(all(is.na(purityPloidy[ID,]))) # Missing purity
 	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
@@ -177,7 +177,7 @@ for(v in c('vcf','vcfIndel')){
 	j <- j+1
 }
 plotBB(bb, ylim=c(0,10))
-plotTiming(bb, mcols(bb)[,c("type","time","time.lo","time.up")])
+plotTiming(bb)
 dev.off()
 #plot(start(vcf) + w[as.character(seqnames(vcf))], qnorm(info(vcf)$pMutCNTail), col=col[cls], xlab='Position', ylab="pTail", pch=16)
 

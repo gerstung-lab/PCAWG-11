@@ -138,7 +138,7 @@ getAltCount <- function(vcf){
 
 mergeClusters <- function(clusters, deltaFreq=0.05){
 	if(nrow(clusters) <= 1) return(clusters)
-	h <- hclust(dist(clusters$proportion))
+	h <- hclust(dist(clusters$proportion), members=clusters$n_ssms)
 	ct <- cutree(h, h=deltaFreq)
 	cp <- as.matrix(cophenetic(h))
 	Reduce("rbind",lapply(unique(ct), function(i) {
@@ -150,11 +150,11 @@ mergeClusters <- function(clusters, deltaFreq=0.05){
 }
 
 
-removeSuperclones <- function(clusters) {
+removeSuperclones <- function(clusters, min.frac=0.1, delta.prop=0.1) {
 	m <- which(clusters$proportion == max(clusters$proportion[clusters$n_ssms >= 0.1 * sum(clusters$n_ssms)]))
-	w <- clusters$proportion >= clusters$proportion[m]
-	if(sum(clusters$n_ssms[w])/clusters$n_ssms[m] < 1.1 & sum(w)>1){
-		cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]*clusters[w,"n_ssms"])/sum(clusters[w,"n_ssms"])))
+	w <- clusters$proportion >= clusters$proportion[m] - delta.prop
+	if(sum(w)>1){
+		cl <- as.data.frame(rbind(if(any(!w)) clusters[!w,,drop=FALSE], if(any(w)) colSums(clusters[w,,drop=FALSE]*(clusters[w,"n_ssms"]/sum(clusters[w,"n_ssms"])))))
 		cl[nrow(cl),"n_ssms"] <- sum(clusters[w,"n_ssms"])
 		clusters <- cl
 	}
