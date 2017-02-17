@@ -79,9 +79,11 @@ loadConsensusCNA <- function(ID, purity=1, path="/lustre/scratch112/sanger/cgppi
 		gr$major_cn[which(subclonalIndex)] <- tab$battenberg_nMaj1_A[subclonalIndex]
 		gr$minor_cn[which(subclonalIndex)] <- tab$battenberg_nMin1_A[subclonalIndex]
 		gr$clonal_frequency[-(1:nrow(tab))] <- tab$battenberg_frac2_A[subclonalIndex] * purity
+		gr$total_cn[-(1:nrow(tab))] <- tab$battenberg_nMaj2_A[subclonalIndex] + tab$battenberg_nMin2_A[subclonalIndex]
 		gr$major_cn[-(1:nrow(tab))] <- tab$battenberg_nMaj2_A[subclonalIndex]
 		gr$minor_cn[-(1:nrow(tab))] <- tab$battenberg_nMin2_A[subclonalIndex]
 	}
+	seqlevels(gr) <- c(1:22, "X","Y")
 	sort(gr)
 }
 
@@ -565,14 +567,13 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE)))){
 }
 
 timeToBeta <- function(time){
-	mu <- time[1]
-	if(any(is.na(time))) return(c(NA,NA))
-	if(mu == 1) mu <- 1 - 1e-3
-	if(mu == 0) mu <- 1e-3
-	v <- (0.5 * (time[3]-time[2]))^2
+	mu <- time[,1]
+	#if(any(is.na(time))) return(c(NA,NA))
+	mu <- pmax(1e-3, pmin(1 - 1e-3, mu))
+	v <- (0.5 * (pmax(mu,time[,3])-pmin(mu,time[,2])))^2
 	alpha <- mu * (mu * (1-mu) / v - 1)
 	beta <- (1-mu) *  (mu * (1-mu) / v - 1)
-	return(c(alpha, beta))
+	return(cbind(alpha, beta))
 }
 
 plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88")){
@@ -591,3 +592,33 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 }
 
 source("ComputeMCN.R")
+
+findMainCluster <- function(bb, min.dist=0.05){
+	w <- which(bb$n.snv_mnv > 20 & !is.na(bb$time))
+#	d <- dist(bb$time[w])
+#	ci <- weighted.mean((bb$time.up - bb$time.lo)[w], width(bb)[w])
+#	h <- hclust(d, method='average', members=bb$n.snv_mnv[w])
+#	c <- cutree(h, h=ci)
+#	ww <- c==which.max(table(c))
+#	weighted.mean(bb$time[w][ww], 1/((bb$time.up - bb$time.lo + min.dist)[w][ww]), na.rm=TRUE)
+	s <- seq(0,1,0.01)
+	l2 <- pmin(bb$time.lo, bb$time - min.dist)[w]
+	u2 <- pmax(bb$time.up, bb$time + min.dist)[w]
+	l1 <- (l2 +  bb$time[w])/2
+	u1 <- (u2+  bb$time[w])/2
+	wd <- as.numeric(width(bb)[w])
+	o <- sapply(s, function(i) sum(wd * ( (l2 <= i & u2 >=i) + (l1 <= i & u1 >= i))))
+	s[which.max(o)]
+}
+
+fractionGenomeWgdCompatible <- function(bb, min.dist=0.05){
+	m <- findMainCluster(bb)
+	l <- pmin(bb$time.lo, bb$time - min.dist)
+	u <- pmax(bb$time.up, bb$time + min.dist)
+	w <- which(l <= m & u >= m)
+	avgCi <- weighted.mean(bb$time.up- bb$time.lo, width(bb), na.rm=TRUE)
+	sd.wgd <- sqrt(weighted.mean((bb$time[w] - m)^2, width(bb)[w], na.rm=TRUE))
+	sd.all <- sqrt(weighted.mean((bb$time - m)^2, width(bb), na.rm=TRUE))
+	c(nt.wgd=sum(as.numeric(width(bb))[w]), nt.total=sum(as.numeric(width(bb))[!is.na(bb$time)]), time.wgd=m, sd.wgd=sd.wgd, avg.ci=avgCi, sd.all=sd.all) 
+}
+
