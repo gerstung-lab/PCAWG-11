@@ -77,7 +77,7 @@ IS_WGD <- classWgd(bb)
 vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 
 # Add ID & gender
-meta(header(vcf)) <- rbind(meta(header(vcf)), DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
+meta(header(vcf))$META <- rbind(meta(header(vcf))$META, DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
 
 # Add driver genes
 vcf <- addFinalDriver(vcf, driVers)
