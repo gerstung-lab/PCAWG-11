@@ -503,7 +503,24 @@ piToTime <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-alle
 				2*pi[2,]/(2*pi[2,] + pi[1,])
 			}else if(type=="Bi-allelic Gain"){
 				2*pi[2,]/(2*pi[2,] + pi[1,])
-			}
+			} #OTHER (M+m) * pi[length(pi)] / sum(seq_along(pi) * pi)
+	names(t) <- c("","lo","up")
+	t[2] <- min(t[1],t[2])
+	t[3] <- max(t[1],t[3])
+	return(pmin(t,1))
+}
+
+piToTime2 <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-allelic Gain (WGD)")){
+	type <- match.arg(type)
+	w <- timing_param[,"s"]==1 &! timing_param[,"mixFlag"] 
+	n <- sum(w)
+	M <- timing_param[1,"majCNanc"]
+	m <- timing_param[1,"minCNanc"]
+	pi <-  timing_param[M,c("P.m.sX","P.m.sX.lo","P.m.sX.up")]
+	E <- timing_param[w,"m"] %*% timing_param[w,"P.m.sX"] 
+	#pi[1,2:3] <- pi[1,3:2]
+	T <- if(type=="Bi-allelic Gain (WGD)") (M+m)/2 else M+m 
+	t <- T * pi / c(E, timing_param[1,"E.m.sX.lo"], timing_param[1,"E.m.sX.up"])
 	names(t) <- c("","lo","up")
 	t[2] <- min(t[1],t[2])
 	t[3] <- max(t[1],t[3])
@@ -511,22 +528,21 @@ piToTime <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-alle
 }
 
 bbToTime <- function(bb){
-	uniqueBB <- unique(bb)
-	sub <- countQueryHits(findOverlaps(bb, bb))
+	sub <- duplicated(bb) #countQueryHits(findOverlaps(bb, bb)) == 2
 	maj <- bb$major_cn
 	min <- bb$minor_cn
 	type <- sapply(seq_along(bb), function(i){
-				if(maj[i] != 2 | is.na(maj[i])) return(NA)
+				if(maj[i] < 2 | is.na(maj[i])) return(NA)
 				type <- if(min[i]==1){ "Mono-allelic Gain" 
 						}else if(min[i]==0){"CN-LOH"}
-						else "Bi-allelic Gain"
+						else "Bi-allelic Gain (WGD)"
 				return(type)
 			})
 	time <- t(sapply(seq_along(bb), function(i){
-				if(sub[i] == 2 | is.na(type[i])) return(c(NA,NA,NA)) # Exclude segments with subclonal CN
-				else piToTime(bb$timing_param[[i]],type[i])
+				if(sub[i] | is.na(type[i])) return(c(NA,NA,NA)) # Exclude segments with subclonal CN
+				else piToTime2(bb$timing_param[[i]],type[i])
 			}))
-	res <- data.frame(type=factor(type, levels=c("Mono-allelic Gain","CN-LOH","Bi-allelic Gain")), time=time)
+	res <- data.frame(type=factor(type, levels=c("Mono-allelic Gain","CN-LOH","Bi-allelic Gain (WGD)")), time=time)
 	colnames(res) <- c("type","time","time.lo","time.up")
 	return(res)
 }
@@ -539,7 +555,8 @@ averageHom <- function(bb){
 
 classWgd <- function(bb) .classWgd(averagePloidy(bb), averageHom(bb))
 
-plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE)))){
+plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), type=c("lines","bars")){
+	type <- match.arg(type)
 	col=RColorBrewer::brewer.pal(4,"Set2")
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
@@ -549,11 +566,13 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE)))){
 	axis(side=1, at=c, labels=rep('', length(l)-1))
 	mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
 	abline(v=c, lty=3)
+	if(type=="lines"){
 	x0 <- start(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
 	x1 <- end(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
-	segments(x0=x0, bb$major_cn ,x1, bb$major_cn, col=col[1], lwd=5* bb$clonal_frequency)
-	segments(x0=x0, bb$minor_cn -.125,x1, bb$minor_cn-.125, col=col[2], lwd=5* bb$clonal_frequency)
-	segments(x0=x0, bb$total_cn+.125,x1, bb$total_cn+.125, col=1, lwd=5* bb$clonal_frequency)
+	lwd <- 5* bb$clonal_frequency / max(bb$clonal_frequency)
+	segments(x0=x0, bb$major_cn ,x1, bb$major_cn, col=col[1], lwd=lwd)
+	segments(x0=x0, bb$minor_cn -.125,x1, bb$minor_cn-.125, col=col[2], lwd=lwd)
+	segments(x0=x0, bb$total_cn+.125,x1, bb$total_cn+.125, col=1, lwd=lwd)
 #	cv <- coverage(bb)
 #	cv <- cv[s[s%in%names(cv)]]
 #	par(xpd=NA)
@@ -561,9 +580,24 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE)))){
 #		cc <- cv[[n]]
 #		segments(start(cc) + cumsum(l)[n] - l[n] ,-runValue(cc)/2,end(cc)+ cumsum(l)[n] - l[n], -runValue(cc)/2, col=4)
 #	}
+	}else{
+		ub <- unique(bb)
+		f <- findOverlaps(ub,bb)
+		m <- t(model.matrix( ~ 0 + factor(queryHits(f))))
+		ub$total_cn <- m %*% mg14::na.zero(bb$total_cn * bb$clonal_frequency) / max(bb$clonal_frequency)
+		ub$major_cn <- m %*% mg14::na.zero(bb$major_cn * bb$clonal_frequency) / max(bb$clonal_frequency)
+		ub$minor_cn <- m %*% mg14::na.zero(bb$minor_cn * bb$clonal_frequency) / max(bb$clonal_frequency)
+		ub$clonal_frequency <- max(bb$clonal_frequency)
+		x0 <- start(ub) + cumsum(l)[as.character(seqnames(ub))] - l[as.character(seqnames(ub))]
+		x1 <- end(ub) + cumsum(l)[as.character(seqnames(ub))] - l[as.character(seqnames(ub))]
+		rect(x0,0,x1, ub$minor_cn, col=col[2], lwd=NA)
+		rect(x0,ub$minor_cn,x1, ub$total_cn, col=col[1], lwd=NA)
+		abline(h = 1:floor(ylim[2]), lty=3)
+	}
 	abline(v = chrOffset[1:25], lty=3)
 	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	legend("topleft", c("Total CN","Major CN","Minor CN"), col=c("black", col[1:2]), lty=1, lwd=2, bg='white')
+	if(type=="lines") legend("topleft", c("Total CN","Major CN","Minor CN"), col=c("black", col[1:2]), lty=1, lwd=2, bg='white')
+	else legend("topleft", c("Major CN","Minor CN"), fill=col[1:2], bg='white')
 }
 
 timeToBeta <- function(time){
@@ -591,7 +625,7 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 	legend("topleft", levels(time[,1]), fill=col, bg="white")
 }
 
-source("ComputeMCN.R")
+source("MutationTime.R")
 
 findMainCluster <- function(bb, min.dist=0.05){
 	w <- which(bb$n.snv_mnv > 20 & !is.na(bb$time))
