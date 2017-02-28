@@ -106,9 +106,9 @@ info(vcf)$CLS <- cls
 info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
 
 #' Timing
+bb$n.snv_mnv <- countOverlaps(bb, vcf)
 t <- bbToTime(bb)	
 mcols(bb) <- DataFrame(mcols(bb), t)
-bb$n.snv_mnv <- countOverlaps(bb, vcf)
 
 #' Save output
 writeVcf(vcf, file=vcfFileOut)
