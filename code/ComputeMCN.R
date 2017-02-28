@@ -235,7 +235,7 @@ defineMcnStates <- function(bb, clusters, purity, gender='female', isWgd= FALSE)
 		
 		cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=cfi.s))[cnStates[1:k,"state"]]
 		
-		timing_param <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=NA,P.m.sX.lo=NA,P.m.sX.up=NA, power.s=NA, power.m.s = NA,
+		timing_param <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=NA,P.m.sX.lo=NA, P.m.sX.up=NA, E.m.sX.lo=NA, E.m.sX.up=NA, power.s=NA, power.m.s = NA,
 				majCN=majcni[cnStates[whichStates,"state"]], minCN=mincni[cnStates[whichStates,"state"]], 
 				majDelta = majdelta[cnStates[whichStates,"state"]], minDelta = mindelta[cnStates[whichStates,"state"]], 
 				clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]], majCNanc=majanc, minCNanc=minanc, majCNder=majder, minCNder=minder)
@@ -369,9 +369,11 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 								}) else NA
 						try({
 									CI.m.s.X <- apply(b.m.sX, 1, quantile, c(0.025, 0.975))
-									#E.m.s.X <- (b.m.sX * cnStates[,"m"])
 									cnStates[,"P.m.sX.lo"] <- CI.m.s.X[1,] 
 									cnStates[,"P.m.sX.up"] <- CI.m.s.X[2,]
+									E.m.s.X <- apply(s.m %*% (b.m.sX * cnStates[,"m"]), 1, quantile, c(0.025, 0.975))
+									cnStates[,"E.m.sX.lo"] <- E.m.s.X[1,cnStates[,"s"]] 
+									cnStates[,"E.m.sX.up"] <- E.m.s.X[2,cnStates[,"s"]]
 								})
 					}
 					
