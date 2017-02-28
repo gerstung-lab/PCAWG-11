@@ -9,7 +9,7 @@ vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consen
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
 dpPath <- paste0(basePath,'/2_subclones/')
 CANCERGENES <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
-purityPloidy <- read.table( '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus.20170119.purity.ploidy.annotated.txt', header=TRUE, row.names=1)
+purityPloidy <- read.table( '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus.20170218.purity.ploidy.txt', header=TRUE, row.names=1)
 #colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
