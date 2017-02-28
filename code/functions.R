@@ -317,7 +317,7 @@ branchLengths <- function(vcf, type=c("all","deamination")){
 	else
 		w <- rep(TRUE, nrow(vcf))
 	cnw <- cnWeights(vcf)
-	u <- allClusters[[meta(header(vcf))["ID",1]]]$cluster
+	u <- allClusters[[meta(header(vcf))$META["ID",1]]]$cluster
 	b <- sapply(u, function(c) sum(2*cnw * (info(vcf)$DPC==c & w), na.rm=TRUE))
 	#if(length(b)==0) b <- rep(0, length(u))
 	names(b) <- u
@@ -432,7 +432,7 @@ wnmSolve <- function(D, P, weights =  rep(0, ncol(P)), maxIter = 500, tol=1e-3) 
 
 
 wgdTest <- function(vcf){
-	id <- meta(header(vcf))["ID",1]
+	id <- meta(header(vcf))$META["ID",1]
 	bb <- allBB[[id]]
 	ix <- which(bb$copy_number==4 & bb$minor_cn==2)
 	v <- vcf[vcf %over% bb[ix]]
@@ -466,7 +466,7 @@ addFinalDriver <- function(vcf, driVers){
 	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(driVers$gene))
 	if(nrow(vcf)==0)
 		return(vcf)
-	ID <- meta(header(vcf))["ID",1]
+	ID <- meta(header(vcf))$META["ID",1]
 	d <- driVers[grep(ID, driVers$samples)]
 	if(length(d)==0)
 		return(vcf)

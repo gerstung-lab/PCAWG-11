@@ -123,7 +123,7 @@ vcfIndelFileOut <-  sub("20160830","20161006",gsub("snv_mnv","indel", vcfFileOut
 #' Load vcf
 vcfIndel <- readVcf(vcfIndelFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 #' Add ID & gender
-meta(header(vcfIndel)) <- rbind(meta(header(vcfIndel)), DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
+meta(header(vcfIndel))$META <- rbind(meta(header(vcfIndel))$META, DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
 #' Add driver genes
 vcfIndel <- addFinalDriver(vcfIndel, driVers)
 #' Add mutation copy numbers
