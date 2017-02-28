@@ -3,6 +3,7 @@
 # Author: mg14
 ###############################################################################
 
+set.seed(42)
 
 args <- commandArgs(trailingOnly = TRUE)
 
