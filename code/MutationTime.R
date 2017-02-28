@@ -235,7 +235,7 @@ defineMcnStates <- function(bb, clusters, purity, gender='female', isWgd= FALSE)
 		
 		cnStates[1:k,"s"] = as.numeric(factor(cfi, levels=cfi.s))[cnStates[1:k,"state"]]
 		
-		timing_param <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=NA,P.m.sX.lo=NA, P.m.sX.up=NA, E.m.sX.lo=NA, E.m.sX.up=NA, power.s=NA, power.m.s = NA,
+		timing_param <- cbind(cnStates[whichStates,,drop=FALSE], cfi=cfi[cnStates[whichStates,"state"]], pi.s=pi.s[cnStates[whichStates,"s"]], P.m.sX=NA,P.m.sX.lo=NA, P.m.sX.up=NA, T.m.sX=NA, T.m.sX.lo=NA, T.m.sX.up=NA, power.s=NA, power.m.s = NA,
 				majCN=majcni[cnStates[whichStates,"state"]], minCN=mincni[cnStates[whichStates,"state"]], 
 				majDelta = majdelta[cnStates[whichStates,"state"]], minDelta = mindelta[cnStates[whichStates,"state"]], 
 				clonalFlag=clonalFlag[cnStates[whichStates,"state"]], subclonalGainFlag=subclonalGainFlag[cnStates[whichStates,"state"]], mixFlag=mixFlag[cnStates[whichStates,"state"]], majCNanc=majanc, minCNanc=minanc, majCNder=majder, minCNder=minder)
@@ -334,17 +334,32 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 						power.s <- rep(1,length(whichStates))
 					}
 					
+					mm <- function(x) {
+						x <- factor(x)
+						if(nlevels(x) > 1) t(model.matrix( ~ x + 0)) else matrix(1, ncol=length(x))
+					}
+					
 					# EM algorithm (mixture fitting) for pi
 					P.m.sX <- cnStates[whichStates,"pi.m.s"]
-					s.m <- t(model.matrix( ~ m + 0, data.frame(m=factor(cnStates[whichStates,"s"])))) # indicator matrix to map
+					s.from.m <- mm(cnStates[whichStates,"s"]) # indicator matrix to map
 					for(em.it in 1:100){
 						P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power.m.s / power.s[cnStates[whichStates,"s"]], each=nrow(L)) # P(X,s,m)
 						P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 						P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
 						if(em.it==100) break
-						P.s.X <- s.m %*% P.sm.X 
+						P.s.X <- s.from.m %*% P.sm.X 
 						P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
 					}
+					
+					toTime <- function(cnStates, P.m.sX, s.m) {
+						mAnc <- cnStates[,"m"] - cnStates[,"minDelta"] - cnStates[,"majDelta"]
+						mAnc.s <- factor(paste(mAnc, cnStates[,"s"], sep="."))
+						n <- (mAnc <= cnStates[,"majCNanc"]) + (mAnc <= cnStates[,"minCNanc"] )
+						mAnc.s.from.m <- mm(x = mAnc.s)# indicator matrix to map
+						return((mAnc.s.from.m[mAnc.s,] %*% P.m.sX) / (s.m[cnStates[,"s"],] %*% (P.m.sX * mAnc)) *  (cnStates[,"majCNanc"] + cnStates[,"minCNanc"]) / n)
+					}
+					
+					T.m.sX <- toTime(cnStates, P.m.sX, s.from.m) 
 					
 					if(globalIt==1){
 						p <- (sapply(split(power.sm * P.m.sX, cnStates[whichStates,"s"]), sum) * nrow(L)/sum(!is.na(h) & !is.na(altCount) &! is.na(tumDepth)))[s.to.c]
@@ -362,23 +377,25 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 										P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power.m.s / power.s[cnStates[whichStates,"s"]], each=nrow(L)) # P(X,s,m)
 										P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
 										P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
-										P.s.X <- s.m %*% P.sm.X 
+										P.s.X <- s.from.m %*% P.sm.X 
 										P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
 									}
 									return(P.m.sX)
 								}) else NA
 						try({
-									CI.m.s.X <- apply(b.m.sX, 1, quantile, c(0.025, 0.975))
-									cnStates[,"P.m.sX.lo"] <- CI.m.s.X[1,] 
-									cnStates[,"P.m.sX.up"] <- CI.m.s.X[2,]
-									E.m.s.X <- apply(s.m %*% (b.m.sX * cnStates[,"m"]), 1, quantile, c(0.025, 0.975))
-									cnStates[,"E.m.sX.lo"] <- E.m.s.X[1,cnStates[,"s"]] 
-									cnStates[,"E.m.sX.up"] <- E.m.s.X[2,cnStates[,"s"]]
+									CI.m.sX <- apply(b.m.sX, 1, quantile, c(0.025, 0.975))
+									cnStates[,"P.m.sX.lo"] <- CI.m.sX[1,] 
+									cnStates[,"P.m.sX.up"] <- CI.m.sX[2,]
+									B.m.sX <- toTime(cnStates = cnStates, P.m.sX = b.m.sX, s.m = s.from.m)
+									C.m.sX <- apply(B.m.sX, 1, quantile, c(0.025, 0.975))
+									cnStates[,"T.m.sX.lo"] <- C.m.sX[1,] 
+									cnStates[,"T.m.sX.up"] <- C.m.sX[2,]
 								})
 					}
 					
 					P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
 					cnStates[,"P.m.sX"] <- P.m.sX
+					cnStates[,"T.m.sX"] <- T.m.sX
 					cnStates[,"power.s"] <- power.s[cnStates[whichStates,"s"]]
 					cnStates[,"power.m.s"] <- power.m.s
 					

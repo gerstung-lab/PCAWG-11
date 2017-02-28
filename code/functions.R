@@ -514,36 +514,37 @@ piToTime2 <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-all
 	type <- match.arg(type)
 	w <- timing_param[,"s"]==1 &! timing_param[,"mixFlag"] 
 	n <- sum(w)
-	M <- timing_param[1,"majCNanc"]
-	m <- timing_param[1,"minCNanc"]
-	pi <-  timing_param[M,c("P.m.sX","P.m.sX.lo","P.m.sX.up")]
-	E <- timing_param[w,"m"] %*% timing_param[w,"P.m.sX"] 
-	#pi[1,2:3] <- pi[1,3:2]
-	T <- if(type=="Bi-allelic Gain (WGD)") (M+m)/2 else M+m 
-	t <- T * pi / c(E, timing_param[1,"E.m.sX.lo"], timing_param[1,"E.m.sX.up"])
+	t <- timing_param[n,c("T.m.sX","T.m.sX.lo","T.m.sX.up")]
 	names(t) <- c("","lo","up")
 	t[2] <- min(t[1],t[2])
 	t[3] <- max(t[1],t[3])
 	return(pmin(t,1))
 }
 
-bbToTime <- function(bb){
-	sub <- duplicated(bb) #countQueryHits(findOverlaps(bb, bb)) == 2
-	maj <- bb$major_cn
-	min <- bb$minor_cn
+bbToTime <- function(bb, pseudo.count=5){
+	sub <- duplicated(bb) 
+	covrg <- countQueryHits(findOverlaps(bb, bb)) 
+	maj <- sapply(bb$timing_param, function(x) if(length(x) > 0) x[1, "majCNanc"] else NA) #bb$major_cn
+	min <- sapply(bb$timing_param, function(x) if(length(x) > 0) x[1, "minCNanc"] else NA) #bb$minor_cn
 	type <- sapply(seq_along(bb), function(i){
-				if(maj[i] < 2 | is.na(maj[i])) return(NA)
+				if(maj[i] < 2 | is.na(maj[i]) | sub[i] | (maj[i] > 2 & min[i] >= 2)) return(NA)
 				type <- if(min[i]==1){ "Mono-allelic Gain" 
 						}else if(min[i]==0){"CN-LOH"}
 						else "Bi-allelic Gain (WGD)"
 				return(type)
 			})
 	time <- t(sapply(seq_along(bb), function(i){
-				if(sub[i] | is.na(type[i])) return(c(NA,NA,NA)) # Exclude segments with subclonal CN
+				if(sub[i] | is.na(type[i])) return(c(NA,NA,NA)) 
 				else piToTime2(bb$timing_param[[i]],type[i])
 			}))
+	
 	res <- data.frame(type=factor(type, levels=c("Mono-allelic Gain","CN-LOH","Bi-allelic Gain (WGD)")), time=time)
 	colnames(res) <- c("type","time","time.lo","time.up")
+
+	# posthoc adjustment of CI's
+	res$time.up <- (pseudo.count + bb$n.snv_mnv * res$time.up)/(pseudo.count + bb$n.snv_mnv)
+	res$time.lo <- (0 + bb$n.snv_mnv * res$time.lo)/(pseudo.count + bb$n.snv_mnv)
+	res$star <- factor((covrg == 1) + (min < 2 & maj <= 2 | min==2 & maj==2) * (covrg == 1), levels=0:2, labels = c("*","**","***"))
 	return(res)
 }
 
@@ -617,7 +618,7 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 					e <- end(bb)
 					x <- chrOffset[as.character(seqnames(bb))]
 					y <- time[,2]
-					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]])
+					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]])#, density=ifelse(bb$star == "***", NA, 72), angle = ifelse(bb$star=="*",45,135))
 					segments(s+x,y,e+x,y)
 				}, silent=FALSE)
 	abline(v = chrOffset[1:25], lty=3)
