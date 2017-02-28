@@ -545,6 +545,7 @@ bbToTime <- function(bb, pseudo.count=5){
 	res$time.up <- (pseudo.count + bb$n.snv_mnv * res$time.up)/(pseudo.count + bb$n.snv_mnv)
 	res$time.lo <- (0 + bb$n.snv_mnv * res$time.lo)/(pseudo.count + bb$n.snv_mnv)
 	res$star <- factor((covrg == 1) + (min < 2 & maj <= 2 | min==2 & maj==2) * (covrg == 1), levels=0:2, labels = c("*","**","***"))
+	res$star[is.na(res$time)] <- NA
 	return(res)
 }
 
