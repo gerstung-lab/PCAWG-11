@@ -32,7 +32,7 @@ source("functions.R")
 
 #' ## Load data
 #' ### SNV and MNV
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_008/snv_mnv"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_009/snv_mnv"
 #finalVcfSnv <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f){
 #			e <- new.env()
 #			load(f, envir=e)
@@ -51,10 +51,11 @@ for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_008/cn"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_009/cn"
 finalBB <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
+	colnames(mcols(bb)) <- sub("star.1","time.star",colnames(mcols(bb)) ) # Fix naming problem
 	finalBB[[f]] <- bb
 }
 names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.names=FALSE))
@@ -71,7 +72,7 @@ names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=
 #' ### Clusters and purity
 finalClusters <- list()
 finalPurity <- numeric()
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_008/clusters"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_009/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClusters[[f]] <- clusters
@@ -191,11 +192,6 @@ dev.copy2pdf(file="finalGenes50.pdf", width=3,height=4)
 
 
 #' ## WGD analyses
-
-#' fix BB
-for(ID in names(finalBB))
-	finalBB[[ID]]$total_cn <- finalBB[[ID]]$major_cn+ finalBB[[ID]]$minor_cn
-
 finalPloidy <- sapply(finalBB, averagePloidy)
 names(finalPloidy) <- names(finalBB)
 
@@ -205,13 +201,6 @@ names(finalHom) <- names(finalBB)
 isWgd <- .classWgd(finalPloidy, finalHom)
 
 plot(finalHom, finalPloidy, col=.classWgd( finalPloidy, finalHom)+1, xlim=c(0,1))
-
-#' Adjust CI's
-pseudo.count <- 5
-for(ID in names(finalBB)){
-	finalBB[[ID]]$time.up <- (pseudo.count + finalBB[[ID]]$n.snv_mnv * finalBB[[ID]]$time.up)/(pseudo.count + finalBB[[ID]]$n.snv_mnv)
-	finalBB[[ID]]$time.lo <- (0 + finalBB[[ID]]$n.snv_mnv * finalBB[[ID]]$time.lo)/(pseudo.count + finalBB[[ID]]$n.snv_mnv)
-}
 
 fracGenomeWgdComp <- t(sapply(finalBB, function(bb) {
 					fgw <- try(fractionGenomeWgdCompatible(bb)); 
@@ -231,7 +220,7 @@ wgdPoss <- !isWgd & 2.5 - 1.5 * finalHom <= finalPloidy
 wgdStat <- factor(wgdPoss + 2*isWgd - wgdPoss*isWgd, labels=c("absent","possible","present"))
 table(wgdStat, wgdStar)
 
-pdf("WGD-timing.pdf", 12,6.5)
+pdf("WGD-timing-009.pdf", 12,6.5)
 j <- 1
 for(ID in names(finalBB)[isWgd]){
 	if(j%%100 == 0) print(j); j <- j+1

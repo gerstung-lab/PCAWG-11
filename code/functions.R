@@ -544,8 +544,8 @@ bbToTime <- function(bb, pseudo.count=5){
 	# posthoc adjustment of CI's
 	res$time.up <- (pseudo.count + bb$n.snv_mnv * res$time.up)/(pseudo.count + bb$n.snv_mnv)
 	res$time.lo <- (0 + bb$n.snv_mnv * res$time.lo)/(pseudo.count + bb$n.snv_mnv)
-	res$star <- factor((covrg == 1) + (min < 2 & maj <= 2 | min==2 & maj==2) * (covrg == 1), levels=0:2, labels = c("*","**","***"))
-	res$star[is.na(res$time)] <- NA
+	res$time.star <- factor((covrg == 1) + (min < 2 & maj <= 2 | min==2 & maj==2) * (covrg == 1), levels=0:2, labels = c("*","**","***"))
+	res$time.star[is.na(res$time)] <- NA
 	return(res)
 }
 
@@ -619,7 +619,7 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 					e <- end(bb)
 					x <- chrOffset[as.character(seqnames(bb))]
 					y <- time[,2]
-					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]])#, density=ifelse(bb$star == "***", NA, 72), angle = ifelse(bb$star=="*",45,135))
+					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]], angle = ifelse(bb$time.star=="*" | is.na(bb$time.star),45,135), density=ifelse(bb$time.star == "***", -1, 72))
 					segments(s+x,y,e+x,y)
 				}, silent=FALSE)
 	abline(v = chrOffset[1:25], lty=3)
