@@ -42,11 +42,14 @@ vcfIndelFileOut <-  sub("20160830","20161006",gsub("snv_mnv","indel", vcfFileOut
 load(file=paste0(vcfIndelFileOut,".RData"))
 
 #' Load BB
-load(file=sub("snv_mnv","snv_mnv",sub(".vcf$",".bb_granges.RData",vcfFileOut)))
+load(file=sub("snv_mnv","cn",sub(".vcf$",".bb_granges.RData",vcfFileOut)))
 IS_WGD <- classWgd(bb)
+colnames(mcols(bb)) <- sub("star.1","time.star",colnames(mcols(bb)) ) # Fix naming problem
+save(bb, file=sub("snv_mnv","cn",sub(".vcf$",".bb_granges.RData",vcfFileOut)))
+
 
 #' Load clusters & purity
-load(file=sub("snv_mnv","snv_mnv",sub(".vcf$",".clusters_purity.RData",vcfFileOut)))
+load(file=sub("snv_mnv","clusters",sub(".vcf$",".clusters_purity.RData",vcfFileOut)))
 
 #' ## PLOT
 pdf(file=sub("snv_mnv","other",sub(".vcf$",".pdf",vcfFileOut)), 12,18)
