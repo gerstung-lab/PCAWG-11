@@ -14,6 +14,9 @@
 #' table(classifyMutations(MCN$D))
 #' # Timing parameters
 #' MCN$P[[1]]
+#' # Extract timing of segments
+#' bb$timing_param <- MCN$P
+#' bbToTime(bb)
 
 require(VariantAnnotation)
 require(VGAM)
@@ -502,3 +505,41 @@ pGainToTime <- function(vcf){
 	return(P)
 }
 
+piToTime <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-allelic Gain (WGD)")){
+	type <- match.arg(type)
+	w <- timing_param[,"s"]==1 &! timing_param[,"mixFlag"] 
+	n <- sum(w)
+	t <- timing_param[n,c("T.m.sX","T.m.sX.lo","T.m.sX.up")]
+	names(t) <- c("","lo","up")
+	t[2] <- min(t[1],t[2])
+	t[3] <- max(t[1],t[3])
+	return(pmin(t,1))
+}
+
+bbToTime <- function(bb, timing_param = bb$timing_param, pseudo.count=5){
+	sub <- duplicated(bb) 
+	covrg <- countQueryHits(findOverlaps(bb, bb)) 
+	maj <- sapply(timing_param, function(x) if(length(x) > 0) x[1, "majCNanc"] else NA) #bb$major_cn
+	min <- sapply(timing_param, function(x) if(length(x) > 0) x[1, "minCNanc"] else NA) #bb$minor_cn
+	type <- sapply(seq_along(bb), function(i){
+				if(maj[i] < 2 | is.na(maj[i]) | sub[i] | (maj[i] > 2 & min[i] >= 2)) return(NA)
+				type <- if(min[i]==1){ "Mono-allelic Gain" 
+						}else if(min[i]==0){"CN-LOH"}
+						else "Bi-allelic Gain (WGD)"
+				return(type)
+			})
+	time <- t(sapply(seq_along(bb), function(i){
+						if(sub[i] | is.na(type[i])) return(c(NA,NA,NA)) 
+						else piToTime(timing_param[[i]],type[i])
+					}))
+	
+	res <- data.frame(type=factor(type, levels=c("Mono-allelic Gain","CN-LOH","Bi-allelic Gain (WGD)")), time=time)
+	colnames(res) <- c("type","time","time.lo","time.up")
+	
+	# posthoc adjustment of CI's
+	res$time.up <- (pseudo.count + bb$n.snv_mnv * res$time.up)/(pseudo.count + bb$n.snv_mnv)
+	res$time.lo <- (0 + bb$n.snv_mnv * res$time.lo)/(pseudo.count + bb$n.snv_mnv)
+	res$time.star <- factor((covrg == 1) + (min < 2 & maj <= 2 | min==2 & maj==2) * (covrg == 1), levels=0:2, labels = c("*","**","***"))
+	res$time.star[is.na(res$time)] <- NA
+	return(res)
+}

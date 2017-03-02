@@ -492,63 +492,6 @@ donor2type <- factor(specimenData$histology_abbreviation, levels=c(levels(specim
 names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
 
-
-piToTime <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-allelic Gain")){
-	type <- match.arg(type)
-	pi <-  timing_param[timing_param[,"state"]==1,c("P.m.sX","P.m.sX.lo","P.m.sX.up")]
-	pi[1,2:3] <- pi[1,3:2]
-	t <- if(type=="Mono-allelic Gain"){
-				3*pi[2,]/(2*pi[2,] + pi[1,])
-			}else if(type=="CN-LOH"){
-				2*pi[2,]/(2*pi[2,] + pi[1,])
-			}else if(type=="Bi-allelic Gain"){
-				2*pi[2,]/(2*pi[2,] + pi[1,])
-			} #OTHER (M+m) * pi[length(pi)] / sum(seq_along(pi) * pi)
-	names(t) <- c("","lo","up")
-	t[2] <- min(t[1],t[2])
-	t[3] <- max(t[1],t[3])
-	return(pmin(t,1))
-}
-
-piToTime2 <- function(timing_param, type=c("Mono-allelic Gain","CN-LOH", "Bi-allelic Gain (WGD)")){
-	type <- match.arg(type)
-	w <- timing_param[,"s"]==1 &! timing_param[,"mixFlag"] 
-	n <- sum(w)
-	t <- timing_param[n,c("T.m.sX","T.m.sX.lo","T.m.sX.up")]
-	names(t) <- c("","lo","up")
-	t[2] <- min(t[1],t[2])
-	t[3] <- max(t[1],t[3])
-	return(pmin(t,1))
-}
-
-bbToTime <- function(bb, pseudo.count=5){
-	sub <- duplicated(bb) 
-	covrg <- countQueryHits(findOverlaps(bb, bb)) 
-	maj <- sapply(bb$timing_param, function(x) if(length(x) > 0) x[1, "majCNanc"] else NA) #bb$major_cn
-	min <- sapply(bb$timing_param, function(x) if(length(x) > 0) x[1, "minCNanc"] else NA) #bb$minor_cn
-	type <- sapply(seq_along(bb), function(i){
-				if(maj[i] < 2 | is.na(maj[i]) | sub[i] | (maj[i] > 2 & min[i] >= 2)) return(NA)
-				type <- if(min[i]==1){ "Mono-allelic Gain" 
-						}else if(min[i]==0){"CN-LOH"}
-						else "Bi-allelic Gain (WGD)"
-				return(type)
-			})
-	time <- t(sapply(seq_along(bb), function(i){
-				if(sub[i] | is.na(type[i])) return(c(NA,NA,NA)) 
-				else piToTime2(bb$timing_param[[i]],type[i])
-			}))
-	
-	res <- data.frame(type=factor(type, levels=c("Mono-allelic Gain","CN-LOH","Bi-allelic Gain (WGD)")), time=time)
-	colnames(res) <- c("type","time","time.lo","time.up")
-
-	# posthoc adjustment of CI's
-	res$time.up <- (pseudo.count + bb$n.snv_mnv * res$time.up)/(pseudo.count + bb$n.snv_mnv)
-	res$time.lo <- (0 + bb$n.snv_mnv * res$time.lo)/(pseudo.count + bb$n.snv_mnv)
-	res$time.star <- factor((covrg == 1) + (min < 2 & maj <= 2 | min==2 & maj==2) * (covrg == 1), levels=0:2, labels = c("*","**","***"))
-	res$time.star[is.na(res$time)] <- NA
-	return(res)
-}
-
 averageHom <- function(bb){
 	sum(width(bb) * (bb$minor_cn == 0) * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
 }
