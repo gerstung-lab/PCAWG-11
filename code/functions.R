@@ -479,8 +479,8 @@ addFinalDriver <- function(vcf, driVers){
 
 
 t <- read.table("../ref/PCAWG_colors.tsv", sep='\t', header=FALSE, comment="")
-tissueColors <- as.character(t$V4)
-names(tissueColors) <- t$V2
+tissueColors <- as.character(t$V3)
+names(tissueColors) <- t$V1
 clinicalData <- read.table("../ref/pcawg_donor_clinical_August2016_v7-2.tsv", header=TRUE, sep="\t", comment="", quote="")
 specimenData <- read.table("../ref/pcawg_specimen_histology_August2016_v6.tsv", header=TRUE, sep="\t", comment="", quote="")
 
@@ -558,6 +558,7 @@ timeToBeta <- function(time){
 plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88")){
 	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
 		try({
+					bb <- bb[!is.na(bb$time)]
 					s <- start(bb)
 					e <- end(bb)
 					x <- chrOffset[as.character(seqnames(bb))]
