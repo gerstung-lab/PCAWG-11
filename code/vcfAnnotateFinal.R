@@ -23,8 +23,8 @@ library(igraph)
 refFile = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
 refLengths <- scanFaIndex(file=refFile)
 
-dpPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d/2_subclones"
-dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt.gz", recursive=TRUE)
+dpPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pancan_full/consensus_clustering/201703_consensus_clustering/consensus_clusters_wm"
+dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 
 sampleIds <- sub("_mutation_assignments.txt.gz","",dir(dpPath, pattern="_mutation_assignments.txt.gz"))
 sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".bgz$")))
@@ -45,12 +45,12 @@ if(class(clusters)=='try-error'){
 }
 
 #' ### 1. Remove spurious superclonal clusters with less than 10% mutations and (max - 10% VAF)
-clusters <- removeSuperclones(clusters)
-clusters <- mergeClusters(clusters, deltaFreq=0.05)
-
-if(all(is.na(purityPloidy[ID,]))) # Missing purity
-	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
-purity <- purityPloidy[ID,'purity']
+#clusters <- removeSuperclones(clusters)
+#clusters <- mergeClusters(clusters, deltaFreq=0.05)
+#
+#if(all(is.na(purityPloidy[ID,]))) # Missing purity
+#	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
+#purity <- purityPloidy[ID,'purity']
 
 #' ## COPYNUMBER
 bb <- loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity'])
@@ -59,11 +59,11 @@ if(NO_CLUSTER)
 	clusters <- clustersFromBB(bb)
 
 #' ### Mismatch in CN purity and clusters, use DP purity
-if(purity == 1 | abs(max(clusters$proportion) - purity) > 0.05){
-	bb$clonal_frequency <- bb$clonal_frequency * max(clusters$proportion) / purity
-	purity <- max(clusters$proportion)
-	purityPloidy[ID,'purity'] <- purity
-}
+#if(purity == 1 | abs(max(clusters$proportion) - purity) > 0.05){
+#	bb$clonal_frequency <- bb$clonal_frequency * max(clusters$proportion) / purity
+#	purity <- max(clusters$proportion)
+#	purityPloidy[ID,'purity'] <- purity
+#}
 
 
 #' ### Missing ploidy - recalculate from BB
@@ -94,7 +94,7 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 # vcf <-  addMutCn(vcf, bb, clusters)
 i = header(vcf)@header$INFO
 exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
-L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]), isWgd=IS_WGD)
+L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]), isWgd=IS_WGD, n.boot=10)
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 

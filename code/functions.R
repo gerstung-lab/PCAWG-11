@@ -500,17 +500,16 @@ averageHom <- function(bb){
 
 classWgd <- function(bb) .classWgd(averagePloidy(bb), averageHom(bb))
 
-plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), type=c("lines","bars")){
+plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBrewer::brewer.pal(4,"Set2"), type=c("lines","bars"), legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE){
 	type <- match.arg(type)
-	col=RColorBrewer::brewer.pal(4,"Set2")
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
 	names(l) <- s
 	plot(NA,NA, ylab="Copy number",xlab="",xlim=c(0,sum(l)), ylim=ylim, xaxt="n")
-	c <- cumsum(l)[-length(l)]
-	axis(side=1, at=c, labels=rep('', length(l)-1))
-	mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
-	abline(v=c, lty=3)
+	c <- cumsum(l)
+	axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
+	if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
+	#abline(v=c, lty=3)
 	if(type=="lines"){
 	x0 <- start(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
 	x1 <- end(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
@@ -535,14 +534,16 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), type=c("line
 		ub$clonal_frequency <- max(bb$clonal_frequency)
 		x0 <- start(ub) + cumsum(l)[as.character(seqnames(ub))] - l[as.character(seqnames(ub))]
 		x1 <- end(ub) + cumsum(l)[as.character(seqnames(ub))] - l[as.character(seqnames(ub))]
-		rect(x0,0,x1, ub$minor_cn, col=col[2], lwd=NA)
-		rect(x0,ub$minor_cn,x1, ub$total_cn, col=col[1], lwd=NA)
-		abline(h = 1:floor(ylim[2]), lty=3)
+		rect(x0,0,x1, ub$major_cn, col=col[2], lwd=NA)
+		rect(x0,ub$major_cn,x1, ub$total_cn, col=col[1], lwd=NA)
+		abline(h = 1:floor(ylim[2]), lty=lty.grid, col=col.grid)
 	}
-	abline(v = chrOffset[1:25], lty=3)
-	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	if(type=="lines") legend("topleft", c("Total CN","Major CN","Minor CN"), col=c("black", col[1:2]), lty=1, lwd=2, bg='white')
-	else legend("topleft", c("Major CN","Minor CN"), fill=col[1:2], bg='white')
+	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
+	if(xaxt) mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
+	if(legend){
+		if(type=="lines") legend("topleft", c("Total CN","Major CN","Minor CN"), col=c("black", col[1:2]), lty=1, lwd=2, bg='white')
+		else legend("topleft", c("Major CN","Minor CN"), fill=col[1:2], bg='white')
+	}
 }
 
 timeToBeta <- function(time){
@@ -555,7 +556,7 @@ timeToBeta <- function(time){
 	return(cbind(alpha, beta))
 }
 
-plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88")){
+plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88"), legend=TRUE, col.grid='grey', lty.grid=1){
 	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
 		try({
 					bb <- bb[!is.na(bb$time)]
@@ -566,9 +567,14 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]], angle = ifelse(bb$time.star=="*" | is.na(bb$time.star),45,135), density=ifelse(bb$time.star == "***", -1, 72))
 					segments(s+x,y,e+x,y)
 				}, silent=FALSE)
-	abline(v = chrOffset[1:25], lty=3)
+	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
+	s <- c(1:22, "X","Y")
+	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
+	names(l) <- s
+	c <- cumsum(l)
+	axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
 	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	legend("topleft", levels(time[,1]), fill=col, bg="white")
+	if(legend) legend("topleft", levels(time[,1]), fill=col, bg="white")
 }
 
 source("MutationTime.R")
