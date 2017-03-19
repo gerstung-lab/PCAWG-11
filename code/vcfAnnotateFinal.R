@@ -50,7 +50,7 @@ if(class(clusters)=='try-error'){
 #
 #if(all(is.na(purityPloidy[ID,]))) # Missing purity
 #	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
-#purity <- purityPloidy[ID,'purity']
+purity <- purityPloidy[ID,'purity']
 
 #' ## COPYNUMBER
 bb <- loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity'])
