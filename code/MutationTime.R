@@ -265,7 +265,7 @@ defineMcnStates <- function(bb, clusters, purity, gender='female', isWgd= FALSE)
 #' @export
 computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALSE, xmin=3, rho=0, n.boot=200){
 	n <- nrow(vcf)
-	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n),pSub=rep(NA,n), pMutCNTail=rep(NA,n))	
+	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n), pSub=rep(NA,n), pAllSubclones = as(vector(mode="list",n),"List"), pMutCNTail=rep(NA,n))	
 	P <- defineMcnStates(bb,clusters, purity, gender, isWgd)
 	if(n==0)
 		return(list(D=D, P=P))
@@ -307,7 +307,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 				hh <- which(h==h[i] & !is.na(altCount) &! is.na(tumDepth))
 				if(length(hh)==0) next
 				
-				if(is.null(bb$timing_param[[h[i]]])){
+				if(is.null(bb$timing_param[[h[i]]]) | is.na(bb$timing_param[[h[i]]][,"P.m.sX"])){
 					cnStates <- P[[h[i]]]
 					if(is.null(cnStates)) next
 					whichStates <- 1:nrow(cnStates)
@@ -371,30 +371,30 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 					}
 					
 					# Bootstrapping for CIs
-					if(globalIt==2){
-						b.m.sX <- if(n.boot>0) sapply(1:n.boot, function(foo){
-									L <- rbind(L, rep(1e-3, each=ncol(L))) #add an uniformative row
-									L <- L[sample(1:nrow(L), replace=TRUE),,drop=FALSE]
-									P.m.sX <- cnStates[whichStates,"pi.m.s"]
-									for(em.it in 1:50){
-										P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power.m.s / power.s[cnStates[whichStates,"s"]], each=nrow(L)) # P(X,s,m)
-										P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
-										P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
-										P.s.X <- s.from.m %*% P.sm.X 
-										P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
-									}
-									return(P.m.sX)
-								}) else NA
-						try({
-									CI.m.sX <- apply(b.m.sX, 1, quantile, c(0.025, 0.975))
-									cnStates[,"P.m.sX.lo"] <- CI.m.sX[1,] 
-									cnStates[,"P.m.sX.up"] <- CI.m.sX[2,]
-									B.m.sX <- toTime(cnStates = cnStates, P.m.sX = b.m.sX, s.m = s.from.m)
-									C.m.sX <- apply(B.m.sX, 1, quantile, c(0.025, 0.975))
-									cnStates[,"T.m.sX.lo"] <- C.m.sX[1,] 
-									cnStates[,"T.m.sX.up"] <- C.m.sX[2,]
-								})
-					}
+					if(globalIt==2) if(n.boot>0){
+							b.m.sX <- sapply(1:n.boot, function(foo){
+										L <- rbind(L, rep(1e-3, each=ncol(L))) #add an uniformative row
+										L <- L[sample(1:nrow(L), replace=TRUE),,drop=FALSE]
+										P.m.sX <- cnStates[whichStates,"pi.m.s"]
+										for(em.it in 1:50){
+											P.xsm <- L * rep(pi.s[cnStates[whichStates,"s"]] * P.m.sX / power.m.s / power.s[cnStates[whichStates,"s"]], each=nrow(L)) # P(X,s,m)
+											P.sm.x <- P.xsm/rowSums(P.xsm) # P(s,m|Xi)
+											P.sm.X <- colMeans(P.sm.x) # P(s,m|X) / piState[cnStates[1:k,"state"]] / cnStates[1:k,"pi.m.s"]
+											P.s.X <- s.from.m %*% P.sm.X 
+											P.m.sX <- P.sm.X / P.s.X[cnStates[whichStates,"s"]]
+										}
+										return(P.m.sX)
+									})
+#							try({
+										CI.m.sX <- apply(b.m.sX, 1, quantile, c(0.025, 0.975))
+										cnStates[,"P.m.sX.lo"] <- CI.m.sX[1,] 
+										cnStates[,"P.m.sX.up"] <- CI.m.sX[2,]
+										B.m.sX <- toTime(cnStates = cnStates, P.m.sX = b.m.sX, s.m = s.from.m)
+										C.m.sX <- apply(B.m.sX, 1, quantile, c(0.025, 0.975))
+										cnStates[,"T.m.sX.lo"] <- C.m.sX[1,] 
+										cnStates[,"T.m.sX.up"] <- C.m.sX[2,]
+#									})
+						}
 					
 					P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
 					cnStates[,"P.m.sX"] <- P.m.sX
@@ -421,6 +421,8 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 				D[hh, "pGain"] <- rowSums(P.sm.x[, cnStates[,"clonalFlag"] & cnStates[,"m"] > 1.00001 + cnStates[,"majDelta"] + cnStates[,"minDelta"], drop=FALSE])
 				#D[hh, "pSingle"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
 				D[hh, "pSingle"] <-  1 - D[hh, "pSub"] - D[hh, "pGain"]			
+				
+				D[hh, "pAllSubclones"] <- as(DataFrame(t(P.sm.x[, !cnStates[,"clonalFlag"], drop=FALSE])),"List")
 				
 				D[hh,"MutCN"]  <- cnStates[w,"m"]
 				D[hh,"MutDeltaCN"]  <- cnStates[w,"majDelta"] + cnStates[w,"minDelta"]
