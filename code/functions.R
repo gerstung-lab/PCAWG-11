@@ -7,7 +7,7 @@ library(Rsamtools)
 
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consensus_12oct_passonly/snv_mnv'
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
-dpPath <- paste0(basePath,'/2_subclones/')
+dpPath <- paste0('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus_subclonal_reconstruction_20170325')
 CANCERGENES <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
 purityPloidy <- read.table( '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus.20170218.purity.ploidy.txt', header=TRUE, row.names=1)
 #colnames(purityPloidy) <- c("purity","ploidy")
@@ -39,6 +39,17 @@ loadClusters <- function(ID){
 	if(grepl(".gz", file))
 		file <- gzfile(file)
 	read.table(file, header=TRUE, sep="\t")
+}
+
+loadConsensusClusters <- function(ID){
+	file <- paste0(dpPath,"/",grep(paste0(ID,"[[:punct:]]"), dpFiles, value=TRUE, perl=TRUE))
+	if(grepl(".gz", file))
+		file <- gzfile(file)
+	read.table(file, header=TRUE, sep="\t")
+}
+
+consensusClustersToOld <- function(clusters){
+	data.frame(cluster=clusters$cluster, n_ssms=clusters$n_snvs, proportion=clusters$fraction_total_cells)
 }
 
 parseRegion <- function(regions){
@@ -546,6 +557,27 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBr
 	}
 }
 
+plotVcf <- function(vcf, bb, clusters, col = RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)], ID = meta(header(vcf))[[1]]["ID",1], IS_WGD=classWgd(bb), NO_CLUSTER=FALSE, title=TRUE, legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, pch=16, pch.out=pch, cex=0.66) {
+	cls <- factor(paste(as.character(info(vcf)$CLS)), levels = c(levels(info(vcf)$CLS), "NA"))
+	if(j>1) par(mar=c(3,3,1,1))
+	plot(start(vcf) + chrOffset[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, pch.out , pch), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n", cex=cex)
+	if(title){
+		title(main=paste0(ID,", ", donor2type[sample2donor[ID]], "\nploidy=",round(averagePloidy(bb),2), ", hom=",round(averageHom(bb),2), if(IS_WGD) ", WGD" else "", if(NO_CLUSTER) ", (No clusters available)" else(paste0(", clusters=(",paste(round(clusters$proportion, 2), collapse="; "),")"))), font.main=1, line=1, cex.main=1)
+	} 
+	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
+	if(xaxt) mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
+	for(i in seq_along(bb)) try({
+					s <- start(bb)[i]
+					e <- end(bb)[i]
+					x <- chrOffset[as.character(seqnames(bb)[i])]
+					y <- bb$timing_param[[i]][,"f"]
+					l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
+					segments(s+x,y,e+x,y, lwd=l*4+.1)
+					#text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vv))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
+				}, silent=TRUE)
+	if(legend) legend("topleft", pch=19, col=col, legend=paste(as.numeric(table(cls)), levels(cls)), bg='white')
+}
+
 timeToBeta <- function(time){
 	mu <- time[,1]
 	#if(any(is.na(time))) return(c(NA,NA))
@@ -608,3 +640,27 @@ fractionGenomeWgdCompatible <- function(bb, min.dist=0.05){
 	c(nt.wgd=sum(as.numeric(width(bb))[w]), nt.total=sum(as.numeric(width(bb))[!is.na(bb$time)]), time.wgd=m, sd.wgd=sd.wgd, avg.ci=avgCi, sd.all=sd.all) 
 }
 
+flattenBB <- function(bb){
+	u <- unique(bb)
+	d <- duplicated(bb)
+	mcols(u) <- mcols(u)[1:7]
+	u$total_cn_2 <- u$major_cn_2 <- u$minor_cn_2 <- as.integer(NA)
+	u$clonal_frequency_2 <- as.numeric(0)
+	if(any(d)){
+		s <- bb[d]
+		f <- findOverlaps(s, u, select='first')
+		mcols(u)[f, c("total_cn_2","major_cn_2","minor_cn_2","clonal_frequency_2")] <- mcols(s)[, c("total_cn","major_cn","minor_cn","clonal_frequency")]
+	}
+	u
+}
+
+mergeAdjacentBB <- function(bb){
+	b <- split(bb, do.call("paste", mcols(bb), sep=":"))
+	r <- reduce(b)
+	s <- sort(unlist(r))
+	d <- DataFrame(t(sapply(strsplit(names(s), ":"), as.numeric)))
+	names(d) <- names(mcols(bb))
+	mcols(s) <- d
+	names(s) <- NULL
+	return(s)
+}
