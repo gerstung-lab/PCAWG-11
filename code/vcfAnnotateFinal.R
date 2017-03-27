@@ -17,17 +17,6 @@ print(vcfFileOut)
 
 library(VariantAnnotation)
 library(Matrix)
-library(CoxHD)
-library(igraph)
-
-refFile = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
-refLengths <- scanFaIndex(file=refFile)
-
-dpPath <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/sd11/icgc_pancan_full/consensus_clustering/201703_consensus_clustering/consensus_clusters_wm"
-dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
-
-sampleIds <- sub("_mutation_assignments.txt.gz","",dir(dpPath, pattern="_mutation_assignments.txt.gz"))
-sampleIds <- intersect(sampleIds, sub("\\..+","",dir(vcfPath, pattern=".bgz$")))
 
 s <- strsplit(vcfFileIn,"/")[[1]]
 ID <- sub("\\..+", "", s[length(s)])
