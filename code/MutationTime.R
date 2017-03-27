@@ -265,7 +265,7 @@ defineMcnStates <- function(bb, clusters, purity, gender='female', isWgd= FALSE)
 #' @export
 computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALSE, xmin=3, rho=0, n.boot=200){
 	n <- nrow(vcf)
-	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n), pSub=rep(NA,n), pAllSubclones = as(vector(mode="list",n),"List"), pMutCNTail=rep(NA,n))	
+	D <- DataFrame(MutCN=rep(NA,n), MutDeltaCN=rep(NA,n), MajCN=rep(NA,n), MinCN=rep(NA,n), MajDerCN=rep(NA,n), MinDerCN=rep(NA,n), CNF=rep(NA,n), CNID =as(vector("list", n),"List"), pMutCN=rep(NA,n), pGain=rep(NA,n),pSingle=rep(NA,n), pSub=rep(NA,n), pAllSubclones = as(vector(mode="list",n),"CompressedNumericList"), pMutCNTail=rep(NA,n))	
 	P <- defineMcnStates(bb,clusters, purity, gender, isWgd)
 	if(n==0)
 		return(list(D=D, P=P))
@@ -422,7 +422,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 				#D[hh, "pSingle"] <- rowSums(P.sm.x[, cnStates[1:k,"state"] %in% which(clonalFlag) & cnStates[1:k,"m"]<=1, drop=FALSE])
 				D[hh, "pSingle"] <-  1 - D[hh, "pSub"] - D[hh, "pGain"]			
 				
-				D[hh, "pAllSubclones"] <- as(DataFrame(t(P.sm.x[, !cnStates[,"clonalFlag"], drop=FALSE])),"NumericList")
+				D[hh, "pAllSubclones"] <- as(DataFrame(t(P.sm.x[, !cnStates[,"clonalFlag"], drop=FALSE])),"CompressedNumericList")
 				
 				D[hh,"MutCN"]  <- cnStates[w,"m"]
 				D[hh,"MutDeltaCN"]  <- cnStates[w,"majDelta"] + cnStates[w,"minDelta"]
