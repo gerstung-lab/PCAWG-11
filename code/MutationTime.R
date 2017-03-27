@@ -385,7 +385,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 										}
 										return(P.m.sX)
 									})
-#							try({
+							try({
 										CI.m.sX <- apply(b.m.sX, 1, quantile, c(0.025, 0.975))
 										cnStates[,"P.m.sX.lo"] <- CI.m.sX[1,] 
 										cnStates[,"P.m.sX.up"] <- CI.m.sX[2,]
@@ -393,7 +393,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 										C.m.sX <- apply(B.m.sX, 1, quantile, c(0.025, 0.975))
 										cnStates[,"T.m.sX.lo"] <- C.m.sX[1,] 
 										cnStates[,"T.m.sX.up"] <- C.m.sX[2,]
-#									})
+									})
 						}
 					
 					P.sm.x[apply(is.na(P.sm.x)|is.nan(P.sm.x),1,any),] <- NA
