@@ -307,7 +307,7 @@ computeMutCn <- function(vcf, bb, clusters, purity, gender='female', isWgd= FALS
 				hh <- which(h==h[i] & !is.na(altCount) &! is.na(tumDepth))
 				if(length(hh)==0) next
 				
-				if(is.null(bb$timing_param[[h[i]]]) | is.na(bb$timing_param[[h[i]]][,"P.m.sX"])){
+				if(is.null(bb$timing_param[[h[i]]]) | any(is.na(bb$timing_param[[h[i]]][,"P.m.sX"]))){
 					cnStates <- P[[h[i]]]
 					if(is.null(cnStates)) next
 					whichStates <- 1:nrow(cnStates)
