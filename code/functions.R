@@ -460,21 +460,21 @@ asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 
 #' official driver file
 #library(VariantAnnotation)
-#drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.txt", header=TRUE, sep="\t")
+drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.txt", header=TRUE, sep="\t")
 finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
-#r <- DNAStringSet(drivers$ref)
-#a <- DNAStringSet(drivers$alt)
-#m <- sapply(levels(drivers$sample_id), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
-#driVers <- VRanges(seqnames = drivers$chr, ranges=IRanges(drivers$pos, width =  width(r)), ref=r, alt=a, sampleNames = finalData$icgc_donor_id[m[drivers$sample_id]])
-#mcols(driVers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample_id]], drivers[,-c(1,3,4,5,6)])
-#save(driVers, file = "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.RData")
-load("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_coding_drivers_v1_sep302016.RData")
-CANCERGENES <- levels(driVers$gene)
+r <- DNAStringSet(drivers$ref)
+a <- DNAStringSet(drivers$alt)
+m <- sapply(levels(drivers$sample), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
+driVers <- VRanges(seqnames = drivers$chr, ranges=IRanges(drivers$pos, width =  width(r)), ref=r, alt=a, sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
+mcols(driVers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], drivers[,c("gene_id","ttype","driver_statement")])
+#save(driVers, file = "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
+#load("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
+CANCERGENES <- levels(driVers$gene_id)
 
 addFinalDriver <- function(vcf, driVers){
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver gene", row.names="DG"))
-	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(driVers$gene))
+	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver mutation", row.names="DG"))
+	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(driVers$gene_id))
 	if(nrow(vcf)==0)
 		return(vcf)
 	ID <- meta(header(vcf))$META["ID",1]
@@ -482,8 +482,8 @@ addFinalDriver <- function(vcf, driVers){
 	if(length(d)==0)
 		return(vcf)
 	overlaps <- findOverlaps(vcf, d)
-	g <- factor(rep(NA,nrow(vcf)), levels = levels(d$gene))
-	g[queryHits(overlaps)] <- d$gene[subjectHits(overlaps)]
+	g <- factor(rep(NA,nrow(vcf)), levels = levels(d$gene_id))
+	g[queryHits(overlaps)] <- d$gene_id[subjectHits(overlaps)]
 	info(vcf)$DG <- g
 	return(vcf)
 }
