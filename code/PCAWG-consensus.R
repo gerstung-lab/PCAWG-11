@@ -455,7 +455,7 @@ wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
 					tnc <- tncToPyrimidine(vcf[w])
 					
 					wgd <- sapply(1:30, function(i){
-								c(sum(tncProb[i,ID,1,tnc[pre]]), sum(tncProb[i,ID,2,tnc[post]]))
+								c(sum(tncProb[i,ID,2,tnc[post]]), sum(tncProb[i,ID,1,tnc[pre]]))
 							})
 					
 					ci <- sapply(1:1000, function(foo){
