@@ -193,6 +193,17 @@ probGenotype <- function(vcf){
 	return(G)
 }
 
+probGenotypeTail <- function(vcf){
+	dg <- factor(paste(unlist(info(vcf)$DG)), levels=c("NA",as.character(CANCERGENES)))
+	P <- info(vcf)$pMutCNTail
+	G <- rep(NA, nlevels(dg))
+	names(G) <- levels(dg)
+	t <- table(dg)
+	for(g in names(t[t>0]))
+		G[g] <- mean(P[dg==g,drop=FALSE],na.rm=TRUE)
+	return(G)
+}
+
 getGenotype <- function(vcf, reclassify='missing', ...){
 	cls <- classifyMutations(vcf, reclassify=reclassify)
 	t <- info(vcf)$TCN
@@ -637,7 +648,7 @@ fractionGenomeWgdCompatible <- function(bb, min.dist=0.05){
 	avgCi <- weighted.mean(bb$time.up- bb$time.lo, width(bb), na.rm=TRUE)
 	sd.wgd <- sqrt(weighted.mean((bb$time[w] - m)^2, width(bb)[w], na.rm=TRUE))
 	sd.all <- sqrt(weighted.mean((bb$time - m)^2, width(bb), na.rm=TRUE))
-	c(nt.wgd=sum(as.numeric(width(bb))[w]), nt.total=sum(as.numeric(width(bb))[!is.na(bb$time)]), time.wgd=m, sd.wgd=sd.wgd, avg.ci=avgCi, sd.all=sd.all) 
+	c(nt.wgd=sum(as.numeric(width(bb))[w]), nt.total=sum(as.numeric(width(bb))[!is.na(bb$time)]), time.wgd=m, n.wgd=length(w), n.all = sum(!is.na(bb$time)), chr.wgd = length(unique(seqnames(bb)[w])), chr.all = length(unique(seqnames(bb)[!is.na(bb$time)])), sd.wgd=sd.wgd, avg.ci=avgCi, sd.all=sd.all) 
 }
 
 flattenBB <- function(bb){
