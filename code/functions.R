@@ -471,30 +471,35 @@ asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 
 #' official driver file
 library(VariantAnnotation)
-drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.txt", header=TRUE, sep="\t")
+drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_somatic_driver_mutations_beta.csv", header=TRUE, sep="\t")
 finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
 r <- DNAStringSet(drivers$ref)
 a <- DNAStringSet(drivers$alt)
 m <- sapply(levels(drivers$sample), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
 driVers <- VRanges(seqnames = drivers$chr, ranges=IRanges(drivers$pos, width =  width(r)), ref=r, alt=a, sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
-mcols(driVers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], drivers[,c("gene_id","ttype","driver_statement")])
+mcols(driVers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], drivers[,c("ID","gene","ttype","driver_mut_category","driver_element_category")])
 #save(driVers, file = "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
 #load("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
-CANCERGENES <- levels(driVers$gene_id)
+CANCERGENES <- levels(driVers$ID)
+
+matchDrivers <- function(vcf, driVers) {
+	ID <- meta(header(vcf))$META["ID",1]
+	d <- driVers[grep(ID, driVers$samples)]
+	g <- factor(rep(NA,nrow(vcf)), levels = levels(d$ID))
+	if(length(d)==0)
+		return(g)
+	overlaps <- findOverlaps(vcf, d)
+	g[queryHits(overlaps)] <- d$ID[subjectHits(overlaps)]
+	return(g)
+}
 
 addFinalDriver <- function(vcf, driVers){
 	i = header(vcf)@header$INFO
 	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver mutation", row.names="DG"))
-	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(driVers$gene_id))
+	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(driVers$ID))
 	if(nrow(vcf)==0)
 		return(vcf)
-	ID <- meta(header(vcf))$META["ID",1]
-	d <- driVers[grep(ID, driVers$samples)]
-	if(length(d)==0)
-		return(vcf)
-	overlaps <- findOverlaps(vcf, d)
-	g <- factor(rep(NA,nrow(vcf)), levels = levels(d$gene_id))
-	g[queryHits(overlaps)] <- d$gene_id[subjectHits(overlaps)]
+	g <- matchDrivers(vcf = vcf, driVers = driVers)
 	info(vcf)$DG <- g
 	return(vcf)
 }
@@ -509,6 +514,11 @@ specimenData <- read.table("../ref/pcawg_specimen_histology_August2016_v6.tsv", 
 s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",")
 sample2donor <- as.character(finalData$icgc_donor_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))])
 names(sample2donor) <- unlist(s)
+
+s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",")
+sample2icgc <- as.character(finalData$tumor_wgs_icgc_sample_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))])
+names(sample2icgc) <- unlist(s)
+
 
 donor2type <- factor(specimenData$histology_abbreviation, levels=c(levels(specimenData$histology_abbreviation)[-1], ""))
 names(donor2type) <- specimenData$icgc_donor_id
