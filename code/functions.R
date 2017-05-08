@@ -205,13 +205,14 @@ probGenotypeTail <- function(vcf){
 }
 
 getGenotype <- function(vcf, reclassify='missing', ...){
+	w <- c(TRUE,diff(start(vcf)) != 1)
 	cls <- classifyMutations(vcf, reclassify=reclassify)
 	t <- info(vcf)$TCN
 	if(is.null(t))
 		t <- info(vcf)$MinCN + info(vcf)$MajCN
 	hom <- factor(info(vcf)$MutCN==t, levels=c(TRUE,FALSE))
 	dg <- factor(unlist(info(vcf)$DG), levels=as.character(CANCERGENES))
-	table(gene=dg, class=cls, homozygous=hom, ...)
+	table(gene=dg[w], class=cls[w], homozygous=hom[w], ...)
 }
 
 tryExceptNull <- function(x) if(class(x)=="try-error") GRanges() else x
@@ -473,18 +474,23 @@ asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 library(VariantAnnotation)
 drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_somatic_driver_mutations_beta.csv", header=TRUE, sep="\t")
 finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
-r <- DNAStringSet(drivers$ref)
-a <- DNAStringSet(drivers$alt)
+r <- gsub("-","",drivers$ref)
+i <- drivers$mut_type=="indel" # need to fix indels
+r[i] <- paste0("N",r[i])
+a <- gsub("-","",drivers$alt)
+a[i] <- paste0("N",a[i])
+p <- drivers$pos
+p[i & !grepl("-", drivers$ref)] <- p[i & !grepl("-", drivers$ref)]-1
 m <- sapply(levels(drivers$sample), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
-driVers <- VRanges(seqnames = drivers$chr, ranges=IRanges(drivers$pos, width =  width(r)), ref=r, alt=a, sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
-mcols(driVers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], drivers[,c("ID","gene","ttype","driver_mut_category","driver_element_category")])
+finalDrivers <- VRanges(seqnames = drivers$chr, ranges=IRanges(p, width =  width(r)), ref=DNAStringSet(r), alt=DNAStringSet(a), sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
+mcols(finalDrivers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], drivers[,c("ID","gene","ttype","driver_mut_category","driver_element_category")])
 #save(driVers, file = "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
 #load("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
-CANCERGENES <- levels(driVers$ID)
+CANCERGENES <- levels(finalDrivers$ID)
 
-matchDrivers <- function(vcf, driVers) {
+matchDrivers <- function(vcf, finalDrivers) {
 	ID <- meta(header(vcf))$META["ID",1]
-	d <- driVers[grep(ID, driVers$samples)]
+	d <- finalDrivers[grep(ID, finalDrivers$samples)]
 	g <- factor(rep(NA,nrow(vcf)), levels = levels(d$ID))
 	if(length(d)==0)
 		return(g)
@@ -493,13 +499,13 @@ matchDrivers <- function(vcf, driVers) {
 	return(g)
 }
 
-addFinalDriver <- function(vcf, driVers){
+addFinalDriver <- function(vcf, finalDrivers){
 	i = header(vcf)@header$INFO
 	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver mutation", row.names="DG"))
-	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(driVers$ID))
+	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(finalDrivers$ID))
 	if(nrow(vcf)==0)
 		return(vcf)
-	g <- matchDrivers(vcf = vcf, driVers = driVers)
+	g <- matchDrivers(vcf = vcf, finalDrivers = finalDrivers)
 	info(vcf)$DG <- g
 	return(vcf)
 }
