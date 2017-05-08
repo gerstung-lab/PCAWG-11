@@ -69,7 +69,7 @@ vcf <- readVcf(vcfFileIn, genome="GRCh37") #, param=ScanVcfParam(which=pos))
 meta(header(vcf))$META <- rbind(meta(header(vcf))$META, DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
 
 # Add driver genes
-vcf <- addFinalDriver(vcf, driVers)
+vcf <- addFinalDriver(vcf, finalDrivers)
 
 # Add TNC
 if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
@@ -114,7 +114,7 @@ vcfIndel <- readVcf(vcfIndelFileIn, genome="GRCh37") #, param=ScanVcfParam(which
 #' Add ID & gender
 meta(header(vcfIndel))$META <- rbind(meta(header(vcfIndel))$META, DataFrame(Value=c(ID, as.character(allGender[ID, "pred_gender"])), row.names=c("ID", "gender")))
 #' Add driver genes
-vcfIndel <- addFinalDriver(vcfIndel, driVers)
+vcfIndel <- addFinalDriver(vcfIndel, finalDrivers)
 #' Add mutation copy numbers
 i = header(vcfIndel)@header$INFO
 exptData(vcfIndel)$header@header$INFO <- rbind(i,mcnHeader())
