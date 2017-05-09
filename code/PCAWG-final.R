@@ -73,12 +73,34 @@ for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 names(finalClusters) <- names(finalPurity) <- sub(".conse.+","",dir(p, pattern="*.RData", full.names=FALSE))
 
 
-#' ### Update drivers
+#' ## Update drivers
+#' ### Update VCF
 for(i in seq_along(finalSnv)){
 	info(finalSnv[[i]])$DG <- matchDrivers(finalSnv[[i]], finalDrivers)
 	info(finalIndel[[i]])$DG <- matchDrivers(finalIndel[[i]], finalDrivers)
 	if(i %% 10 ==0) print(i); i <- i+1
 }
+
+#' ### Update finalDrivers
+finalDriversAnnotated <- finalDrivers
+finalDriversAnnotated$sample <- drivers$sample
+finalDriversAnnotated$mut_type <- drivers$mut_type
+d <- info(finalSnv[[3]])[seq_along(finalDriversAnnotated),19:33]
+#d[,] <- NA
+mcols(finalDriversAnnotated)[colnames(d)] <- d
+for(i in seq_along(finalDriversAnnotated)[1:100]){
+	if(finalDriversAnnotated$mut_type[i] %in% c("snv","mnv")){
+		v <- finalSnv[[as.character(finalDriversAnnotated$sample[i])]]
+	}else{
+		v <- finalIndel[[as.character(finalDriversAnnotated$sample[i])]]
+	}
+	j <- findOverlaps(finalDriversAnnotated[i], v, select='first')
+	if(!is.na(j))
+		mcols(finalDriversAnnotated)[i,colnames(d)] <- info(v)[j, colnames(d)]
+	else
+		mcols(finalDriversAnnotated)[i,colnames(d)] <- NA
+}
+
 
 #' ## Load graylisted data
 #' ### SNV and MNV
@@ -133,6 +155,7 @@ whiteList <- seq_along(finalSnv) %in% 1:2703
 grayList <- !whiteList
 
 #' ## QC
+#+ QC
 q1 <- sapply(finalSnv, function(vcf) mean(abs(0.5- info(vcf)$pMutCNTail) > 0.495 , na.rm=TRUE))
 q5 <- sapply(finalSnv, function(vcf) mean(abs(0.5- info(vcf)$pMutCNTail) > 0.475 , na.rm=TRUE))
 
@@ -140,13 +163,14 @@ par(mfrow=c(1,1))
 boxplot(1-q5 ~ donor2type[sample2donor[names(finalSnv)]], las=2, ylab="Fraction of data inside theoretical 95% CI")
 abline(h=0.95, lty=3)
 
-pdf("QQplots.pdf", 4,4, pointsize=8)
+#+ QQplots, fig.width=4, fig.height=4
+#pdf("QQplots.pdf", 4,4, pointsize=8)
 for(i in seq_along(finalSnv)){
 	n <- nrow(finalSnv[[i]])
 	qqnorm(qnorm(info(finalSnv[[i]])$pMutCNTail[sample(1:n, min(1e4,n))]), main=paste(substr(names(finalSnv)[i],1,8), "Q5 =", signif(q5[i],2), ", Q1 =", signif(q1[i],2)), xlim=c(-5,5), ylim=c(-5,5), pch=16)
 	abline(0,1, col='red')
 }
-dev.off()
+#dev.off()
 
 
 #' ## Distribution of Mutations
@@ -180,6 +204,7 @@ s <- w[w %in% names(sample2donor[sample2donor %in% n])] # multisamples
 d <- setdiff(sample2donor[w], sample2donor[levels(finalDrivers$sample)]) # donors w/o driver
 u <- sample2donor[s[sample2donor[s] %in% intersect(d,n)]]
 selectedSamples <- !w %in% setdiff(s[!s %in% finalDrivers$sample ], names(u)[!duplicated(u)])
+uniqueSamples <- !duplicated(sample2donor[names(finalSnv)])
 
 #' ### Overall distribution
 #' #### Subs or indels
@@ -191,8 +216,8 @@ d <- t(asum(finalGenotypesP[,"indels",,], 1))
 J <- t(apply(d/rowSums(d), 1, function(x) if(!any(is.nan(x))) f(mg14:::roundProp(x * 100,p=100)) else rep(NA,100)))
 s <- cumsum(table(droplevels(donor2type[sample2donor[rownames(d)]][o])))
 
+#+ finalMutationsProb, fig.width=9, fig.height=8
 col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)] ## Colors for early-subclonal
-
 par(fig=c(0,1,0,1),mar=c(1,4,1,1)+.1, mgp=c(2,.5,0), mfrow=c(3,1), bty="n", las=2, xpd=FALSE)
 image(z=I[o,], x=1:nrow(I), useRaster=TRUE, col=col, xaxt="n", ylab="SNVs")
 abline(v=s, col='white')
@@ -208,8 +233,8 @@ segments(d1, 1.08, d1, 1)
 mg14::rotatedLabel(x0 = d1, names(s), y0=1)
 legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n", horiz=TRUE, title="Mutation timing")
 
-t <- 12/8
-dev.copy2pdf(file="finalMutationProp.pdf", width=9*t, height=2.7*t, pointsize=8*t)
+#t <- 12/8
+#dev.copy2pdf(file="finalMutationProp.pdf", width=9*t, height=2.7*t, pointsize=8*t)
 
 #' #### Subs + indels
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
@@ -220,6 +245,7 @@ s <- cumsum(table(droplevels(donor2type[sample2donor[rownames(d)]][o])))
 
 col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)] ## Colors for early-subclonal
 
+#+ finalMutationPropAll, fig.width=9, fig.height=1.8
 par(fig=c(0,1,0,1),mar=c(1,4,1,1)+.1, mgp=c(2,.5,0), mfrow=c(2,1), bty="n", las=2, xpd=FALSE)
 image(z=I[o,], x=1:nrow(I), useRaster=TRUE, col=col, xaxt="n", ylab="Point mutations")
 abline(v=s, col='white')
@@ -233,8 +259,8 @@ segments(d1, 1.08, d1, 1)
 mg14::rotatedLabel(x0 = d1, names(s), y0=1)
 legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n", horiz=TRUE, title="Mutation timing")
 
-t <- 12/8
-dev.copy2pdf(file="finalMutationPropAll.pdf", width=9*t, height=1.8*t, pointsize=8*t)
+#t <- 12/8
+#dev.copy2pdf(file="finalMutationPropAll.pdf", width=9*t, height=1.8*t, pointsize=8*t)
 
 
 #' #### Barplot drivers
@@ -257,6 +283,7 @@ pu <- pu[rownames(gu),]
 wu <- rowSums(gu) > 0
 wu[1] <- FALSE
 
+#+ finalDrivers, fig.width=9, fig.height=5
 par(fig=c(0,1,0,1),mar=c(1,4,1,1)+.1, mgp=c(3,.5,0))
 barplot(t(gu[wu,]), col=col, las=2, legend=TRUE, args.legend=list("topright", bty='n'), ylab="Number of cases", names.arg=rep("",sum(wu)), border=NA)
 #mg14::rotatedLabel(x=.Last.value,labels=rownames(g)[62:201], cex=.25)
@@ -270,21 +297,21 @@ v <- c( (v[1]+v[2])/3.33, v[2], (v[3]+v[4])/3, v[4] )
 par( fig=v, new=TRUE, mar=c(0,0,0,0) )
 barplot(t(gu[2:51,]), col=col, las=2,  names.arg=rep("",50))
 mg14::rotatedLabel(x=.Last.value,labels=rownames(gu)[2:51], cex=.5)
-
-dev.copy2pdf(file="finalDrivers.pdf", width=9, height=5, pointsize=8)
+#dev.copy2pdf(file="finalDrivers.pdf", width=9, height=5, pointsize=8)
 
 #' #### Barpot drivers - proportions
+#+ finalDriversProp, fig.width=9, fig.height=3
 par(fig=c(0,1,0,1),mar=c(3,4,1,1)+.1, mgp=c(3,.5,0))
 w <- rowSums(pu) > 0
 n <- 50
 barplot(t(pu /rowSums(pu))[,w], width=c(rep(2,n+1), rep(0.2,sum(w)-n-1)), space=c(0,2,rep(0.1,n), rep(0,sum(w)-n-2)), col=col, border=NA, ylab="Fraction of mutations", names.arg=rep("",sum(w)))
 mg14::rotatedLabel(x=.Last.value[1:(n+1)],labels=c("Genome-wide", rownames(pu)[2:(n+1)]), cex=.5)
 
-s <- 12/8
-dev.copy2pdf(file="finalDriversProp.pdf", width=9*s, height=3*s, pointsize=8*s)
+#s <- 12/8
+#dev.copy2pdf(file="finalDriversProp.pdf", width=9*s, height=3*s, pointsize=8*s)
 
 #' #### Cumulative effects
-#+ genesCumulative
+#+ genesCumulative, fig.width=4, fig.height=4
 tt <- abind::abind(pu[-1,], pu[-1,] + 0.5, along=3)
 
 par(mar=c(3,3,1,1), mgp=c(2,.5,0), bty="L")
@@ -297,16 +324,15 @@ for(j in 1:4) {
 }
 legend("bottomright", col=col[1:4], lty=1, paste0(c("clonal [early]", "clonal [late]", "clonal [other]", "subclonal"), ", n=", round(colSums(p[-1,]))[-5]), bty="n")
 abline(h=0.5, lty=3)
+#dev.copy2pdf(file="finalGenesCumulative.pdf", width=4,height=4)
 
-dev.copy2pdf(file="finalGenesCumulative.pdf", width=4,height=4)
-
+#+ finalGenes50, fig.width=3, fig.height=4
 par(mar=c(4,3,2.5,1), mgp=c(2,.5,0), bty="L")
 d50 <- apply((r[,,1]+r[,,2])/2 < 0.5, 2, which.min)[c(1,3,2,4)]
 b <- barplot(d50,las=2, col=col[c(1,3,2,4)], border=NA, ylab="Genes contributing 50% of driver mutations")
 segments(b,apply(r[,,1] < 0.5, 2, which.min)[c(1,3,2,4)],b,apply(r[,,2] < 0.5, 2, which.min)[c(1,3,2,4)])
 mg14::rotatedLabel(x=b,labels=c("clonal [early]", "clonal [late]", "clonal [other]", "subclonal")[c(1,3,2,4)])
-
-dev.copy2pdf(file="finalGenes50.pdf", width=3,height=4)
+#dev.copy2pdf(file="finalGenes50.pdf", width=3,height=4)
 
 
 
@@ -319,6 +345,7 @@ names(finalHom) <- names(finalBB)
 
 isWgd <- .classWgd(finalPloidy, finalHom)
 
+#+ wdgHomPloidy, fig.widht=4, fig.height=4
 plot(finalHom, finalPloidy, col=.classWgd( finalPloidy, finalHom)+1, xlim=c(0,1))
 
 fracGenomeWgdComp <- t(sapply(finalBB, function(bb) {
@@ -339,38 +366,67 @@ wgdPoss <- !isWgd & 2.5 - 1.5 * finalHom <= finalPloidy
 wgdStat <- factor(wgdPoss + 2*isWgd - wgdPoss*isWgd, labels=c("absent","possible","present"))
 table(wgdStat, wgdStar)
 
-pdf("WGD-timing-009.pdf", 12,6.5)
-j <- 1
-for(ID in names(finalBB)[isWgd]){
-	if(j%%100 == 0) print(j); j <- j+1
-#	for(f in dir("../final/annotated_007/snv_mnv", pattern=paste0(ID,".+bb_granges.RData"), full.names=TRUE)) load(f)
-#	t <- bbToTime(bb)
-	par(mfrow=c(2,1), mar=c(3,3,2,1), mgp=c(2,.5,0), bty="L", cex=1, las=2)
-	plotBB(finalBB[[ID]], ylim=c(0,8))
-	title(main=paste0(ID,", ", donor2type[sample2donor[ID]], ", ploidy=",round(finalPloidy[ID],2), ", hom=",round(finalHom[ID],2)), font.main=1, line=0)
-	par(mar=c(3,3,2,1))
-	plotTiming(finalBB[[ID]])
-	abline(h=fracGenomeWgdComp[ID,"time.wgd"], lty=3)
-	title(main=paste0("Timeable=", round(fracGenomeWgdComp[ID,2]/chrOffset["MT"]*100), "%, WGD=",round(fracGenomeWgdComp[ID,1]/fracGenomeWgdComp[ID,2]*100), "%, sd.WGD=",round(fracGenomeWgdComp[ID,'sd.wgd'],2), "%, avg.CI=",round(fracGenomeWgdComp[ID,'avg.ci'],2),", verdict=",wgdStar[ID]), font.main=1, line=0)
-}
-dev.off()
+#pdf("WGD-timing-009.pdf", 12,6.5)
+#j <- 1
+#for(ID in names(finalBB)[isWgd]){
+#	if(j%%100 == 0) print(j); j <- j+1
+##	for(f in dir("../final/annotated_007/snv_mnv", pattern=paste0(ID,".+bb_granges.RData"), full.names=TRUE)) load(f)
+##	t <- bbToTime(bb)
+#	par(mfrow=c(2,1), mar=c(3,3,2,1), mgp=c(2,.5,0), bty="L", cex=1, las=2)
+#	plotBB(finalBB[[ID]], ylim=c(0,8))
+#	title(main=paste0(ID,", ", donor2type[sample2donor[ID]], ", ploidy=",round(finalPloidy[ID],2), ", hom=",round(finalHom[ID],2)), font.main=1, line=0)
+#	par(mar=c(3,3,2,1))
+#	plotTiming(finalBB[[ID]])
+#	abline(h=fracGenomeWgdComp[ID,"time.wgd"], lty=3)
+#	title(main=paste0("Timeable=", round(fracGenomeWgdComp[ID,2]/chrOffset["MT"]*100), "%, WGD=",round(fracGenomeWgdComp[ID,1]/fracGenomeWgdComp[ID,2]*100), "%, sd.WGD=",round(fracGenomeWgdComp[ID,'sd.wgd'],2), "%, avg.CI=",round(fracGenomeWgdComp[ID,'avg.ci'],2),", verdict=",wgdStar[ID]), font.main=1, line=0)
+#}
+#dev.off()
 
-#' BB without VCF
-otherBB <- sapply(setdiff(sub("\\..+","",dir(bbPath)), names(finalBB)), function(ID) loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity']))
-for(ID in names(otherBB))
-	otherBB[[ID]]$total_cn <- otherBB[[ID]]$major_cn+ otherBB[[ID]]$minor_cn
-
-otherPloidy <- sapply(otherBB, averagePloidy)
-otherHom <- sapply(otherBB, averageHom)
-otherWgd <- .classWgd(otherPloidy, otherHom)
-otherPoss <- !otherWgd & 2.5 - 1.5 * otherHom <= otherPloidy
-otherStat <- factor(otherPoss + 2*otherWgd - otherPoss*otherWgd, levels=0:2,labels=c("absent","possible","present"))
+##' BB without VCF
+#otherBB <- sapply(setdiff(sub("\\..+","",dir(bbPath)), names(finalBB)), function(ID) loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity']))
+#for(ID in names(otherBB))
+#	otherBB[[ID]]$total_cn <- otherBB[[ID]]$major_cn+ otherBB[[ID]]$minor_cn
+#
+#otherPloidy <- sapply(otherBB, averagePloidy)
+#otherHom <- sapply(otherBB, averageHom)
+#otherWgd <- .classWgd(otherPloidy, otherHom)
+#otherPoss <- !otherWgd & 2.5 - 1.5 * otherHom <= otherPloidy
+#otherStat <- factor(otherPoss + 2*otherWgd - otherPoss*otherWgd, levels=0:2,labels=c("absent","possible","present"))
 
 
 tab <- data.frame(WGD_call = wgdStat, WGD_timing=wgdStar, ploidy=finalPloidy, hom=finalHom, fracGenomeWgdComp)
-tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
+#tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
 write.table(file="WGD-info.txt", tab, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
 
+
+
+#' ## Coamplification and WGD
+d <- fracGenomeWgdComp
+i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
+timingClass <- paste(ifelse(isWgd,"WGD","near-diploid"), ifelse(!i, "uninformative",""))
+timingClass[i] <- paste0(timingClass[i], ifelse(d[i,"nt.wgd"]/d[i,"nt.total"] > 0.75,"sync","async"))
+#timingClass[i] <- paste0(timingClass[i], cut(fracGenomeWgdComp[i,"nt.wgd"]/fracGenomeWgdComp[i,"nt.total"], c(0,0.5,0.8,1), include.lowest=TRUE))
+timingClass <- factor(timingClass)
+
+#+ timingClass, fig.width=4, fig.height=4
+#pdf("TimingClass.pdf", 4,4)
+c <- c(RColorBrewer::brewer.pal(9, "Pastel1"),"#DDDDDD")
+t <- table(timingClass)[c(1:3,6,4:5)]
+pie(t, init.angle=90, labels=paste0(names(t), ",\nn=", t), col=c[c(1,1,9,10,2,2)], density=c(36,NA,NA,NA,36,NA))
+t <- table(isWgd)
+par(new=TRUE)
+pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
+#dev.off()
+
+#fracGenomeWgdComp <- data.frame(fracGenomeWgdComp)
+#attach(fracGenomeWgdComp)
+#x <- mg14:::violinJitter()
+#i <- !is.na(nt.coamp/nt.amp) & avg.ci < 0.5 & chr.all > 1
+#
+#par(mfrow=c(1,3), bty="n", mgp=c(2,.5,0), mar=c(3,3,1,1)+.1, cex=1)
+#mg14:::violinJitterPlot((chr.wgd/chr.all)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(chr.all[i]/23), pch=16, ylim=c(0,100), ylab="Co-amplified chromosomes",  col.pty=rep("#00000088",2), plot.violins=FALSE)
+#mg14:::violinJitterPlot((n.wgd/n.all)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=2*sqrt(n.all[i]/1000), pch=16, ylim=c(0,100), ylab="Co-amplified segments",  col.pty=rep("#00000088",2), plot.violins=FALSE)
+#mg14:::violinJitterPlot((nt.wgd/nt.total)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(nt.total[i]/3e9), pch=16, ylim=c(0,100), ylab="Co-amplified nucleotides",  col.pty=rep("#00000088",2), plot.violins=FALSE)
 
 #' ## Timing examples
 p <- function() {
@@ -395,63 +451,38 @@ p <- function() {
 	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
 	print(w[1])
 }
+
+#+ timingExamples, fig.width=4, fig.height=4
 w <- which(wgdStar=="likely" & !isWgd)
-pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 p()
-dev.off()
+#dev.off()
 
 w <- which(wgdStar=="very likely" & isWgd)
-pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 p()
-dev.off()
+#dev.off()
 
 w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5)
-pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 p()
-dev.off()
+#dev.off()
 
 #' GBM examples
+#+ timingExamplesGbm, fig.width=4, fig.height=4
 w <- which(fracGenomeWgdComp[,"time.wgd"]<0.1 & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.1 &  !isWgd & donor2type[sample2donor[names(finalBB)]]=="CNS-GBM")
-pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 p()
-dev.off()
-
-
-#' ## Coamplification and WGD
-d <- rbind(fracGenomeWgdComp, fracGenomeWgdCompGray)
-i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
-timingClass <- paste(ifelse(isWgd,"WGD","near-diploid"), ifelse(!i, "uninformative",""))
-timingClass[i] <- paste0(timingClass[i], ifelse(d[i,"nt.wgd"]/d[i,"nt.total"] > 0.75,"sync","async"))
-#timingClass[i] <- paste0(timingClass[i], cut(fracGenomeWgdComp[i,"nt.wgd"]/fracGenomeWgdComp[i,"nt.total"], c(0,0.5,0.8,1), include.lowest=TRUE))
-timingClass <- factor(timingClass)
-
-pdf("TimingClass.pdf", 4,4)
-c <- c(RColorBrewer::brewer.pal(9, "Pastel1"),"#DDDDDD")
-t <- table(timingClass)[c(1:3,6,4:5)]
-pie(t, init.angle=90, labels=paste0(names(t), ",\nn=", t), col=c[c(1,1,9,10,2,2)], density=c(36,NA,NA,NA,36,NA))
-t <- table(isWgd)
-par(new=TRUE)
-pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
-dev.off()
-
-fracGenomeWgdComp <- data.frame(fracGenomeWgdComp)
-attach(fracGenomeWgdComp)
-x <- mg14:::violinJitter()
-i <- !is.na(nt.coamp/nt.amp) & avg.ci < 0.5 & chr.all > 1
-
-par(mfrow=c(1,3), bty="n", mgp=c(2,.5,0), mar=c(3,3,1,1)+.1, cex=1)
-mg14:::violinJitterPlot((chr.wgd/chr.all)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(chr.all[i]/23), pch=16, ylim=c(0,100), ylab="Co-amplified chromosomes",  col.pty=rep("#00000088",2), plot.violins=FALSE)
-mg14:::violinJitterPlot((n.wgd/n.all)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=2*sqrt(n.all[i]/1000), pch=16, ylim=c(0,100), ylab="Co-amplified segments",  col.pty=rep("#00000088",2), plot.violins=FALSE)
-mg14:::violinJitterPlot((nt.wgd/nt.total)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(nt.total[i]/3e9), pch=16, ylim=c(0,100), ylab="Co-amplified nucleotides",  col.pty=rep("#00000088",2), plot.violins=FALSE)
+#dev.off()
 
 
 
-
-#' Signatures
+#' ## Signatures
 sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutations(vcf, reclassify="none"), tncToPyrimidine(vcf)), mc.cores=2))
 sigTable <- aperm(sigTable, c(2,3,1))
 
-#' ## Real-time WGD
+#' ## Real-time WGD & subclones
+#' ### Prelim
 wgdTime <- function(vcf, bb, clusters, purity){
 	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
 	v <- vcf[w]
@@ -502,11 +533,13 @@ correctAccelRand <- function(pi, ta=seq(0.66,1,0.01), a=seq(1,10,1)){
 accel <- c(1,2.5,5,7.5,10)
 names(accel) <- paste0(accel, "x")
 
+#' ### WGD
 foo <- apply(finalWgdPi[,,], 2:3,  function(x) correctAccelRand(x, a=accel))
 finalWgdPiAdj <- array(foo, dim=c(2, length(accel), length(eval(formals(correctAccelRand)$ta)), dim(foo)[-1]))
 dimnames(finalWgdPiAdj)[[1]] <- c('t.WGD','t.subclonal')
 dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
 dimnames(finalWgdPiAdj)[[4]] <- dimnames(finalWgdPi)[[2]]
+dimnames(finalWgdPiAdj)[[5]] <- names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)]
 
 #finalWgdPiAdj <- sapply(1:ncol(finalWgdPi), function(i) correctAccelRand(finalWgdPi[,i], a=accel), simplify='array')
 #dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
@@ -514,8 +547,8 @@ dimnames(finalWgdPiAdj)[[4]] <- dimnames(finalWgdPi)[[2]]
 age <- clinicalData$donor_age_at_diagnosis
 names(age) <- clinicalData$icgc_donor_id
 
-n <- names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)]
-finalWgdTime <- finalWgdPiAdj * rep(age[sample2donor[n]], each=2)
+n <- dimnames(finalWgdPiAdj)[[5]]
+finalWgdTime <- finalWgdPiAdj[,,,,n] * rep(age[sample2donor[n]], each=2)
 
 typeNa <- gsub("\t","",strsplit("Bone-Cart
 				Breast-LobularCA
@@ -528,7 +561,7 @@ d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
 timeWgd <- sapply(s, function(l) {
 			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
-			a <- (1-finalWgdPiAdj[1,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdPiAdj)[2:4]))
+			a <- (1-finalWgdPiAdj[1,,,,n][,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdPiAdj)[2:4]))
 			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
 			rownames(m) <- n[i]
 			m
@@ -540,8 +573,10 @@ timeWgd <- sapply(s, function(l) {
 tissueBorder <- names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCA")
 names(tissueBorder) <- names(tissueColors)
 
+#+ realTimeWgd, fig.height=3, fig.width=4
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-qWgd <- sapply(timeWgd, function(x) apply(x[,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
+u <- names(finalSnv)[uniqueSamples]
+qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 m <- qWgd[3,"5x",]#t[1,3,]
 a <- "7.5x"
 m <- qWgd[3,a,]#t[1,3,]
@@ -560,18 +595,21 @@ for(i in seq_along(o)){
 	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
 }
 par(xpd=TRUE)
-s <- 12/8
-dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
+#s <- 12/8
+#dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
 
+sapply(timeWgd, nrow)
+
+#+ realTimeWgdAccel, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.5, bty="L")
 plot(accel, qWgd["50%",,1], type='l', lty=0, ylim=c(0,30), xlab= "5meC rate acceleration", ylab="Median occurrence [years]", yaxs="i", xaxt="n")
 axis(side=1, at=accel)
 for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueColors[dimnames(qWgd)[[3]][j]])
-s <- 12/8
-dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
+#s <- 12/8
+#dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
-#' ## Subclones
+#' ### Subclones
 effGenome <- unlist(mclapply(finalSnv, function(vcf) 2/avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=4))
 names(effGenome) <- names(finalSnv)
 
@@ -615,9 +653,12 @@ timeSubclones0 <- sapply(s, function(l) {
  			#res[res==0] <- NA
  			res})
 
+#' Plot
+#+ realTimeSubclone, fig.width=5, fig.height=4.667
+u <- names(finalSnv)[uniqueSamples]
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 #qSubclone <- sapply(timeSubclones, function(x) apply(x[,], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
-qSubclone <- sapply(timeSubclones, function(x) apply(x[,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
+qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 a <- "7.5x"
 m <- qSubclone[2,a,]#t[1,3,]
 o <- order(m, na.last=NA)
@@ -635,29 +676,35 @@ for(i in seq_along(o)){
 	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
 }
 
-par(xpd=TRUE)
-s <- 12/8
-dev.copy2pdf(file="realTimeSubclone.pdf", width=5*s, height=3.5*3/4*s, pointsize=8*s)
+#par(xpd=TRUE)
+#s <- 12/8
+#dev.copy2pdf(file="realTimeSubclone.pdf", width=5*s, height=3.5*3/4*s, pointsize=8*s)
 
+sapply(timeSubclones, nrow)
 
+#+ realTimeSubcloneWgdScatter
 par( mar=c(4,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-plot(qSubclone["50%",a,dimnames(qSubclone)[[3]]], qSubclone["50%",a,], col=tissueColors[dimnames(qSubclone)[[3]]], pch=16, cex=2, xlab="Median time subclones", ylab="Median time WGD", xlim=c(0,5), ylim=c(0,10))
+plot(qSubclone["50%",a,dimnames(qWgd)[[3]]], qWgd["50%",a,], col=tissueColors[dimnames(qWgd)[[3]]], pch=16, cex=2, xlab="Median time subclones", ylab="Median time WGD", xlim=c(0,5), ylim=c(0,10))
 
+#+ realTimeSubcloneWgd, fig.width=2.5, fig.height=3.5
 par( mar=c(3,3,3,10), mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="n", xpd=FALSE, las=1)
 w <- "50%"
-plot(c(rep(2, each=dim(qSubclone)[3]), rep(1, dim(qSubclone)[3])), c(qSubclone[w,a,],qSubclone[w,a,]), col=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qSubclone)[[3]])], pch=16, cex=2, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5))
-segments(rep(1, each=dim(qSubclone)[3]), qSubclone[w,a,dimnames(qSubclone)[[3]]], rep(2, each=dim(qSubclone)[3]), qSubclone[w,a,],col=tissueColors[dimnames(qSubclone)[[3]]])
-o <- order(qSubclone[w,a,], na.last=NA)
-y0 <- qSubclone[w,a,o]
-y1 <- mg14:::mindist(qSubclone[w,a,o], diff(par('usr')[3:4])/30)
+plot(c(rep(1, dim(qSubclone)[3]), rep(2, each=dim(qWgd)[3])), c(qSubclone[w,a,],qWgd[w,a,]), bg=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qWgd)[[3]])], pch=21, cex=2, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5))
+segments(rep(1, each=dim(qWgd)[3]), qSubclone[w,a,dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), qWgd[w,a,],col=tissueColors[dimnames(qWgd)[[3]]])
+o <- order(qWgd[w,a,], na.last=NA)
+y0 <- qWgd[w,a,o]
+y1 <- mg14:::mindist(qWgd[w,a,o], diff(par('usr')[3:4])/30)
 par(xpd=NA)
-mtext(dimnames(qSubclone)[[3]][o], at=y1, side=4 )
+mtext(dimnames(qWgd)[[3]][o], at=y1, side=4 )
 segments(2.1,y0,2.2,y0)
 segments(2.2,y0,2.3,y1)
 segments(2.3,y1,2.4,y1)
 mg14::rotatedLabel(1:2, labels=c("Subclones","WGD"))
 #segments(2.1,y0,2.3,y1)
 
-par(xpd=TRUE)
-s <- 12/8
-dev.copy2pdf(file="realTimeSubcloneWgd.pdf", width=2.5*s, height=3.5*s, pointsize=8*s)
+#par(xpd=TRUE)
+#s <- 12/8
+#dev.copy2pdf(file="realTimeSubcloneWgd.pdf", width=2.5*s, height=3.5*s, pointsize=8*s)
+
+#save(qWgd, qSubclone, timeWgd, timeSubclones, file=paste0(Sys.Date(),"-realTimeWgdAndSubclones.RData"))
+
