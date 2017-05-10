@@ -729,7 +729,7 @@ devtools::session_info()
 
 #' # Other code
 #' All code is available at github.com/gerstung-lab/PCAWG-11
-#+ additionalCode, cache=FALSE, echo=FALSE
+#+ additionalCode, cache=FALSE, echo=FALSE, eval=TRUE
 read_chunk('./MutationTime.R', labels="MutationTimer")
 read_chunk('./PCAWG-functions.R', labels="PCAWG-functions")
 read_chunk('./VCF-annotate.R', labels="VCF-annotate")
