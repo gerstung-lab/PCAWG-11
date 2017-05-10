@@ -30,7 +30,7 @@ source("PCAWG-functions.R")
 
 #+ evalOff, echo=FALSE
 opts_chunk$set(eval=FALSE)
-load("2017-05-10-PCAWG-final.RData")
+#load("2017-05-10-PCAWG-final.RData")
 
 #' # Load data
 #' ## Whitelist
@@ -202,7 +202,7 @@ save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
 #save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
 #+ evalOn, eval=TRUE, echo=FALSE
-opts_chunk$set(eval=TRUE)
+opts_chunk$set(eval=FALSE)
 
 #' # Distribution of Mutations
 #' ## Duplicated samples
