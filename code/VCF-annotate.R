@@ -7,7 +7,7 @@ set.seed(42)
 
 args <- commandArgs(trailingOnly = TRUE)
 
-source("functions.R")
+source("PCAWG-functions.R")
 
 vcfFileIn <- args[1]
 vcfFileOut <- args[2]

@@ -10,8 +10,6 @@
 #' author: Moritz Gerstung
 #' ---
 
-#' # PCAWG-11 Timing analyses
-
 #+ Preliminaries, echo=FALSE
 options(width=120)
 pdf.options(pointsize=8)
@@ -24,16 +22,18 @@ my_png <-  function(file, width, height, pointsize=12, ...) {
 }
 
 
-#' ## Prelim
-#' ### Libraries
+#' # Prelim
+#' ## Libraries
 library(VariantAnnotation)
 setwd("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/code")
-source("functions.R")
+source("PCAWG-functions.R")
 
 #+ evalOff, echo=FALSE
 opts_chunk$set(eval=FALSE)
+load("2017-05-10-PCAWG-final.RData")
 
-#' ## Load data
+#' # Load data
+#' ## Whitelist
 #' ### SNV and MNV
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/snv_mnv"
 finalSnv <- list()
@@ -105,7 +105,7 @@ for(i in seq_along(finalDriversAnnotated)){
 }
 
 
-#' ## Load graylisted data
+#' ## Graylisted data
 #' ### SNV and MNV
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/graylist/snv_mnv"
 finalSnvGray <- list()
@@ -157,18 +157,20 @@ finalPurity <- c(finalPurity, finalPurityGray)
 whiteList <- seq_along(finalSnv) %in% 1:2703
 grayList <- !whiteList
 
-#' ## QC
+#' # QC
 #+ QC
 q1 <- sapply(finalSnv, function(vcf) mean(abs(0.5- info(vcf)$pMutCNTail) > 0.495 , na.rm=TRUE))
 q5 <- sapply(finalSnv, function(vcf) mean(abs(0.5- info(vcf)$pMutCNTail) > 0.475 , na.rm=TRUE))
 
+#+ QCboxplot, eval=TRUE
 par(mfrow=c(1,1))
 boxplot(1-q5 ~ donor2type[sample2donor[names(finalSnv)]], las=2, ylab="Fraction of data inside theoretical 95% CI")
 abline(h=0.95, lty=3)
 
-#+ QQplots, fig.width=4, fig.height=4
+#+ QQplots, fig.width=12, fig.height=12, eval=TRUE
 #pdf("QQplots.pdf", 4,4, pointsize=8)
-for(i in seq_along(finalSnv)){
+par(mfrow=c(5,5))
+for(i in seq_along(finalSnv)[1:25]){
 	n <- nrow(finalSnv[[i]])
 	qqnorm(qnorm(info(finalSnv[[i]])$pMutCNTail[sample(1:n, min(1e4,n))]), main=paste(substr(names(finalSnv)[i],1,8), "Q5 =", signif(q5[i],2), ", Q1 =", signif(q1[i],2)), xlim=c(-5,5), ylim=c(-5,5), pch=16)
 	abline(0,1, col='red')
@@ -176,34 +178,34 @@ for(i in seq_along(finalSnv)){
 #dev.off()
 
 
-#' ## Distribution of Mutations
-#' ### MAP genotypes
+#' # Driver genotypes
+#' ## MAP genotypes
 finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, mc.cores=2, useNA="always"))
 finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, mc.cores=2, useNA="always"))
 finalGenotypes <- aperm(abind::abind(subs=finalGenotypesSnv,indels=finalGenotypesIndel, along=5), c(1,5,2,3,4))
 rm(finalGenotypesSnv,finalGenotypesIndel)
 
-#' ### Probabilistic genotypes
+#' ## Probabilistic genotypes
 finalGenotypesSnvP <- simplify2array(mclapply(finalSnv[whiteList], probGenotype, mc.cores=2))
 finalGenotypesIndelP <- simplify2array(mclapply(finalIndel[whiteList], probGenotype, mc.cores=2))
 finalGenotypesP <- aperm(abind::abind(subs=finalGenotypesSnvP,indels=finalGenotypesIndelP, along=4), c(1,4,2,3))
 rm(finalGenotypesSnvP,finalGenotypesIndelP)
 
-#' ### Probabilistic genotypes - tail prob (QC)
+#' ## Probabilistic genotypes - tail prob (QC)
 finalGenotypesSnvQ <- simplify2array(mclapply(finalSnv[whiteList], probGenotypeTail, mc.cores=2))
 finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenotypeTail, mc.cores=2))
 finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenotypesIndelQ, along=3), c(1,3,2))
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
-#' ### Save output
+#' # Save output
 save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
 #save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
 #+ evalOn, eval=TRUE, echo=FALSE
 opts_chunk$set(eval=TRUE)
-load("2017-05-10-PCAWG-final.RData")
 
-#' ### Duplicated samples
+#' # Distribution of Mutations
+#' ## Duplicated samples
 w <- names(finalSnv)
 n <- names(which(table(sample2donor[w]) > 1)) # donors
 s <- w[w %in% names(sample2donor[sample2donor %in% n])] # multisamples
@@ -212,8 +214,8 @@ u <- sample2donor[s[sample2donor[s] %in% intersect(d,n)]]
 selectedSamples <- !w %in% setdiff(s[!s %in% finalDrivers$sample ], names(u)[!duplicated(u)])
 uniqueSamples <- !duplicated(sample2donor[names(finalSnv)])
 
-#' ### Overall distribution
-#' #### Subs or indels
+#' ## Overall distribution
+#' ### Subs or indels
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
 d <- t(asum(finalGenotypesP[,"subs",,], 1))
 o <- order(droplevels(donor2type[sample2donor[rownames(d)]]), -d[,1]/rowSums(d))
@@ -242,7 +244,7 @@ legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n",
 #t <- 12/8
 #dev.copy2pdf(file="finalMutationProp.pdf", width=9*t, height=2.7*t, pointsize=8*t)
 
-#' #### Subs + indels
+#' ### Subs + indels
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
 d <- t(asum(finalGenotypesP[,,,], 1:2))
 o <- order(droplevels(donor2type[sample2donor[rownames(d)]]), -d[,1]/rowSums(d))
@@ -269,7 +271,7 @@ legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n",
 #dev.copy2pdf(file="finalMutationPropAll.pdf", width=9*t, height=1.8*t, pointsize=8*t)
 
 
-#' #### Barplot drivers
+#' ### Barplot drivers
 p <- asum(finalGenotypesP[,,,selectedSamples[whiteList]], c(2,4))
 g <- asum(finalGenotypes[,,,,selectedSamples[whiteList]], c(2,4:5))
 g <- g[order(rowSums(g), decreasing=TRUE),]
@@ -305,7 +307,7 @@ barplot(t(gu[2:51,]), col=col, las=2,  names.arg=rep("",50))
 mg14::rotatedLabel(x=.Last.value,labels=rownames(gu)[2:51], cex=.5)
 #dev.copy2pdf(file="finalDrivers.pdf", width=9, height=5, pointsize=8)
 
-#' #### Barpot drivers - proportions
+#' ### Barpot drivers - proportions
 #+ finalDriversProp, fig.width=9, fig.height=3
 par(fig=c(0,1,0,1),mar=c(3,4,1,1)+.1, mgp=c(3,.5,0))
 w <- rowSums(pu) > 0
@@ -316,7 +318,7 @@ mg14::rotatedLabel(x=.Last.value[1:(n+1)],labels=c("Genome-wide", rownames(pu)[2
 #s <- 12/8
 #dev.copy2pdf(file="finalDriversProp.pdf", width=9*s, height=3*s, pointsize=8*s)
 
-#' #### Cumulative effects
+#' ### Cumulative effects
 #+ genesCumulative, fig.width=4, fig.height=4
 tt <- abind::abind(pu[-1,], pu[-1,] + 0.5, along=3)
 
@@ -342,7 +344,7 @@ mg14::rotatedLabel(x=b,labels=c("clonal [early]", "clonal [late]", "clonal [othe
 
 
 
-#' ## WGD analyses
+#' # Whole-genome duplications
 finalPloidy <- sapply(finalBB, averagePloidy)
 names(finalPloidy) <- names(finalBB)
 
@@ -400,7 +402,7 @@ table(wgdStat, wgdStar)
 #otherStat <- factor(otherPoss + 2*otherWgd - otherPoss*otherWgd, levels=0:2,labels=c("absent","possible","present"))
 
 
-#' ## Coamplification and WGD
+#' # Coamplification and WGD
 d <- fracGenomeWgdComp
 i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
 timingClass <- paste(ifelse(isWgd,"WGD","near-diploid"), ifelse(!i, "uninformative",""))
@@ -475,7 +477,7 @@ w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffs
 p()
 #dev.off()
 
-#' GBM examples
+#' ## GBM examples
 #+ timingExamplesGbm, fig.width=4, fig.height=4
 w <- which(fracGenomeWgdComp[,"time.wgd"]<0.1 & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.1 &  !isWgd & donor2type[sample2donor[names(finalBB)]]=="CNS-GBM")
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
@@ -488,8 +490,8 @@ p()
 sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutations(vcf, reclassify="none"), tncToPyrimidine(vcf)), mc.cores=2))
 sigTable <- aperm(sigTable, c(2,3,1))
 
-#' ## Real-time WGD & subclones
-#' ### Prelim
+#' # Real-time WGD & subclones
+#' ## Prelim
 wgdTime <- function(vcf, bb, clusters, purity){
 	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
 	v <- vcf[w]
@@ -540,7 +542,7 @@ correctAccelRand <- function(pi, ta=seq(0.66,1,0.01), a=seq(1,10,1)){
 accel <- c(1,2.5,5,7.5,10)
 names(accel) <- paste0(accel, "x")
 
-#' ### WGD
+#' ## WGD
 foo <- apply(finalWgdPi[,,], 2:3,  function(x) correctAccelRand(x, a=accel))
 finalWgdPiAdj <- array(foo, dim=c(2, length(accel), length(eval(formals(correctAccelRand)$ta)), dim(foo)[-1]))
 dimnames(finalWgdPiAdj)[[1]] <- c('t.WGD','t.subclonal')
@@ -616,7 +618,8 @@ for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueColors
 #dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
-#' ### Subclones
+#' ## Subclones
+#+ effGenome
 effGenome <- unlist(mclapply(finalSnv, function(vcf) 2/avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=4))
 names(effGenome) <- names(finalSnv)
 
@@ -625,6 +628,7 @@ subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {p <- info(vcf
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
 
+#+ timeSubclones, warning=FALSE
 set.seed(42)
 timeSubclones <- sapply(s, function(l) {
 			i <- d==l
@@ -715,10 +719,28 @@ mg14::rotatedLabel(1:2, labels=c("Subclones","WGD"))
 
 #save(qWgd, qSubclone, timeWgd, timeSubclones, file=paste0(Sys.Date(),"-realTimeWgdAndSubclones.RData"))
 
-#' ## Session
-#' ### Objects
+#' # Session
+#' ## Objects
 l <- ls()
 data.frame(variable=l, Reduce("rbind",lapply(l, function(x) data.frame(class=class(get(x)), size=format(object.size(get(x)), units="auto")))))
-#' ### Packages
+#' ## Packages
 sessionInfo()
 devtools::session_info()
+
+#' # Other code
+#' All code is available at github.com/gerstung-lab/PCAWG-11
+#+ additionalCode, cache=FALSE
+read_chunk('../MutationTime.R', labels="MutationTimer")
+read_chunk('../PCAWG-functions.R', labels="PCAWG-functions")
+read_chunk('../VCF-annotate.R', labels="VCF-annotate")
+
+#' ## MutationTime.R
+#' See https://gist.github.com/mg14/7a8e1aa28cb9ade7e376acdbd2364790
+#+ MutationTimer, eval=FALSE
+
+#' ## PCAWG-functions.R
+#' All basic functions
+#+ PCAWG-functions, eval=FALSE
+
+#' ## VCF-annotate.R
+#+ VCF-annotate, eval=FALSE
