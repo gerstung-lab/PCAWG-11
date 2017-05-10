@@ -177,7 +177,7 @@ for(i in seq_along(finalSnv)){
 #' ### MAP genotypes
 finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, mc.cores=2, useNA="always"))
 finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, mc.cores=2, useNA="always"))
-finalGenotypes <- aperm(abind::abind(subs=finalGenotypesSnv[whiteList],indels=finalGenotypesIndel, along=5), c(1,5,2,3,4))
+finalGenotypes <- aperm(abind::abind(subs=finalGenotypesSnv,indels=finalGenotypesIndel, along=5), c(1,5,2,3,4))
 rm(finalGenotypesSnv,finalGenotypesIndel)
 
 #' ### Probabilistic genotypes
@@ -193,7 +193,7 @@ finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenoty
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
 #' ### Save output
-#save.image(file=paste0(Sys.Date(),".RData"))
+save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
 #save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
 
