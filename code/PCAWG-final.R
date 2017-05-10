@@ -199,7 +199,7 @@ rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
 #save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
-#+ evalOn, echo=FALSE
+#+ evalOn, eval=TRUE, echo=FALSE
 opts_chunk$set(eval=TRUE)
 load("2017-05-10-PCAWG-final.RData")
 
