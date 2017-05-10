@@ -30,6 +30,9 @@ library(VariantAnnotation)
 setwd("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/code")
 source("functions.R")
 
+#+ evalOff, echo=FALSE
+opts_chunk$set(eval=FALSE)
+
 #' ## Load data
 #' ### SNV and MNV
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/snv_mnv"
@@ -88,7 +91,7 @@ finalDriversAnnotated$mut_type <- drivers$mut_type
 d <- info(finalSnv[[3]])[seq_along(finalDriversAnnotated),19:33]
 #d[,] <- NA
 mcols(finalDriversAnnotated)[colnames(d)] <- d
-for(i in seq_along(finalDriversAnnotated)[1:100]){
+for(i in seq_along(finalDriversAnnotated)){
 	if(finalDriversAnnotated$mut_type[i] %in% c("snv","mnv")){
 		v <- finalSnv[[as.character(finalDriversAnnotated$sample[i])]]
 	}else{
@@ -196,6 +199,9 @@ rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
 #save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
+#+ evalOn, echo=FALSE
+opts_chunk$set(eval=TRUE)
+load("2017-05-10-PCAWG-final.RData")
 
 #' ### Duplicated samples
 w <- names(finalSnv)
@@ -264,8 +270,8 @@ legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n",
 
 
 #' #### Barplot drivers
-p <- asum(finalGenotypesP[,,,selectedSamples], c(2,4))
-g <- asum(finalGenotypes[,,,,selectedSamples], c(2,4:5))
+p <- asum(finalGenotypesP[,,,selectedSamples[whiteList]], c(2,4))
+g <- asum(finalGenotypes[,,,,selectedSamples[whiteList]], c(2,4:5))
 g <- g[order(rowSums(g), decreasing=TRUE),]
 colnames(g) <- paste(colnames(g))
 rownames(g) <- paste(rownames(g)) 
@@ -394,12 +400,6 @@ table(wgdStat, wgdStar)
 #otherStat <- factor(otherPoss + 2*otherWgd - otherPoss*otherWgd, levels=0:2,labels=c("absent","possible","present"))
 
 
-tab <- data.frame(WGD_call = wgdStat, WGD_timing=wgdStar, ploidy=finalPloidy, hom=finalHom, fracGenomeWgdComp)
-#tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
-write.table(file="WGD-info.txt", tab, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
-
-
-
 #' ## Coamplification and WGD
 d <- fracGenomeWgdComp
 i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
@@ -417,6 +417,13 @@ t <- table(isWgd)
 par(new=TRUE)
 pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
 #dev.off()
+
+colnames(d) <- c("ntCoamp","ntAmp","timeCoamp","segCoamp","segAmp","chrCoamp","chrAmp", "sdTimeCoamp","avgCiSeg","sdAllSeg")
+tab <- data.frame(avgPloidy=finalPloidy, avgHom=finalHom, isWgd=isWgd, d, informative=i, timingClass=timingClass)
+#tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
+write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), tab, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
+
+
 
 #fracGenomeWgdComp <- data.frame(fracGenomeWgdComp)
 #attach(fracGenomeWgdComp)
@@ -708,3 +715,10 @@ mg14::rotatedLabel(1:2, labels=c("Subclones","WGD"))
 
 #save(qWgd, qSubclone, timeWgd, timeSubclones, file=paste0(Sys.Date(),"-realTimeWgdAndSubclones.RData"))
 
+#' ## Session
+#' ### Objects
+l <- ls()
+data.frame(variable=l, Reduce("rbind",lapply(l, function(x) data.frame(class=class(get(x)), size=format(object.size(get(x)), units="auto")))))
+#' ### Packages
+sessionInfo()
+devtools::session_info()
