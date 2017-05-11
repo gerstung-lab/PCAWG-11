@@ -31,6 +31,8 @@ source("PCAWG-functions.R")
 #+ evalOff, echo=FALSE
 opts_chunk$set(eval=FALSE)
 load("2017-05-10-PCAWG-final.RData")
+source("PCAWG-functions.R")
+
 
 #' # Load data
 #' ## Whitelist
