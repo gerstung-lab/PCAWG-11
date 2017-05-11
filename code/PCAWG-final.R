@@ -438,7 +438,7 @@ write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), tab, quote=FALSE, row.na
 #mg14:::violinJitterPlot((nt.wgd/nt.total)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(nt.total[i]/3e9), pch=16, ylim=c(0,100), ylab="Co-amplified nucleotides",  col.pty=rep("#00000088",2), plot.violins=FALSE)
 
 #' ## Timing examples
-p <- function() {
+p <- function(w) {
 	stackTime <- function(bb, t=seq(0,1,0.01)){
 		u <- unique(bb)
 		w <- as.numeric(width(u))
@@ -451,37 +451,46 @@ p <- function() {
 	}
 	layout(matrix(1:3, ncol=1), height=c(4,2,4))
 	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
-	plotVcf(finalSnv[[w[1]]], finalBB[[w[1]]], finalClusters[[w[1]]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33)
-	plotBB(finalBB[[w[1]]], ylim=c(0,5), legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE)
+	plotVcf(finalSnv[[w]], finalBB[[w]], finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33)
+	mtext(line=-1, side=3, names(w), las=1)
+	plotBB(finalBB[[w]], ylim=c(0,5), legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE)
 	par(mar=c(3,3,0.5,0.5))
-	plotTiming(finalBB[[w[1]]], legend=FALSE, col.grid=NA)
-	s <- stackTime(finalBB[[w[1]]])
+	plotTiming(finalBB[[w]], legend=FALSE, col.grid=NA)
+	s <- stackTime(finalBB[[w]])
 	g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
 	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
-	print(w[1])
+	print(w)
 }
 
 #+ timingExamples, fig.width=4, fig.height=4
 w <- which(wgdStar=="likely" & !isWgd)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p()
+p(w[1])
+p(w[2])
+p(w[3])
 #dev.off()
 
 w <- which(wgdStar=="very likely" & isWgd)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p()
+p(w[1])
+p(w[2])
+p(w[3])
 #dev.off()
 
 w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p()
+p(w[1])
+p(w[2])
+p(w[3])
 #dev.off()
 
 #' ## GBM examples
 #+ timingExamplesGbm, fig.width=4, fig.height=4
 w <- which(fracGenomeWgdComp[,"time.wgd"]<0.1 & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.1 &  !isWgd & donor2type[sample2donor[names(finalBB)]]=="CNS-GBM")
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p()
+p(w[1])
+p(w[2])
+p(w[3])
 #dev.off()
 
 
