@@ -592,15 +592,16 @@ plotVcf <- function(vcf, bb, clusters, col = RColorBrewer::brewer.pal(9, "Set1")
 	} 
 	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
 	if(xaxt) mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	for(i in which(!sapply(finalBB[[w[1]]]$timing_param, is.null))) try({
+	for(i in which(!sapply(bb$timing_param, is.null))) {
 					s <- start(bb)[i]
 					e <- end(bb)[i]
 					x <- chrOffset[as.character(seqnames(bb)[i])]
 					y <- bb$timing_param[[i]][,"f"]
 					l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
+					if(any(is.na(c(s,e,x,y,l)))) next
 					segments(s+x,y,e+x,y, lwd=l*4+.1)
 					#text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vv))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
-				}, silent=TRUE)
+				}
 	if(legend) legend("topleft", pch=19, col=col, legend=paste(as.numeric(table(cls)), levels(cls)), bg='white')
 }
 
