@@ -39,7 +39,7 @@ ref <- "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta
 refLengths <- scanFaIndex(file=ref)
 
 mutsigDrivers <- read.table('../ref/putative_cancer_genes_MutSigCV_5000.txt')$V1
-census <- read.csv('../ref/Census_allThu Mar 24 17_30_12 2016.csv.txt', stringsAsFactors=FALSE)
+census <- read.csv('../ref/Census_allThu Mar 24 17_30_12 2016.csv', stringsAsFactors=FALSE)
 census <- census$Gene.Symbol[grepl("Mis|F|N|M|S",census$Mutation.Types)]
 cancerGenesS <- sort(union(mutsigDrivers, census))
 
@@ -275,6 +275,7 @@ mg14:::ggPlot(lTrunk+1, tumourType, xlab="", log='y', ylab="Trunk lengths", pch=
 #powerBranch <- sapply(sampleIds, function(ID) sapply(allClusters[[ID]]$proportion, function(pr) power(pr/purityPloidy[ID,2], round(coverage[ID]))))
 #avgPower <- mapply(power, purityPloidy[sampleIds,1]/purityPloidy[sampleIds,2], round(coverage), err=1e-3)
 avgWeightTrunk <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=MCCORES))
+avgWeightTrunkAll <- unlist(mclapply(allVcf, function(vcf) avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="all"), mc.cores=MCCORES))
 
 
 #' Variation explained
@@ -342,19 +343,33 @@ sigActivityHere[8,"PBCA"] <- 1
 w <- colSums(sigTable) != 0
 
 M <- matrix(0,nrow=30, ncol=prod(dim(sigTable)[2:3]))
-rownames(M) <- colnames(S)
+N <- matrix(NA,nrow=30, ncol=prod(dim(sigTable)[2:3]))
+rownames(N) <- rownames(M) <- colnames(S)
 
 
 for(t in levels(tumourType)){
-	v <- tumourType==t 
-	E <- nmSolve(matrix(sigTable, nrow=96)[,which(w & v)], S[,sigActivityHere[,t]==1], maxIter=5000)
+	v <- tumourType==t
+	T <- matrix(sigTable, nrow=96)[,which(w & v)]
+	E <- nmSolve(T, S[,sigActivityHere[,t]==1], maxIter=10000, tol=1e-4)
+	V <- sapply(1:ncol(T), function(i){
+				X <- S[,sigActivityHere[,t]==1]
+				Y <- T[,i]
+				d <- rep(NA, sum(sigActivityHere[,t]==1))
+				try({
+							V <- solve(poisI(X, E[,i], Y))
+							d <- diag(V) }, silent=TRUE)
+				return(d)
+			})
 	M[rownames(E), which(v&w)] <- E
+	N[rownames(E), which(v&w)] <- V
 }
 
 sigDecomp <- array(M, dim=c(30, dim(sigTable)[2:3]))
-rm(M)
+sigDecompVar <- array(N, dim=c(30, dim(sigTable)[2:3]))
 
-dimnames(sigDecomp) <- c(list(colnames(signatures[,1:30+3])),dimnames(sigTable)[2:3])
+rm(M,N)
+
+dimnames(sigDecomp) <- dimnames(sigDecompVar) <- c(list(colnames(signatures[,1:30+3])),dimnames(sigTable)[2:3])
 
 #+ signaturesTumourTypes, fig.width=7
 mg14:::ggPlot(sigDecomp[5,,2]+1, tumourType, log='y', ylab="Signature 5")
@@ -377,9 +392,19 @@ rm(s)
 dimnames(tncProb)[[4]] <- rownames(S)
 
 
+#' TT
+t <- read.table("../ref/pcawg_specimen_histology_April2016_v1.tsv", header=TRUE, sep="\t", comment.char="", quote="")
+u <- read.table("../ref/pcawg_donor_clinical_April2016_v1.tsv", header=TRUE, sep="\t", comment.char="", quote="")
+newTumourTypes <- t$histology_abbreviation[match(ifelse(is.na(pcawg_info$tcga_id), as.character(pcawg_info$submitter_donor_id), pcawg_info$tcga_id), t$submitted_donor_id)][match(sampleIds, pcawg_info$sanger_variant_calling_file_name_prefix)]
+
+
 #' ## WGD
 #+ wgdPlot, fig.width=7
-mg14:::ggPlot(purityPloidy[,2], tumourType, log='y', ylab="Avg. ploidy")
+par(las=2)
+col <- c(brewer.pal(9, "Set1"), brewer.pal(8, "Dark2"), brewer.pal(8, "Set2"))
+col <- rep(col, each=2)[1:nlevels(tumourType)]
+names(col) <- levels(tumourType)
+mg14:::ggPlot(purityPloidy[sampleIds,2], tumourType, col=unlist(sapply(levels(tumourType)[order(aggregate(purityPloidy[sampleIds,2], list(tumourType), median, na.rm=TRUE)[,2], na.last=TRUE)], function(t) rep(col[t], table(tumourType)[t]))), ylab="Avg. ploidy", pch=19)
 
 #' ### Test for WGD
 library(mixtools)
@@ -421,8 +446,6 @@ ci <- apply(ci,1, function(x) if(all(is.na(x))) rep(NA,2) else quantile(x,c(.025
 
 #' Plotting age dist
 #+ tWgd
-col <- rep(col, each=2)[1:nlevels(tumourType)]
-names(col) <- levels(tumourType)
 a <- jitter(age)
 plot(a, age * (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,]), col=col[tumourType], pch=ifelse(colSums(wgdDeam[1:2,])==0,NA,19), xlab='Age at diagnosis', ylab="Age at WGD", cex=1.5)
 d <- density(na.omit(a))
@@ -433,10 +456,10 @@ abline(0,1)
 segments(a,ci[1,], a,ci[2,], col=col[tumourType], lwd=ifelse(colSums(wgdDeam[1:2,])==0,NA,1))
 
 #+ tWgdBox, fig.width=2
+tWgd <- (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,])
 boxplot(age*(1-tWgd), ylab="Time lag (yr)")
 
 #+ tWgdTumour, fig.width=7
-tWgd <- (2*wgdDeam[2,]+1)/(1+2*wgdDeam[2,] + wgdDeam[1,])
 par(las=2)
 mg14:::ggPlot(tWgd, tumourType, col=unlist(sapply(levels(tumourType)[order(aggregate(tWgd, list(tumourType), median, na.rm=TRUE)[,2], na.last=TRUE)], function(t) rep(col[t], table(tumourType)[t]))), pch=19, ylab="Relative time", las=2)
 mg14:::ggPlot(age*(1-tWgd), tumourType, col=unlist(sapply(levels(tumourType)[order(aggregate(age*(1-tWgd), list(tumourType), median, na.rm=TRUE)[,2], na.last=TRUE)], function(t) rep(col[t], table(tumourType)[t]))), pch=19, ylab="Time lag", las=2)
@@ -456,7 +479,7 @@ wgdTnc <- simplify2array(mclapply(allVcf[isWgd], function(vcf){
 					tnc <- tncToPyrimidine(vcf[w])
 					
 					wgd <- sapply(1:30, function(i){
-								c(sum(tncProb[i,ID,1,tnc[pre]]), sum(tncProb[i,ID,2,tnc[post]]))
+								c(sum(tncProb[i,ID,2,tnc[post]]), sum(tncProb[i,ID,1,tnc[pre]]))
 							})
 					
 					ci <- sapply(1:1000, function(foo){
@@ -491,7 +514,7 @@ dNdS <- sapply(grep("dNdS_357drivers",dir("/nfs/users/nfs_c/cgppipe/pancancer/wo
 dimnames(dNdS)[[3]] <- sub("(.+drivers_)(.+)(.dNdScv.+)","\\2",dimnames(dNdS)[[3]])
 dimnames(dNdS)[[1]] <- c(wMIS="missense",wNON="nonsense", wSPL="splice site")[dimnames(dNdS)[[1]] ]
 col <- sapply(c("#444444",RColorBrewer::brewer.pal(9,"Set1")), function(c) sapply(1:3, function(f) mg14::colTrans(c,f)))
-o <- c(2,4,5,6,1,3)
+o <- c(3,5,1,6,2,4)#c(2,4,5,6,1,3)
 barplot(dNdS[,1,o], beside=TRUE, legend=TRUE, ylab="dN/dS", col=col[,c(2:5,1,6)], args.legend=list(x="topleft", bty='n')) -> b
 abline(h=1)
 segments(b,dNdS[,2,o],b,dNdS[,3,o])
