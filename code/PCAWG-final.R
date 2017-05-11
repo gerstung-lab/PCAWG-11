@@ -224,7 +224,7 @@ d <- t(asum(finalGenotypesP[,"indels",,], 1))
 J <- t(apply(d/rowSums(d), 1, function(x) if(!any(is.nan(x))) f(mg14:::roundProp(x * 100,p=100)) else rep(NA,100)))
 s <- cumsum(table(droplevels(donor2type[sample2donor[rownames(d)]][o])))
 
-#+ finalMutationsProb, fig.width=9, fig.height=8
+#+ finalMutationsProb, fig.width=9, fig.height=2.7
 col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)] ## Colors for early-subclonal
 par(fig=c(0,1,0,1),mar=c(1,4,1,1)+.1, mgp=c(2,.5,0), mfrow=c(3,1), bty="n", las=2, xpd=FALSE)
 image(z=I[o,], x=1:nrow(I), useRaster=TRUE, col=col, xaxt="n", ylab="SNVs")

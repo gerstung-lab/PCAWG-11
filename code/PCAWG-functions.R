@@ -8,7 +8,7 @@ library(Rsamtools)
 vcfPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/final_consensus_12oct_passonly/snv_mnv'
 basePath <-  '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
 dpPath <- paste0('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus_subclonal_reconstruction_20170325')
-CANCERGENES <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
+#CANCERGENES <- read.table('/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/cancer_genes.txt')$V1
 purityPloidy <- read.table( '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/consensus.20170218.purity.ploidy.txt', header=TRUE, row.names=1)
 #colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
@@ -586,14 +586,13 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBr
 
 plotVcf <- function(vcf, bb, clusters, col = RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)], ID = meta(header(vcf))[[1]]["ID",1], IS_WGD=classWgd(bb), NO_CLUSTER=FALSE, title=TRUE, legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, pch=16, pch.out=pch, cex=0.66) {
 	cls <- factor(paste(as.character(info(vcf)$CLS)), levels = c(levels(info(vcf)$CLS), "NA"))
-	if(j>1) par(mar=c(3,3,1,1))
 	plot(start(vcf) + chrOffset[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, pch.out , pch), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n", cex=cex)
 	if(title){
 		title(main=paste0(ID,", ", donor2type[sample2donor[ID]], "\nploidy=",round(averagePloidy(bb),2), ", hom=",round(averageHom(bb),2), if(IS_WGD) ", WGD" else "", if(NO_CLUSTER) ", (No clusters available)" else(paste0(", clusters=(",paste(round(clusters$proportion, 2), collapse="; "),")"))), font.main=1, line=1, cex.main=1)
 	} 
 	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
 	if(xaxt) mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	for(i in seq_along(bb)) try({
+	for(i in which(!sapply(finalBB[[w[1]]]$timing_param, is.null))) try({
 					s <- start(bb)[i]
 					e <- end(bb)[i]
 					x <- chrOffset[as.character(seqnames(bb)[i])]
