@@ -451,7 +451,7 @@ p <- function(w) {
 		diff(car::logit(f(t))) * rowSums(sapply(which(!is.na(ut)), function(i) w[i]*dnorm(car::logit(t[-1] - diff(t)/2), mean=car::logit(ut[i]), sd= (car::logit(uu[i]) - car::logit(ul[i]) + 0.05)/4)))#(t <= u$time.up[i] & t >= u$time.lo[i])))
 		#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
 	}
-	layout(matrix(1:3, ncol=1), height=c(4,2,4))
+	layout(matrix(1:3, ncol=1), height=c(4,1.2,3.5))
 	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
 	plotVcf(finalSnv[[w]], finalBB[[w]], finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33)
 	mtext(line=-1, side=3, names(w), las=1)
@@ -476,7 +476,7 @@ w <- which(wgdStar=="very likely" & isWgd)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 p(w[1])
 p(w[2])
-p(w[3])
+p(w[9])
 #dev.off()
 
 w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5)
@@ -495,7 +495,35 @@ p(w[2])
 p(w[3])
 #dev.off()
 
+#' ## Relationship with mutation rates
+#' Calculate number of substitutions and deciles per tumour type
+n <- nSub <- sapply(finalSnv, nrow)
+n[tab$timeCoamp==0] <- NA
+q <- unlist(sapply(split(n, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1) quantile(x, seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
+m <- match(names(finalSnv),unlist(split(names(finalSnv), donor2type[sample2donor[names(finalSnv)]])))
+t <- tab$timeCoamp
+table(decSub=q[m], time=cut(t, seq(0,1,0.1)))
 
+#' Also calculate deciles of timing per tumour type
+t[t==0] <- NA
+r <- unlist(sapply(split(t, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1 & length(unique(x)) > 2) quantile(jitter(x), seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
+table(decSub=q[m], decTime=r[m])
+
+#' Plot 
+#+ timeNsub, fig.height=3, fig.width=4
+pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
+par(mar=c(3,4,1,1), bty="n", mgp=c(2,.5,0), las=1, tcl=-.25) 
+d <- as.character(donor2type[sample2donor[names(finalSnv)]])
+lineCol <- tissueColors
+lineCol[grep("Lung", names(lineCol))] <- "black"
+plot(t, nSub, log='y', bg=tissueColors[d], pch=21, xlab="Typical amplification time", ylab="", cex=.66, lwd=.5, yaxt="n", ylim=c(100,3e6))
+mtext(side=2, "Number of SNVs", line=3, las=3)
+u <- round(par("usr")[3:4])
+a <- axisTicks(par("usr")[3:4], log=TRUE)
+axis(side=2, at=a, labels=prettyNum(a))
+b <- sapply(a[-length(a)], function(x) (1:10)*x)
+axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
+dev.off()
 
 #' ## Signatures
 sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutations(vcf, reclassify="none"), tncToPyrimidine(vcf)), mc.cores=2))
