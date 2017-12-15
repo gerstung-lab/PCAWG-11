@@ -625,17 +625,15 @@ names(tissueBorder) <- names(tissueColors)
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- names(finalSnv)[uniqueSamples]
 qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
-m <- qWgd[3,"5x",]#t[1,3,]
-a <- "7.5x"
+a <- "5x"
 m <- qWgd[3,a,]#t[1,3,]
+m["Ovary-AdenoCA"] <- qWgd[3,"7.5x","Ovary-AdenoCA"]
 o <- order(m, na.last=NA)
-plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(2*qWgd[3,a,o], na.rm=TRUE)+.5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
 x <- seq_along(m[o])
-#rect(x-.45,qWgd[1,"10x",o] ,x+.45, qWgd[3,"1x",o],col=NA, border='grey') #mg14::colTrans(tissueColors[names(m)[o]], 3)
-#segments(x-.45,t(q[3,1:3,o]) ,x+.45, t(q[3,1:3,o]),col='grey') #mg14::colTrans(tissueColors[names(m)[o]], 3)
-#rect(x-.45,qWgd[1,a,o] ,x+.45, qWgd[3,a,o],col=mg14::colTrans(tissueColors[names(m)[o]],2))
-mg14::rotatedLabel(x, labels=names(sort(m)))
 y <- sapply(timeWgd, `[`, (quote(f(,)))[[2]], 1:3,a)
+y[["Ovary-AdenoCA"]] <- timeWgd[["Ovary-AdenoCA"]][,,"7.5x"]
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(unlist(y), na.rm=TRUE)+.5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
+mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	f <- function(x) x/max(abs(x))
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
@@ -709,16 +707,15 @@ u <- names(finalSnv)[uniqueSamples]
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 #qSubclone <- sapply(timeSubclones, function(x) apply(x[,], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
-a <- "7.5x"
+a <- "5x"
 m <- qSubclone[2,a,]#t[1,3,]
+m["Ovary-AdenoCA"] <- qSubclone[2,"7.5x","Ovary-AdenoCA"]
 o <- order(m, na.last=NA)
-plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
-x <- seq_along(m[o])
-#rect(x-.45,qWgd[1,"10x",o] ,x+.45, qWgd[3,"1x",o],col=NA, border='grey') #mg14::colTrans(tissueColors[names(m)[o]], 3)
-#segments(x-.45,t(q[3,1:3,o]) ,x+.45, t(q[3,1:3,o]),col='grey') #mg14::colTrans(tissueColors[names(m)[o]], 3)
-#rect(x-.45,qWgd[1,a,o] ,x+.45, qWgd[3,a,o],col=mg14::colTrans(tissueColors[names(m)[o]],2))
-mg14::rotatedLabel(x, labels=names(sort(m)))
 y <- sapply(timeSubclones, `[`, (quote(f(,)))[[2]], 1:3,a)
+y[["Ovary-AdenoCA"]] <- timeSubclones[["Ovary-AdenoCA"]][,,"7.5x"]
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,40))
+x <- seq_along(m[o])
+mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	f <- function(x) x/max(abs(x))
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
@@ -739,11 +736,15 @@ plot(qSubclone["50%",a,dimnames(qWgd)[[3]]], qWgd["50%",a,], col=tissueColors[di
 #+ realTimeSubcloneWgd, fig.width=2.5, fig.height=3.5
 par( mar=c(3,3,3,10), mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="n", xpd=FALSE, las=1)
 w <- "50%"
-plot(c(rep(1, dim(qSubclone)[3]), rep(2, each=dim(qWgd)[3])), c(qSubclone[w,a,],qWgd[w,a,]), bg=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qWgd)[[3]])], pch=21, cex=2, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5))
-segments(rep(1, each=dim(qWgd)[3]), qSubclone[w,a,dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), qWgd[w,a,],col=tissueColors[dimnames(qWgd)[[3]]])
-o <- order(qWgd[w,a,], na.last=NA)
-y0 <- qWgd[w,a,o]
-y1 <- mg14:::mindist(qWgd[w,a,o], diff(par('usr')[3:4])/30)
+x <- qSubclone[w,a,]
+x["Ovary-AdenoCA"] <- qSubclone[w,"7.5x","Ovary-AdenoCA"]
+y <- qWgd[w,a,]
+y["Ovary-AdenoCA"] <- qWgd[w,"7.5x","Ovary-AdenoCA"]
+plot(c(rep(1, dim(qSubclone)[3]), rep(2, each=dim(qWgd)[3])), c(x,y), bg=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qWgd)[[3]])], pch=21, cex=1, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(y, na.rm=TRUE)))
+segments(rep(1, each=dim(qWgd)[3]), x[dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), y,col=tissueColors[dimnames(qWgd)[[3]]])
+o <- order(y, na.last=NA)
+y0 <- y[o]
+y1 <- mg14:::mindist(y[o], diff(par('usr')[3:4])/30)
 par(xpd=NA)
 mtext(dimnames(qWgd)[[3]][o], at=y1, side=4 )
 segments(2.1,y0,2.2,y0)
