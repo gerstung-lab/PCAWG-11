@@ -2579,6 +2579,8 @@ timing_output <- do.call("rbind", sapply(names(finalBB), function(ID){
 					return(d)
 				}, simplify=FALSE))
 
+timing_output <- timing_output[!is.na(timing_output$time),]
+
 write.table(timing_output, file=paste0("TimingAllSegmentsStar-",Sys.Date(), ".txt"), row.names=TRUE, col.names=TRUE, quote=FALSE, sep="\t")
 
 ssnmf <- function(D, S, s=0, maxIter=100, minE = 0, whichS = 1:ncol(D)){
@@ -2921,3 +2923,902 @@ system.time( for (j in 1:10000) { seq2[10] } ) # 8.9 seconds
 system.time( for (j in 1:10000) { subseq(seq2,10,10) } ) # 4.8 
 
 system.time( for (j in 1:10000) { seq2[10] } ) 
+
+
+sapply(split(t, donor2type[sample2donor[names(finalSnv)]]), function(x) {if(sum(!is.na(x))>1 & length(unique(x)) > 2) quantile(jitter(x), seq(0,1,0.1), na.rm=TRUE) else 1:10})
+
+
+aggregatePerChromosome <- function(bb, isWgd=FALSE){
+	.aggregateSegments <- function(m){
+		#m <- mcols(bb)
+		t <- weighted.mean(m$time, m$n.snv_mnv, na.rm=TRUE)
+		n <- sum(m$n.snv_mnv, na.rm=TRUE)
+		sd <- sd(m$time, na.rm=TRUE)
+		ci <- weighted.mean(m$time.up-m$time.lo, m$n.snv_mnv, na.rm=TRUE)
+		w <- sum(m$width[!is.na(m$time)], na.rm=TRUE)
+		c(time=t, n=n, sd=sd, ci=ci,w=w)
+	}
+#	if(!isWgd){
+		s <- split(as.data.frame(bb)[,c("time","time.up","time.lo","n.snv_mnv","width")], seqnames(bb))
+		r <- t(sapply(s, .aggregateSegments))
+		r <- r[c(1:22,"X"),]
+#	}else{
+		w <- .aggregateSegments(as.data.frame(bb))
+		r <- rbind(r,WGD=w)
+#	}
+	return(r)
+}
+
+aggregatePerChromosome2 <- function(bb, isWgd=FALSE){
+	s <- split(bb, seqnames(bb))
+	r <- t(sapply(s, fractionGenomeWgdCompatible))
+	r <- r[c(1:22,"X"),]
+	w <- fractionGenomeWgdCompatible(bb)
+	r <- rbind(r,WGD=w)
+	return(r)
+}
+
+allChrAgg <- simplify2array(mclapply(finalBB, aggregatePerChromosome, mc.cores=2))
+
+
+t <- allChrAgg[1:23,"time",!isWgd]
+t[allChrAgg[1:23,"w",!isWgd] < diff(chrOffset)[1:23]*.33] <- NA
+
+s <- split(as.data.frame(t(t)), droplevels(donor2type[sample2donor[names(finalSnv)]])[!isWgd])
+n <- 10
+#at <- function(x, n){
+#	i <- sum(!is.na(x))
+#	if(i > 16)
+#		m <- n
+#	else if(i> 8)
+#		m <- n/2
+#	else if(i > 4)
+#		m <- n/4
+#	else
+#		m <- n/8
+#	t <- table(cut(x, breaks=seq(0,1,1/m), include.lowest=TRUE))
+#	t[rep(1:m, each=n/m)]*m/n
+#}
+
+at <- function(x, n){
+	if(sum(!is.na(x))<3) return(rep(sum(!is.na(x))/n,n))
+	bw=if(sum(!is.na(x))< 6) 0.5 else "nrd0"
+	d <- density(x, n=n, from=1/n/2, to=1-1/n/2, bw=bw, na.rm=TRUE)
+	d$y/sum(d$y)*d$n
+}
+allChrCancerHist <- sapply(s, apply, 2, at, n=n, simplify="array")
+u <- split(data.frame(WGD=allChrAgg["WGD","time",isWgd]), droplevels(donor2type[sample2donor[names(finalSnv)]])[isWgd])
+wgdCancerHist <- sapply(u, function(x) if(nrow(x)>0){at(x$WGD,n=n)}else{rep(0,n)}, simplify="array")
+allChrCancerHist <- abind::abind(allChrCancerHist, All=sapply(sapply(s, as.matrix), at, n=n, simplify="array")/23*5, WGD=wgdCancerHist, along=2)
+
+#col <- colorRampPalette(RColorBrewer::brewer.pal(11, "PRGn")[-c(1,11)])(n)
+#col <- colorRampPalette(RColorBrewer::brewer.pal(12, "Paired")[c(10,1,4)])(n)
+prgn <- RColorBrewer::brewer.pal(11,"PRGn")
+set1 <- RColorBrewer::brewer.pal(9,"Set1")
+
+col <- colorRampPalette(set1[c(4,9,3)])(n)
+
+p <- 0
+v <- table(droplevels(donor2type[sample2donor[names(finalSnv)]]))
+h <- (allChrCancerHist + p)  / rep(v + p, each=prod(dim(allChrCancerHist)[1:2]))
+#h[rep(asum(allChrCancerHist,3) < 10, each=n)] <- 0
+h <- aperm(h, c(2,3,1))
+
+#ma <- function(x) (c(x[-1], x[length(x)]) + c(x[1], x[-length(x)])+2*x)/4 
+
+a <- colMeans(h[c("All","WGD"),,] * c(23/5,1)) %*% 1:n / asum(h* c(23/5,1), c(1,3))
+#a <- h["All",,] %*% 1:n / asum(h["All",,],2) /5 * 23
+o <- order(-a)
+h <- h[,o,]
+w <- v[o]>=20 & apply(h, 2, max) > 0.05*8/n
+h <- h[,w,]
+
+#h <- aperm(apply(h, c(1,3), ma), c(2,1,3))
+
+#scl <- 0.75
+#l <- cbind(1:nrow(h),rep(1:dim(h)[2], each=nrow(h)))
+#mg14:::stars(matrix(sqrt(h)*scl, ncol=n)[,n:1], scale=FALSE, draw.segments=TRUE, col.segments=c(col,NA), init.angle=acos(0), locations=l, plot=TRUE)
+#text(x=0, paste0(colnames(h), ", n=", v[o][w]), y=seq_along(colnames(h)), las=2, pos=2)
+#text(y=dim(h)[2]+1, 1:nrow(h), rownames(h), pos=3)
+#symbols(x=rep(nrow(h)+1, ncol(h)), y=1:ncol(h), circles=sqrt(10/v[o][w])*scl, inches=FALSE, add=TRUE, fg="gray")
+##mg14:::stars(matrix(sqrt(h), ncol=n)[,n:1]*1.3, scale=FALSE, draw.segments=TRUE, col.segments=c(col,NA), init.angle=acos(0), locations=l, plot=TRUE, add=TRUE)
+#
+#dev.copy2pdf(file="clocks.pdf",width=10, height=8, pointsize=8)
+
+m <- 0.02
+layout(matrix(1:prod(dim(h)[1:2]+1), ncol=dim(h)[1]+1, byrow=TRUE), height=c(rev(apply(h, 2, max))+m, 0.15), width=c(5, rep(1,dim(h)[1])))
+par(mar=c(0.05,0.1,0,0.1), xpd=NA)
+for(j in dim(h)[2]:0+1) for(i in 0:dim(h)[1]+1) {
+		#if(all(h[i,j,]==0)) 
+		if(i==1 & j !=1) {plot(NA,NA,xlab="",ylab="", xaxt="n",yaxt="n",xlim=c(0,1),ylim=c(0,1), bty="n")
+			text(1,0,dimnames(h)[[2]][j-1],pos=2)
+			next
+		}
+		if(j ==1 ){
+			plot(NA,NA,xlab="",ylab="", xaxt="n",yaxt="n",xlim=c(0,1),ylim=c(0,1), bty="n")
+			if(i==1) next
+			text(0.5,1,dimnames(h)[[1]][i-1],pos=1)
+			next
+		}
+		r <- c(0,max(h[,j-1,]+m))
+		par(bty=if(i==2)"L" else "n")
+		barplot(h[i-1,j-1,], ylim=r, width=1/n,space=0, col=rev(col), xaxt="n", yaxt="n", xlab="",ylab="", border=NA,xpd=TRUE, yaxs="i", xaxs="i", xlim=c(-0.5/n,1+0.5/n))
+		axis(side=1, at=c(-0.5/n,1+0.5/n), labels=c("",""), tcl=-.1)
+		if(i>1)
+			#abline(v=0, col='grey')
+		if(i==2){
+			#abline(h=0, col='grey', lty=1)
+			axis(side=2, at=c(0,0.05*8/n), labels=c("",""), tcl=-.1)
+		}
+	}
+dev.copy2pdf(file="hist.pdf",width=6, height=6, pointsize=8)
+
+
+vv <- v[dimnames(h)[[2]]]
+vv <- vv/sum(vv)
+
+hh <- matrix(matrix(aperm(h, c(1,3,2)), ncol=length(vv)) %*% vv, nrow=nrow(h))
+rownames(hh) <- rownames(h)
+
+par(mfrow=c(1,2), mar=c(3,3,2,2)+.6, mgp=c(2.5,.5,0), xpd=NA)
+barplot(hh["WGD",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r')
+axis(side=1)
+barplot(hh["All",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r')
+axis(side=1)
+dev.copy2pdf(file="hist-pancan.pdf",width=8, height=4, pointsize=8)
+
+
+# Medullo
+s <- c(1:22, "X","Y")
+l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
+names(l) <- s
+c <- cumsum(l)
+plot(NA,NA, ylab="Sample",xlab="",xlim=c(0,sum(l)), ylim=c(0,146), xaxt="n")
+axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
+mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
+i <- 1
+for(bb in finalBB[donor2type[sample2donor[names(finalSnv)]]=="CNS-Medullo"]){
+	bb <- bb[which(bb$level %in% c("a","b","c","d") & bb$time.star=="***" & bb$n.snv_mnv > 19)]
+	try({
+				s <- start(bb) + chrOffset[as.character(seqnames(bb))]
+				e <- end(bb) + chrOffset[as.character(seqnames(bb))]
+				c <- cut(bb$time, seq(0,1,0.1), include.lowest=TRUE)
+				segments(s,i,e,i, col=rev(RColorBrewer::brewer.pal(10, "PRGn"))[c], lwd=4)
+			})
+	i <- i+1
+}
+
+a <- allChrAgg[,"time",]
+a["WGD",!isWgd] <- NA
+a[1:23,][allChrAgg[1:23,"w",] < diff(chrOffset)[1:23]*.33] <- NA
+
+for(t in c("CNS-GBM", "CNS-Medullo")){
+w <- which(donor2type[sample2donor[names(finalBB)]]==t)
+a0 <- a[1:23,w]
+a0[is.na(a0)] <- -2
+o <- rev(c(w[isWgd[w]][hclust(dist(t(a0[,isWgd[w]])))$order], w[!isWgd[w]][hclust(dist(t(a0[,!isWgd[w]])))$order]))
+image(z=a[,o], x=1:24, col=rev(col), main=t, useRaster=TRUE)
+}
+
+
+v <- donor2type[sample2donor[names(finalSnv)]] %in% c("CNS-GBM","CNS-Medullo")
+allChrAgg2 <- simplify2array(mclapply(finalBB[v], aggregatePerChromosome2, mc.cores=2))
+
+a <- allChrAgg2[,"time.wgd",]
+a[allChrAgg2[,"nt.wgd",]==0] <- NA
+a[1:23,][allChrAgg2[1:23,"nt.wgd",] < diff(chrOffset)[1:23]*.33] <- NA
+a["WGD",!isWgd[v]] <- NA
+
+for(t in c("CNS-GBM", "CNS-Medullo")){
+	w <- which(donor2type[sample2donor[names(finalBB)[v]]]==t)
+	a0 <- a[1:23,w]
+	a0[is.na(a0)] <- -2
+	o <- rev(c(w[isWgd[v][w]][hclust(dist(t(a0[,isWgd[v][w]])))$order], w[!isWgd[v][w]][hclust(dist(t(a0[,!isWgd[v][w]])))$order]))
+	image(z=a[,o], x=1:24, col=rev(col), main=t, useRaster=TRUE)
+}
+
+
+cancerTiming <- read.table("../final/timed_segments_AD_consensus_clustering_2muts_threshold_chrArms_31-05-2017.txt", header=TRUE, sep="\t")
+
+apc <-
+		function(bb, isWgd=FALSE){
+	.aggregateSegments <- function(m){
+		#m <- mcols(bb)
+		t <- weighted.mean(m$pi0, m$N, na.rm=TRUE)
+		n <- sum(m$N, na.rm=TRUE)
+		sd <- sd(m$pi0, na.rm=TRUE)
+		ci <- weighted.mean(m$uCI-m$lCI, m$N, na.rm=TRUE)
+		w <- sum(m$end - m$end, na.rm=TRUE)
+		c(time=t, n=n, sd=sd, ci=ci,w=w)
+	}
+#	if(!isWgd){
+	s <- split(bb, bb$chromosome)
+	r <- t(sapply(s, .aggregateSegments))
+	r <- r[c(1:22,"X"),]
+#	}else{
+	w <- .aggregateSegments(as.data.frame(bb))
+	r <- rbind(r,WGD=w)
+#	}
+	return(r)
+}
+
+aca <- simplify2array(mclapply(split(cancerTiming, cancerTiming$Sample), aggregatePerChromosome, mc.cores=2))
+
+par(mfrow=c(2,2), xpd=TRUE)
+
+plot(aca[-24,"time", ], allChrAgg[-24,"time", dimnames(aca)[[3]]], cex=sqrt(aca[-24,"n", ]/100), xlab="CancerTiming", ylab="MutationTime.R")
+abline(0,1, col='red')
+
+s <- aca[-24,"n", ] > 10
+
+x <- rep(purityPloidy[dimnames(aca)[[3]], "purity"], each=23)
+y <- as.numeric(aca[-24,"time", ] - allChrAgg[-24,"time", dimnames(aca)[[3]]])
+plot(x, y, cex=sqrt(aca[-24,"n", ]/100),  ylab="CancerTiming - MutationTime.R", xlab="Purity")
+lines(seq(0,1,0.01), predict(loess(y~x, data=data.frame(x=x, y=as.numeric(y))), newdata=data.frame(x=seq(0,1,0.01))), col='red')
+abline(h=0, lty=3, col='red')
+
+fClonal <- sapply(finalClusters, function(x) x$n_ssms[1]/sum(x$n_ssms))
+
+z <- rep(fClonal[dimnames(aca)[[3]]], each=23)
+plot(z, y, cex=sqrt(aca[-24,"n", ]/100),  ylab="CancerTiming - MutationTime.R", xlab="Clonal fraction")
+lines(seq(0,1,0.01), predict(loess(y~z, data=data.frame(z=z, y=y), subset=s), newdata=data.frame(z=seq(0,1,0.01))), col='red')
+abline(h=0, lty=3, col='red')
+
+summary(lm(bias ~ purity+f_clonal, data=data.frame(bias=y, purity=x, f_clonal=z)))
+
+m <- as.numeric(aca[-24,"time", ])[s]
+n <- as.numeric(allChrAgg[-24,"time", dimnames(aca)[[3]]])[s]
+cor(m, n, use='c')
+
+var(m)
+var(n, na.rm=TRUE)
+
+
+i <- paste(cancerTiming$Sample, cancerTiming$chromosome, cancerTiming$start, cancerTiming$end, sep=":")
+j <- paste(timing_output$sample, timing_output$seqnames, timing_output$start, timing_output$end, sep=":")
+
+m <- match(i,j)
+#plot(timing_output$time[m], cancerTiming$pi0, cex=sqrt(cancerTiming$N/100), col=timing_output$time.star[m], pch=as.numeric(cancerTiming$type)); abline(0,1)
+for(w in levels(timing_output$time.star)){
+plot(cancerTiming$pi0 ~ timing_output$time[m], subset=timing_output$time.star[m]==w, cex=sqrt(cancerTiming$N/100), col=timing_output$time.star[m],  pch=as.numeric(cancerTiming$type), main=w, xlab="MutationTime.R", ylab="CancerTiming"); abline(0,1)
+}
+
+#plot(timing_output$n.snv_mnv[m], cancerTiming$N, log='xy')
+
+d <- timing_output$time[m] - cancerTiming$pi0
+boxplot(d ~ cancerTiming$type + timing_output$time.star[m] , las=2, ylab="CancerTiming - MutationTime.R")
+abline(h=0, col='red')
+
+summary(lm(d ~ cancerTiming$type*timing_output$time.star[m], weights=cancerTiming$N/100 ))
+
+w <- timing_output$time.star[m] != "*" & cancerTiming$Sample %in% names(which(isWgd))
+
+v <- sapply(split(cancerTiming$pi0[w], cancerTiming$Sample[w]), sd, na.rm=TRUE)
+v2 <- sapply(split(timing_output$time[m][w], cancerTiming$Sample[w]), sd, na.rm=TRUE)
+
+qqplot(v,v2, log='xy', xlim=c(0.01,1), ylim=c(0.01,1)); abline(0,1)
+
+
+
+#' More signatures
+
+library(rtracklayer)
+g <- "../ref/gencode.v19.annotation.gtf.gz"
+gencode <- import(g, format="gtf")
+save(gencode, file=sub(".gz",".RData",g))
+
+genes <- gencode[gencode$type=="gene"]
+seqlevels(genes) <- sub("chr","", seqlevels(genes))
+
+transStrand <- reduce(genes)
+transStrand <- setdiff(transStrand, intersect(transStrand[strand(transStrand)=="+"],transStrand[strand(transStrand)=="-"], ignore.strand=TRUE))
+gr <- scanFaIndex(refFile)[1:24]
+transStrand <- sort(c(transStrand, setdiff(gr, transStrand, ignore.strand=TRUE)))
+transStrand <- transStrand[seqnames(transStrand) %in% c(1:22, "X","Y")]
+seqlevels(transStrand) <- c(1:22, "X","Y")
+
+getTranscriptStrandOld <- function(vcf, genes){
+	f <- findOverlaps(vcf, genes)
+	s <- as.factor(strand(genes))[selectHits(f, select="first")]
+	s[is.na(s) | selectHits(f,"count") > 1] <- "*"
+	return(s)
+}
+
+getTranscriptStrand <- function(vcf, transStrand){
+	f <- findOverlaps(vcf, transStrand)
+	s <- as.factor(strand(transStrand))[selectHits(f, select="first")]
+	s[is.na(s) | selectHits(f,"count") > 1] <- "*"
+	return(s)
+}
+
+getTrinucleotideSubs <- function(vcf) {
+	tnc <- DNAStringSet(info(vcf)$TNC)
+	s <- paste0(substr(tnc,1,1),"[",ref(vcf), ">",unlist(alt(vcf)),"]", substr(tnc,3,3))
+	n <- c("A","C","G","T")
+	f <- paste0(rep(n, each=4), "[", rep(n, each=96/2), ">", c(rep(c("C","G","T"), each=48/3),rep(c("A","G","T"), each=48/3),rep(c("A","C","T"), each=48/3), rep(c("A","C","G"), each=48/3)), "]", n)
+	s <- factor(s, levels=f)
+}
+
+isClustered <- function(vcf, max.dist=1000){
+	d <-  diff(start(vcf))
+	w <- (d > 1 & d < max.dist)
+	c(FALSE, w) | c(w, FALSE)
+}
+
+kataegis <- function(vcf, p=1e-3, q=0.1, r=100){
+	d <-  diff(start(vcf))
+	w <- d > 1 & diff(as.numeric(seqnames(vcf))) == 0
+#	p <- 1e-3 # P N>Kat
+#	q <- 0.05 # P Kat>N
+	P <- matrix(c(1-p,p,q, 1-q), ncol=2, byrow=TRUE) # Transition matrix
+	p0 <- c(1,0)
+	s <- c(mean(d[w]), r)
+	dw <- d[w]
+	l <- length(dw)
+	T1 <- T2 <- matrix(0,ncol=l, nrow=2)
+	T1[,1] <- log(c(q/(q+p), p/(q+p)))
+	lP <- log(P)
+	dg <- rbind(dgeom(dw, prob=1/s[1], log=TRUE), dgeom(dw, prob=1/s[2], log=TRUE))
+	for(i in 2:l){
+		x <- ((T1[,i-1] + lP) + dg[,i])
+		T2[1,i] <- (x[1,1] < x[2,1])+1
+		T2[2,i] <- (x[1,2] < x[2,2])+1
+		T1[1,i] <- x[T2[1,i],1]
+		T1[2,i] <- x[T2[2,i],2]
+	}
+	z <- numeric(l)
+	z[l] <- 1
+	for(i in l:2){
+		z[i-1] <- T2[z[i],i]
+	}
+	k <- numeric(nrow(vcf))
+	k[-1][w][-1] <- z[-l]-1
+	k[-nrow(vcf)][w][-1] <- z[-l]-1
+
+	return(k)
+}
+
+#' Replication times
+repTimeGm12878 <- import("http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq//wgEncodeUwRepliSeqGm12878WaveSignalRep1.bigWig", format="BigWig")
+repTimeK569 <- import("http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq/wgEncodeUwRepliSeqK562WaveSignalRep1.bigWig", format="BigWig")
+repTimeHela <- import("http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq/wgEncodeUwRepliSeqHelas3WaveSignalRep1.bigWig", format="BigWig")
+repTimeHuvec <- import("http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq/wgEncodeUwRepliSeqHuvecWaveSignalRep1.bigWig", format="BigWig")
+repTimeHepg2 <- import("http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq/wgEncodeUwRepliSeqHepg2WaveSignalRep1.bigWig", format="BigWig")
+
+repTime <- granges(repTimeGm12878)
+mcols(repTime) <- DataFrame(mg12878=repTimeGm12878$score, hela=repTimeHela$score, k562=repTimeK569$score, huvec=repTimeHuvec$score, hepg2=repTimeHepg2$score)
+ndiff <- function(x) (c(NA,x[-length(x)]) - c(x[-1],NA))
+t <- sapply(mcols(repTime), ndiff)
+m <- rowMeans(t)
+s <- rowMeans(sqrt((t-m)^2))
+table(abs(m)-2*s > 0)
+
+repStrand <- granges(repTime)
+strand(repStrand)[which(m<0)] <- "+" 
+strand(repStrand)[which(m>0)] <- "-" 
+strand(repStrand)[which(abs(m)-2*s < 0)] <- "*" 
+seqlevels(repStrand) <- sub("chr","", seqlevels(repStrand))
+
+save(repStrand, file="../ref/repStrand.RData")
+
+#' Some functions
+getRepStrand <- function(vcf, repStrand){
+	f <- findOverlaps(vcf, repStrand)
+	s <- as.factor(strand(repStrand))[selectHits(f, select="first")]
+	return(s)
+}
+
+tableSubsStrandRep <- function(vcf, genes, repStrand){
+	s <- getTrinucleotideSubs(vcf = vcf)
+	t <- getTranscriptStrand(vcf, genes)
+	r <- getRepStrand(vcf, repStrand)
+	table(sub=s, ts=t, rs=r)
+}
+
+isMNV <- function(vcf) {
+	d <- diff(start(vcf)) == 1 & abs(diff(getAltCount(vcf) )) <= 1
+	w <- c(FALSE, d) | c(d, FALSE)
+	return(w)
+}
+
+tableSubsTransRepClust <- function(vcf, ts, repStrand){	
+	w <- !isMNV(vcf)
+	s <- getTrinucleotideSubs(vcf = vcf)
+	t <- getTranscriptStrand(vcf, ts)
+	c <- factor(kataegis(vcf), levels=0:1)
+	r <- getRepStrand(vcf, repStrand)
+	t <- table(sub=s[w], ts=t[w], rs=r[w], cl=c[w])
+	l <- levels(tncToPyrimidine(vcf))
+	n <- DNAStringSet(gsub("\\[|\\]|>","",l))
+	r <- paste0(as.character(complement(DNAStringSet(substr(n,4,4)))), "[", as.character(complement(DNAStringSet(substr(n,2,2)))),">",as.character(complement(DNAStringSet(substr(n,3,3)))),"]",as.character(complement(DNAStringSet(substr(n,1,1)))))
+	t[c(l,r),,,]
+}
+
+allSubsTransRepClust <- sapply(finalSnv, function(vcf) tableSubsTransRepClust(vcf, transStrand, repStrand), simplify='array')
+save(allSubsTransRepClust, file="allSubsTransRepClust.RData")
+
+library(rhdf5)
+h5createFile("allSubsTransRepClust.h5")
+h5write(allSubsTransRepClust, "allSubsTransRepClust.h5","allSubsTransRepClust")
+
+#' Some checks
+finalDrivers$samples[which(finalDrivers$gene=="POLE")]
+
+vcf <- finalSnv[["2df02f2b-9f1c-4249-b3b4-b03079cd97d9"]]
+s <- getTrinucleotideSubs(vcf = vcf)
+r <- getRepStrand(vcf, repStrand)
+t <- table(s,r)
+m <- match(c(l,r), rownames(t))
+barplot(t[m,1:2], beside=TRUE)
+
+#' Cruch all data
+allSubsStrand <- simplify2array(mclapply(finalSnv, tableSubsStrandRep, genes=genes, repStrand=repStrand), mc.cores=2)
+
+#' Reorder subs to match rev comp
+l <- levels(tncToPyrimidine(vcf))
+n <- DNAStringSet(gsub("\\[|\\]|>","",l))
+r <- paste0(as.character(complement(DNAStringSet(substr(n,4,4)))), "[", as.character(complement(DNAStringSet(substr(n,2,2)))),">",as.character(complement(DNAStringSet(substr(n,3,3)))),"]",as.character(complement(DNAStringSet(substr(n,1,1)))))
+m <- match(c(l,r), dimnames(allSubsStrand)[[1]])
+
+allSubsStrand <- allSubsStrand[m,,,]
+
+#' Condense into matrix
+a <- matrix(allSubsStrand, ncol=dim(allSubsStrand)[4])
+colnames(a) <- dimnames(allSubsStrand)[[4]]
+write.table(data.frame(sub=rep(dimnames(allSubsStrand)[[1]], dim(allSubsStrand)[2]), strand=rep(dimnames(allSubsStrand)[[2]],each=dim(allSubsStrand)[1]),a, check.names=FALSE), file="allSubsStrand.txt", col.names=TRUE,sep="\t", quote=FALSE)
+write.table(data.frame(sample=names(finalSnv), type=donor2type[sample2donor[names(finalSnv)]]), col.names=TRUE, sep="\t", quote=FALSE, file="allTumourTypes.txt")
+
+#write.table(as.data.frame.table(allSubsStrand), col.names=TRUE,sep="\t", quote=FALSE,file="allSubsStrand.flat.txt")
+d <- as.data.frame.table(allSubsStrand)
+
+d <- data.frame(cbind(sub=dimnames(allSubsStrand)[[1]], ts=rep(dimnames(allSubsStrand)[[2]],each=dim(allSubsStrand)[1]), rs=rep(dimnames(allSubsStrand)[[3]],each=prod(dim(allSubsStrand)[1:2]))),a, check.names=FALSE)
+write.table(d, file="allSubsStrand2.txt", col.names=TRUE,sep="\t", quote=FALSE, row.names=FALSE)
+
+#' TNC context
+rs <- repStrand[strand(repStrand)!="*"]
+rs <- sort(c(rs, setdiff(gr, rs, ignore.strand=TRUE)))
+
+reference <- scanFa(refFile)
+names(reference)[1:24] <- c(1:22,"X","Y")
+
+.tnc <- function(ts, reference){
+	rowSums(sapply(seqlevels(ts), function(i)
+						colSums(trinucleotideFrequency(Views(reference[[i]], ranges(ts[seqnames(ts)==i]))))))
+}
+
+
+tncTransRep <- sapply(c("+","-","*"), function(x) sapply(c("+","-","*"), function(y) {
+						z <- subsetByOverlaps(transStrand[strand(transStrand)==y], rs[strand(rs)==x], ignore.strand=TRUE)
+						.tnc(z, reference)
+					}), simplify='array')
+m <- match(gsub("\\[|\\]|>.","",a$sub[1:192]), rownames(tncTransRep))
+write.table(matrix(tncTransRep[m,,]), file="tncTransRep.txt",  col.names=TRUE,sep="\t", quote=FALSE, row.names=FALSE)
+
+#' Sanity check that dims are right.
+x <- matrix(mg14:::asum(tncTransRep,1), nrow=9)
+y <- matrix(mg14:::asum(allSubsStrand, 1), nrow=9)
+quantile(cor(x,y))
+x <- matrix(t(mg14:::asum(tncTransRep,1)), nrow=9)
+quantile(cor(x,y))
+
+###
+tableSubsChr <- function(vcf){
+	s <- getTrinucleotideSubs(vcf = vcf)
+	c <- factor(as.character(seqnames(vcf)), levels=c(1:22,"X","Y"))
+	table(sub=s, chr=c)
+}
+
+allSubsChr <-  simplify2array(mclapply(finalSnv, tableSubsChr, mc.cores=2))
+allSubsChr <- allSubsChr[m,,]
+a <- matrix(allSubsChr, ncol=dim(allSubsChr)[3])
+write.table(data.frame(sub=rep(dimnames(allSubsChr)[[1]], dim(allSubsChr)[2]), chr=rep(dimnames(allSubsChr)[[2]],each=dim(allSubsChr)[1]),a, check.names=FALSE), file="allSubsChr.txt", col.names=TRUE,sep="\t", quote=FALSE)
+
+
+foo <- allSubsChr[,1:22,which(abs(finalPloidy-2) < 0.025)[1:100]]
+foo <- allSubsChr[,1:22,1:100]
+
+s2t <- gsub("\\[|\\]|>.","",rownames(foo))
+
+s <- asum(foo, 2)
+
+
+r <- BSgenome.Hsapiens.1000genomes.hs37d5#readDNAStringSet(refFile)
+tfc <- sapply(seqnames(r)[1:22], function(x) trinucleotideFrequency(r[[x]]))
+tf <- asum(tfc,2)
+
+rtfc <- tfc/tf
+
+mu <- sapply(1:dim(s)[2], function(i) s[,i]* rtfc[s2t,], simplify='array')
+
+
+v <- (foo-mu)^2
+
+w <- which(asum(foo,1:2)>1000)
+fit <- glm.nb(as.numeric(foo[,,1:10]) ~ as.numeric(log(mu[,,1:10]+1e-3)))
+summary(fit)
+
+cv <- v/mu^2
+
+par(mfrow=c(1,2))
+
+plot(mu[,,w], foo[,,w], log='xy', xlab="Prediction", ylab="Observation")
+abline(0,1,col="red")
+
+plot(mu[,,w], cv[,,w], log='xy', xlab="Prediction", ylab="CV")
+x <- 10^seq(-2,4,0.01)
+lines(x, 1/x, col=2, lty=3)
+lines(x, 1/x + 1/fit$theta, col='red')
+
+
+fractionDiploid <- function(bb){
+	w <- which(bb$major_cn==1 & bb$minor_cn==1 & countSubjectHits(findOverlaps(bb,bb)) == 1)
+	sum(as.numeric(width(bb)[w]), na.rm=TRUE)/sum(as.numeric(width(bb)))
+}
+
+fractionDiploidChr <- function(bb){
+	sapply(seqlevels(bb), function(s) fractionDiploid(bb[seqnames(bb)==s]))
+}
+
+diploidChrSample <- simplify2array(mclapply(finalBB, fractionDiploidChr, mc.cores=2))
+write.table(file="diploidChrSample.txt", t(diploidChrSample), sep="\t", col.names=TRUE, row.names=TRUE, quote=FALSE)
+
+
+mu <- sapply((1:dim(allSubsChr)[3]), function(i) {
+			w <- diploidChrSample[,i] > 0.99 & rownames(diploidChrSample) %in% 1:22
+			si <- rowSums(allSubsChr[,w,i, drop=FALSE])
+			tfi <- tfc
+			tfi[,!w[1:22]] <- NA
+			tf <- mg14:::asum(tfi,2, na.rm=TRUE)
+			rtfc <- tfi/tf
+			r <-  si* rtfc[s2t,]
+			return(r)
+		}, simplify='array')
+
+
+v <- (allSubsChr[,1:22,]-mu)^2
+
+w <- which(asum(allSubsChr[,1:22,],1:2)>50000)[1:100]
+#w <- 1:100
+chr <- rep(factor(rep(1:22, each=nrow(allSubsChr))), length(w))
+sub <- rep(factor(1:nrow(allSubsChr)), 22*length(w))
+fit <- glm.nb(as.numeric(allSubsChr[,1:22,w]) ~ as.numeric(log(mu[,,w]+1e-3)) + chr)
+summary(fit)
+fit$theta
+
+p <- exp(predict(fit))
+
+plot(p, fit$y, log='xy', xlim=c(1e-1, 1e05), xlab="Fit", ylab="Observed")
+
+plot(p, (fit$y - p)^2/p^2, log='xy', xlim=c(1e-1, 1e05), xlab="Fit", ylab="CV")
+x <- 10^seq(-2,4,0.01)
+lines(x, 1/x, col=2, lty=3)
+lines(x, 1/x + 1/fit$theta, col='red')
+
+
+r <- as.numeric(strsplit("0.3198032
+0.3431734
+0.3640836
+0.3690037
+0.3542435
+0.3456335
+0.3542435
+0.3468635
+0.3739237
+0.3603936
+0.3542435
+0.3530135
+0.3567036
+0.3431734
+0.3419434
+0.3726937
+0.3493235
+0.3480935
+0.3763838
+0.3493235
+0.3554736
+0.3665437
+0.3554736
+0.3788438
+0.3505535
+0.3862239
+0.3591636
+0.3480935
+0.3517835
+0.3665437
+0.3493235
+0.3739237
+0.3591636
+0.3849938
+0.3677737
+0.3407134
+0.3653137
+0.3628536
+0.3567036
+0.3677737
+0.3468635
+0.3542435
+0.3665437
+0.3788438
+0.3456335
+0.3431734
+0.3800738
+0.3677737
+0.3800738
+0.3567036", "\n")[[1]])
+
+o <- 0.576
+n <- 345+469
+
+hist(r, 10, probability=TRUE, xlim=c(0.25, 0.6))
+x <- seq(0.25,0.6,0.001)*n; plot(x,dnorm(x, mean(r)*n, sd(r)*n), type='l')
+rug(r*n)
+rug(o*n, col='red')
+points(o, 0, pch="*")
+
+isDel <- function(bb, isWgd=FALSE) {
+	t <- 1+isWgd
+	(bb$major_cn < t) + (bb$minor_cn < t)
+}
+
+averageDel <- function(bb, isWgd=FALSE){
+	sum(width(bb) * isDel(bb, isWgd=isWgd) * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
+}
+
+ad <- mapply(averageDel, finalBB, isWgd)
+
+save(finalBB, clinicalData, sample2donor, donor2type, file='PCAWG-lara.RData')
+
+par(mfrow=c(4,4), mar=c(3,3,1,1), mgp=c(2,0.5,0), cex=.5, bty="L")
+
+v <- which(wgdStar=="likely" & !isWgd & fracGenomeWgdComp[,"time.wgd"] <.5)
+
+for(j in 2){
+	bb <- finalBB[[v[j]]]
+	plotTiming(bb)
+	
+	w <- which(bb$major_cn > 2 & bb$minor_cn < 2 & bb$clonal_frequency == max(bb$clonal_frequency) & !is.na(bb$time))
+
+	if(length(w) >0 ){
+	a <- sapply(bb$timing_param[w], function(x){
+				x[x[,"state"]==1, c("T.m.sX","T.m.sX.up","T.m.sX.lo"), drop=FALSE]
+			}, simplify=FALSE)
+	
+	col=rep("black",3)#paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88")
+	for(i in seq_along(w)){
+		s <- start(bb)[w[i]]
+		e <- end(bb)[w[i]]
+		x <- chrOffset[as.character(seqnames(bb))[w[i]]]
+		time<- a[[i]][-c(1,nrow( a[[i]])),,drop=FALSE]
+		t <- rev(cumsum(rev(a[[i]][-1,1]))[-1])
+		time <- pmin(time+t,1.1)
+		y <- time[,1]
+		rect(s+x,time[,3],e+x,time[,2], border=NA, col=col[bb$type[w[i]]], angle = ifelse(bb$time.star[[w[i]]]=="*" | is.na(bb$time.star[[w[i]]]),45,135), density=ifelse(bb$time.star[w[i]] == "***", -1, 72))
+		segments(s+x,y,e+x,y)
+	}
+} else next
+}
+
+.ap <- function(bb) {
+	u <- !duplicated(bb)
+	c <- if(!is.null(bb$copy_number)) bb$copy_number else bb$total_cn
+	sum(as.numeric(width(bb)[u] * c[u]) , na.rm=TRUE) / sum(as.numeric(width(bb)[u]), na.rm=TRUE)
+}
+
+.ah <- function(bb){
+	u <- !duplicated(bb)
+	sum(as.numeric(width(bb)[u] * (bb$minor_cn[u] == 0)) , na.rm=TRUE) / sum(as.numeric(width(bb)[u])  , na.rm=TRUE)
+}
+
+ap <- sapply(finalBB, .ap)
+ah <- sapply(finalBB, .ah)
+
+w <- .classWgd(ap, ah)
+plot(ah, finalHom)
+
+
+write.table(data.frame(sample=names(finalBB), avgHom=finalHom, avgPloidy=finalPloidy, WGD=isWgd),"WGD-final.txt", col.names=TRUE, sep="\t", quote=FALSE, row.names=FALSE)
+
+NUCLEOTIDES <- c("A","C","G","T")
+d <- as.character(t(outer(c("C","T","A","G"),NUCLEOTIDES,paste, sep="")))
+e <- as.character(reverseComplement(DNAStringSet(d)))
+
+DINUCLEOTIDES <- character()
+while(length(d)>0){
+	dd <- d[1]
+	ee <- e[1]
+	DINUCLEOTIDES <- c(DINUCLEOTIDES,dd)
+	w <- c(1, which(d==ee))
+	d <- d[-w]
+	e <- e[-w]
+}
+
+MNV_LEVELS <- as.character(sapply(strsplit(DINUCLEOTIDES,""), function(d) paste(paste(d, collapse=""), outer(setdiff(NUCLEOTIDES,d[1]), setdiff(NUCLEOTIDES,d[2]), paste, sep=""), sep=">")))
+
+
+getMNV <- function(vcf){
+	u <- reduce(granges(vcf[which(isMNV(vcf))]))
+	u <- u[width(u)>1]
+	if(length(u)==0) return(table(factor(NULL, levels=MNV_LEVELS), useNA='a'))
+	r <- as.character(ref(vcf)[vcf %over% u])
+	h <- subjectHits(findOverlaps(granges(vcf),u))
+	a <- as.character(unlist(alt(vcf))[vcf %over% u])
+	rr <- sapply(split(r, h), paste, collapse="")
+	aa <- sapply(split(a, h), paste, collapse="")
+	
+	w <- which(!rr %in% DINUCLEOTIDES)
+	rr[w] <- as.character(reverseComplement(DNAStringSet(rr[w])))
+	aa[w] <- as.character(reverseComplement(DNAStringSet(aa[w])))
+	t <- table(factor(paste(rr,aa,sep=">"), levels=MNV_LEVELS), useNA='a')
+	names(t)[length(t)] <- "MNV(other)"
+	return(t)
+}
+
+mnvTable <- simplify2array(mclapply(finalSnv, getMNV, mc.cores=1))
+
+write.table(t(mnvTable), file="mnvTable.txt", sep="\t")
+
+getIndels <- function(vcf){
+	r <- ref(vcf)
+	r <- substr(r,2,width(r))
+	a <- unlist(alt(vcf))
+	a <- substr(a,2,width(a))
+	c <- r != "" & a != ""
+	w <- which(!r %in% c("C","T", DINUCLEOTIDES))
+	r[w] <- as.character(reverseComplement(DNAStringSet(r[w])))
+	w <- which(width(r)>2)
+	l <- cut(width(r)[w],breaks=c(2:9, seq(10,100,10), Inf))
+	levels(l) <- c(3:10, levels(l)[-(1:8)])
+	r[w] <- as.character(l)
+	w <- which(!a %in% c("C","T", DINUCLEOTIDES))
+	a[w] <- as.character(reverseComplement(DNAStringSet(a[w])))
+	w <- which(width(a)>2)
+	l <- cut(width(a)[w],breaks=c(2:9, seq(10,100,10), Inf))
+	levels(l) <- c(3:10, levels(l)[-(1:8)])
+	a[w] <- as.character(l)
+	indel <- as.character(factor((r=="") + 2*(a==""), levels=0:3, labels=c("indel","ins","del","")))
+	indel[indel=="ins"] <- paste("ins", a[indel=="ins"], sep="")
+	indel[indel=="del"] <- paste("del", r[indel=="del"], sep="")
+	i <- c(t(outer(c("del","ins"), c("C","T", DINUCLEOTIDES, levels(l)), paste, sep="")), "indel")
+	t <- table(factor(indel, levels=i), useNA='a')
+	names(t)[lenght(t)] <- "indel(other)"
+	t
+}
+
+indelTable <- sapply(finalIndel, getIndels)
+
+write.table(t(indelTable), file="indelTable.txt", sep="\t")
+
+getSNV <- function(vcf){
+	w <- which(!isMNV(vcf))
+	a <- unlist(alt(vcf))[w]
+	r <- ref(vcf)[w]
+	tnc <- DNAStringSet(info(vcf)$TNC)[w]
+	rc <- grepl("A|G", r)
+	tnc[rc] <- reverseComplement(tnc[rc])
+	a[rc] <- reverseComplement(a[rc])
+	t <- paste0(substr(tnc,1,1), "[",substr(tnc,2,2), ">",a, "]", substr(tnc,3,3))
+	n <- c("A","C","G","T")
+	f <- paste0(rep(n, each=4), "[", rep(c("C","T"), each=96/2), ">", c(rep(c("A","G","T"), each=48/3), rep(c("A","C","G"), each=48/3)), "]", n)
+	table(factor(t, levels=f))
+}
+
+snvTable <- sapply(finalSnv, getSNV)
+
+write.table(t(snvTable), file="snvTable.txt", sep="\t")
+
+svTable <- t(read.table("../data/SV_nmf_input_and_results.20170827.txt", header=TRUE, row.names=1, sep="\t"))
+id <- gsub("\\.","-",sub("^[A-Z]+\\.[A-Z]+\\.","", rownames(svTable)))
+rownames(svTable) <- id
+
+nrow(svTable)
+w <- names(finalSnv)[whiteList] %in% rownames(svTable) | (! sample2donor[names(finalSnv)[whiteList]] %in% sample2donor[rownames(svTable)] & ! duplicated(sample2donor[names(finalSnv)[whiteList]]))
+
+s <- matrix(NA, ncol =ncol(svTable), nrow=ncol(snvTable), dimnames=list(colnames(snvTable), colnames(svTable)))
+s[which(w),] <- 0
+s[rownames(svTable),] <- svTable
+
+getCNA <- function(bb){
+	u <- !duplicated(bb)
+	M <- cut(bb$major_cn[u], c(-1:4, 10, Inf))
+	m <- cut(bb$minor_cn[u], c(-1:4, 10, Inf))
+	levels(M) <- levels(m) <- c(0:4, "5-10",">10")
+	c <- cut(width(bb)[u],10^seq(1,6))
+	d <- as.data.frame(table(m,M,c))
+	f <- d$Freq
+	names(f) <- paste(d$m, d$M, d$c, sep=":")
+	f
+}
+
+cnaTable <- sapply(finalBB, getCNA)
+r <- rownames(cnaTable)
+c <- sub("\\:\\(.+", "",r)
+t <- table(c[rowSums(cnaTable)==0])
+w <- !c %in% names(t)[t==5] &! c=="1:1"
+sum(cnaTable[w,])
+
+allTable <- cbind(t(snvTable), t(mnvTable), t(indelTable), s, t(cnaTable[w,]))
+
+write.table(allTable, file="allTable.txt", sep="\t")
+
+
+load("two_gain_times.RData")
+doubleGains <- as.data.frame(T.i.F)
+t <- aggregate()
+m <- paste(doubleGains$sample, doubleGains$cnMaj, doubleGains$cnMin, doubleGains$chromosome, sep="_")
+s <- split(doubleGains[,c("sample","tumor_type","T1_raw","T2_raw","n_mutations")], m)
+doubleGainsAggregated <- Reduce("rbind",sapply(s, function(x) {
+			data.frame(sample=x$sample[1], tumor_type=x$tumor_type[1], T1_raw=weighted.mean(x$T1_raw, x$n_mutations),T2_raw=weighted.mean(x$T2_raw, x$n_mutations), n_mutations=sum(x$n_mutations))
+		}, simplify=FALSE))
+
+par(bty="L", mar=c(3,3,0.5,0.5)+.5, mgp=c(2,0.5,0), tcl=-0.1)
+x <- doubleGainsAggregated$T1_raw/pmax(1, doubleGainsAggregated$T2_raw)
+y <- doubleGainsAggregated$T2_raw/pmax(1, doubleGainsAggregated$T2_raw)
+o <- order(doubleGainsAggregated$n_mutations, decreasing=TRUE)
+plot(x[o], 
+		y[o], 
+		col=tissueColors[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[o]]]])], pch=19,
+		xlab="Time [mutations], first gain",
+		ylab="Time [mutations], second gain",
+		cex=sqrt(doubleGainsAggregated$n_mutations[o]/500))
+t <- table(doubleGainsAggregated$sample)
+
+par(mfrow=c(5,5))
+for(i in as.numeric(names(t)[t>5])[1:25]){
+	w <- which(doubleGainsAggregated$sample==i)
+	plot(x[w],y[w], col=tissueColors[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[w]]]])], type='p', xlim=c(0,1), ylim=c(0,1), 
+			xlab="T1",
+			ylab="T2",
+			pch=19,
+			cex=sqrt(doubleGainsAggregated$n_mutations[w]/500))
+	
+}
+
+
+#' Barplot of all drivers
+g <- asum(finalGenotypes[,,,,selectedSamples[whiteList]], 2:4)
+m <- model.matrix(~ droplevels(donor2type[sample2donor[colnames(g)]])-1)
+colnames(m) <- levels(droplevels(donor2type[sample2donor[colnames(g)]]))
+g <- g %*% m
+g <- g[order(rowSums(g), decreasing=TRUE),]
+n <- c("all",sapply(strsplit(rownames(g)[-1],"::"),`[`,3))
+rownames(g) <- n
+barplot(t(g[-1,])/2583, las=2, border=NA, col=tissueColors[colnames(g)], cex.names=.1, yaxt="n", ylab="Frequency")
+mtext(side=2, at=c(0,0.1,0.2,0.3), text=c("0%","10%","20%","30%"), las=2, line=-2)
+dev.copy2pdf(file="allDrivers.pdf", width=9, height=4, pointsize=8)
+
+
+
+#' Mini TD?
+vcf <- finalIndel[[1]]
+vcf <- finalIndel[["00aa769d-622c-433e-8a8a-63fb5c41ea42"]]
+
+up=scanFa(file="/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz", shift(resize(granges(vcf), 100,fix="end"),-1))
+down <- scanFa(file="/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz", shift(resize(granges(vcf), 100,fix="start"),1))
+b <- scanFa(file="/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz", resize(granges(vcf), 1,fix="start"))
+
+a <- unlist(alt(vcf))
+r <- substring(a,1,1)
+a <- substring(a,2, width(a))
+w <- which(width(a)>=1 & width(ref(vcf)) ==1)
+
+ins <- data.frame(
+		up2=substring(up, width(up)-2*width(a)+2, width(up)-width(a)+1)[w], 
+		up1=substring(up, width(up)-width(a)+1, width(up))[w], 
+		insertion=as.character(a[w]), 
+		down1=substring(down, 1,width(a))[w],
+		down2=substring(down, width(a)+1,2*width(a))[w], 
+		stringsAsFactors=FALSE)
+
+table(width=width(ins$insertion),`duplication`=ins$ins == ins$up1 | ins$ins == ins$down1, `repeat`=ins$up1==ins$up2 | ins$down1==ins$down2)
+
+
+g <- mg14:::asum(finalGenotypes[-555,,,,], 2:4)
+
+u <- apply(g,2,paste, collapse=":")
+
+t <- table(u)
+w <- which(t <=27)
+sum(t[w])
+
+
+
