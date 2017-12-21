@@ -71,7 +71,9 @@ kataegis <- function(vcf, p=1e-3, q=0.1, r=100){
 	}
 	k <- numeric(nrow(vcf))
 	k[-1][w][-1] <- z[-l]-1
-	k[-nrow(vcf)][w][-1] <- z[-l]-1
+	k[-nrow(vcf)][w][-1] <- (z[-l]-1) | k[-nrow(vcf)][w][-1]
+#	k[-1][w] <- z-1
+	#k[-nrow(vcf)][w] <- (k[-nrow(vcf)][w]) | (z-1)
 	
 	return(k)
 }
@@ -138,6 +140,19 @@ save(allSubsTransRepClust, file="allSubsTransRepClust.RData")
 library(rhdf5)
 h5createFile("allSubsTransRepClust.h5")
 h5write(allSubsTransRepClust, "allSubsTransRepClust.h5","allSubsTransRepClust")
+
+#' A few plots
+pdf("Kataegis.pdf", 12,4)
+for(i in 1:100)
+{
+	k <- kataegis(finalSnv[[i]])
+	d <- diff(start(finalSnv[[i]]))
+	o <- d < 1000 
+	plot(d, log='y', col=k[-1]+1, main=names(finalSnv)[i])
+	legend("bottomleft", legend=table(k), col=1:2, pch=1)
+	print(i)
+}
+dev.off()
 
 #' Some checks
 finalDrivers$samples[which(finalDrivers$gene=="POLE")]
