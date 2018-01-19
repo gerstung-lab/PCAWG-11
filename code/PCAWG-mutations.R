@@ -37,13 +37,24 @@ getTrinucleotideSubs <- function(vcf) {
 	s <- factor(s, levels=f)
 }
 
-isClustered <- function(vcf, max.dist=1000){
+isClustered0 <- function(vcf, max.dist=1000){
 	d <-  diff(start(vcf))
 	w <- (d > 1 & d < max.dist)
 	c(FALSE, w) | c(w, FALSE)
 }
 
-kataegis <- function(vcf, p=1e-3, q=0.1, r=100){
+
+dbetageom <- function(x, alpha, beta, mu=NULL, log=FALSE) {
+	if(!is.null(mu))
+		beta <- alpha * (1-mu)/mu
+	lp <- lbeta(alpha+1,beta + x -1) - lbeta(alpha,beta)
+	if(log)
+		return(lp)
+	else
+		exp(lp)
+}
+	
+isClustered <- function(vcf, p=1e-3, q=0.1, r=100, alpha=1){
 	d <-  diff(start(vcf))
 	w <- d > 1 & diff(as.numeric(seqnames(vcf))) == 0
 #	p <- 1e-3 # P N>Kat
@@ -56,7 +67,8 @@ kataegis <- function(vcf, p=1e-3, q=0.1, r=100){
 	T1 <- T2 <- matrix(0,ncol=l, nrow=2)
 	T1[,1] <- log(c(q/(q+p), p/(q+p)))
 	lP <- log(P)
-	dg <- rbind(dgeom(dw, prob=1/s[1], log=TRUE), dgeom(dw, prob=1/s[2], log=TRUE))
+	dg <- rbind(dbetageom(dw, alpha=alpha, mu = 1/s[1], log=TRUE),#dgeom(dw, prob=1/s[1], log=TRUE), 
+			dgeom(dw, prob=1/s[2], log=TRUE))
 	for(i in 2:l){
 		x <- ((T1[,i-1] + lP) + dg[,i])
 		T2[1,i] <- (x[1,1] < x[2,1])+1
@@ -72,10 +84,19 @@ kataegis <- function(vcf, p=1e-3, q=0.1, r=100){
 	k <- numeric(nrow(vcf))
 	k[-1][w][-1] <- z[-l]-1
 	k[-nrow(vcf)][w][-1] <- (z[-l]-1) | k[-nrow(vcf)][w][-1]
-#	k[-1][w] <- z-1
-	#k[-nrow(vcf)][w] <- (k[-nrow(vcf)][w]) | (z-1)
 	
-	return(k)
+	# Other clustered
+	pbg <- cumsum(dbetageom(seq(1,max(dw)), alpha=alpha, mu=1/s[1]))
+	pc <- pbg[dw]
+	#pc <- pgeom(dw, prob=1/s[1], lower.tail=TRUE)
+	qc <- p.adjust(pc, "BH") < 0.1
+	
+	cl <- numeric(nrow(vcf))
+	cl[-1][w] <- qc
+	cl[-nrow(vcf)][w] <- qc | cl[-nrow(vcf)][w]
+	
+	clk <- factor(pmin(cl + 2*k,2), levels=0:2, labels=c("None","Clustered","Kataegis"))
+	return(clk)
 }
 
 #' Replication times
@@ -125,7 +146,7 @@ tableSubsTransRepClust <- function(vcf, ts, repStrand){
 	w <- !isMNV(vcf)
 	s <- getTrinucleotideSubs(vcf = vcf)
 	t <- getTranscriptStrand(vcf, ts)
-	c <- factor(kataegis(vcf), levels=0:1)
+	c <- isClustered(vcf)
 	r <- getRepStrand(vcf, repStrand)
 	t <- table(sub=s[w], ts=t[w], rs=r[w], cl=c[w])
 	l <- levels(tncToPyrimidine(vcf))
@@ -134,22 +155,24 @@ tableSubsTransRepClust <- function(vcf, ts, repStrand){
 	t[c(l,r),,,]
 }
 
+{
 allSubsTransRepClust <- sapply(finalSnv, function(vcf) tableSubsTransRepClust(vcf, transStrand, repStrand), simplify='array')
-save(allSubsTransRepClust, file="allSubsTransRepClust.RData")
+save(allSubsTransRepClust, file="allSubsTransRepClust3.RData")
 
 library(rhdf5)
-h5createFile("allSubsTransRepClust.h5")
-h5write(allSubsTransRepClust, "allSubsTransRepClust.h5","allSubsTransRepClust")
+h5createFile("allSubsTransRepClust3.h5")
+h5write(allSubsTransRepClust, "allSubsTransRepClust3.h5","allSubsTransRepClust")
+}
 
 #' A few plots
 pdf("Kataegis.pdf", 12,4)
 for(i in 1:100)
 {
-	k <- kataegis(finalSnv[[i]])
+	k <- isClustered(finalSnv[[i]])
 	d <- diff(start(finalSnv[[i]]))
 	o <- d < 1000 
-	plot(d, log='y', col=k[-1]+1, main=names(finalSnv)[i])
-	legend("bottomleft", legend=table(k), col=1:2, pch=1)
+	plot(d, log='y', col=k[-1], main=names(finalSnv)[i])
+	legend("bottomleft", legend=table(k), col=1:3, pch=1)
 	print(i)
 }
 dev.off()

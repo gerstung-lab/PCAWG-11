@@ -3524,4 +3524,51 @@ w <- which(t <=27)
 sum(t[w])
 
 
+#' Hotspots
+
+files <- dir("../bam/tumour", pattern=".bam$")
+hotspot_counts <- sapply(seq_along(files), function(i){
+			e <- new.env()
+			load(paste0("../scratch/hotspots/",i,".RData"), envir=e)
+			return(e$counts[1,,])
+		}, simplify='array')
+
+dimnames(hotspot_counts)[[3]] <- sub(".bam","", files)
+dimnames(hotspot_counts)[[2]] <- c("A","T","C","G","-","a","t","c","g","_")
+
+hotspot_counts <- hotspot_counts[,,names(finalSnv)]
+
+save(hotspot_counts, file="hotspot_counts.RData")
+
+c <- mg14:::asum(hotspot_counts,2)
+
+tab <- read.table("Protected_sites_shearwater_normalpanel_after_filteringSNPs.txt", sep="\t", header=FALSE)
+hotspots <- VRanges(tab$V1, IRanges(tab$V2, width=1), ref=tab$V3, alt=tab$V4)
+
+load("hotspots_bf.RData")
+
+counts <- aperm(hotspot_counts, c(3,1,2))
+
+counts_h <- sapply(seq_along(tab$V4), function(i) counts[,i,c(as.character(tab$V4[i]), tolower(as.character(tab$V4[i])))], simplify='array')
+counts_h <- aperm(counts_h, c(1,3,2))
+
+bfh <- sapply(seq_along(tab$V4), function(i) bf[,i,as.character(tab$V4[i])])
+bf_noth <- sapply(seq_along(tab$V4), function(i) bf[,i,!dimnames(bf)[[3]]%in%as.character(tab$V4[i])], simplify='array')
+
+
+sum(bfh[selectedSamples,] < 0.05)/sum(selectedSamples)
+
+h <- bfh[selectedSamples,] < 0.05
+
+pfh <- 1/(1+1/bfh)
+
+o <- sapply(1:nrow(h), function(i){
+			sum(hotspots[which(h[i,])] %over% finalSnv[[which(selectedSamples)[i]]])
+		})
+
+w <- which(t(h), arr.ind=TRUE)
+
+op <- sapply(1:nrow(q), function(i){
+			sum(hotspots[which(q[i,]<0.1)] %over% finalSnv[[which(selectedSamples)[i]]])
+		})
 

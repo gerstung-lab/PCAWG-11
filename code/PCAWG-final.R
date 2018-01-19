@@ -618,7 +618,7 @@ timeWgd <- sapply(s, function(l) {
 			#apply(m, 1, median)
 		}, simplify=FALSE)
 
-tissueBorder <- names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCA")
+tissueBorder <- c("white","black")[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCA")+1]
 names(tissueBorder) <- names(tissueColors)
 
 #+ realTimeWgd, fig.height=3, fig.width=4
@@ -637,14 +637,51 @@ mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	f <- function(x) x/max(abs(x))
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
-	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col='#DDDDDD')
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
+#	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col='#DDDDDD')
+#	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
+	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueColors[names(m)[o[i]]], lwd=2)
+	points(j, na.omit(y[[o[i]]][,"hat"]), pch=16, col="white", cex=0.5)
 }
 par(xpd=TRUE)
 #s <- 12/8
 #dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
 
 sapply(timeWgd, nrow)
+
+nDeam <- sapply(finalSnv, function(vcf) sum(isDeamination(vcf)))
+nDeam22 <- sapply(finalWgdParam, function(x) if(!is.null(x$D)) nrow(x$D) else NA)
+names(nDeam22) <- names(finalSnv)[isWgd]
+w22 <- sapply(finalBB[isWgd], function(bb) {
+			w <- bb$major_cn==2 & bb$minor_cn==2 & !duplicated(bb)
+			sum(width(bb)[w], na.rm=TRUE)})
+nDeam22 <- nDeam22/w22*3e9
+
+t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  finalWgdPi["clonal.1","hat",])
+names(t0) <- dimnames(finalWgdPiAdj)[[5]]
+
+par(mfrow=c(5,5), mar=c(3,3,1,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
+for(n in names(y)){
+	a <- age[sample2donor[rownames(y[[n]])]]
+	yy <- nDeam22[rownames(y[[n]])]/a
+	xx <- 1-t0[rownames(y[[n]])]#y[[n]][,"hat"]/a
+	try({
+				l <- lm(yy ~ xx)
+				x0 <- -l$coef[2]/l$coef[1]
+				#print(x0)
+				plot(xx, yy, col=tissueColors[n], pch=16, log='', xlab="Time", ylab="SNVs/yr", main=n, ylim=c(0,max(yy, na.rm=TRUE)), xlim=c(0,max(xx, na.rm=TRUE)))
+				abline(l, lty=3)
+				abline(l$coef[1], l$coef[1])
+				m <- median(yy,na.rm=TRUE)
+				abline(m, m, lty=2)
+				#lines(c(x0,2*x0), c(0,1))
+			})
+}
+
+c <- sapply(names(y), function(n) {
+			a <- age[sample2donor[rownames(y[[n]])]]
+			t <- try(cor(nDeam22[rownames(y[[n]])]/a,y[[n]][,"hat"]/a , method='s', use='c'))
+			if(class(t)=="try-error") NA else t})
+barplot(c, col=tissueColors[names(c)])
 
 #+ realTimeWgdAccel, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.5, bty="L")
