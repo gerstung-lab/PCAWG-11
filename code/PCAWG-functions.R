@@ -471,21 +471,24 @@ testIndel <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FA
 asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 
 #' official driver file
-library(VariantAnnotation)
-drivers <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_somatic_driver_mutations_beta.csv", header=TRUE, sep="\t")
-finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
-r <- gsub("-","",drivers$ref)
-i <- drivers$mut_type=="indel" # need to fix indels
-r[i] <- paste0("N",r[i])
-a <- gsub("-","",drivers$alt)
-a[i] <- paste0("N",a[i])
-p <- drivers$pos
-p[i & !grepl("-", drivers$ref)] <- p[i & !grepl("-", drivers$ref)]-1
-m <- sapply(levels(drivers$sample), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
-finalDrivers <- VRanges(seqnames = drivers$chr, ranges=IRanges(p, width =  width(r)), ref=DNAStringSet(r), alt=DNAStringSet(a), sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
-mcols(finalDrivers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], drivers[,c("ID","gene","ttype","driver_mut_category","driver_element_category")])
-#save(driVers, file = "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
-#load("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/driver/pcawg_whitelist_driver_mutations_v2_mar282017.RData")
+#d <- lapply(2:3, function(sheet) xlsx::read.xlsx2(file="/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/TableS2_driver_point_mutations_annotation.xlsx", sheetIndex=sheet, colIndex=1:22, stringsAsFactors=FALSE, na.char="NaN"))
+#colnames(d[[2]]) <- colnames(d[[1]])
+#drivers <- do.call("rbind",d)
+#drivers[drivers=="NaN" | drivers==""] <- NA
+#drivers <- as.data.frame(sapply(drivers, function(x) if(all(!is.na(as.numeric(x[!is.na(x)])))) as.numeric(x) else x, simplify=FALSE))
+#finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
+#r <- gsub("-","",drivers$ref)
+#i <- grepl("-",drivers$ref) | grepl("-",drivers$alt)  #drivers$mut_type=="indel" # need to fix indels
+#r[i] <- paste0("N",r[i])
+#a <- gsub("-","",drivers$alt)
+#a[i] <- paste0("N",a[i])
+#p <- drivers$pos
+#p[i & !grepl("-", drivers$ref)] <- p[i & !grepl("-", drivers$ref)]-1
+#m <- sapply(levels(drivers$sample), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
+#finalDrivers <- VRanges(seqnames = drivers$chr, ranges=IRanges(p, width =  width(r)), ref=DNAStringSet(r), alt=DNAStringSet(a), sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
+#mcols(finalDrivers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], ID= drivers$gene_id, drivers[,8:22])
+#save(finalDrivers, file="/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/TableS2_driver_point_mutations_annotation.RData")
+load(file="/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/TableS2_driver_point_mutations_annotation.RData")
 CANCERGENES <- levels(finalDrivers$ID)
 
 matchDrivers <- function(vcf, finalDrivers) {
@@ -511,11 +514,18 @@ addFinalDriver <- function(vcf, finalDrivers){
 }
 
 
-t <- read.table("../ref/PCAWG_colors.tsv", sep='\t', header=FALSE, comment="")
-tissueColors <- as.character(t$V3)
-names(tissueColors) <- t$V1
-clinicalData <- read.table("../ref/pcawg_donor_clinical_August2016_v7-2.tsv", header=TRUE, sep="\t", comment="", quote="")
-specimenData <- read.table("../ref/pcawg_specimen_histology_August2016_v6.tsv", header=TRUE, sep="\t", comment="", quote="")
+t <- read.table("../ref/tumour_subtype_consolidation_map.tsv - Unique List of Tumour Types_August.tsv", sep='\t', header=TRUE, comment="")
+tissueColors <- as.character(t$`Color..RGB.code.`)
+names(tissueColors) <- sub("CA$","Ca",t$`Abbreviation`)
+tissueColors <- tissueColors[tissueColors != ""  & !duplicated(names(tissueColors))]
+clinicalData <- read.table("../ref/pcawg_donor_clinical_August2016_v9.tsv", header=TRUE, sep="\t", comment="", quote="")
+
+load("../ref/Sarcs_ages.RDa")
+for(x in Sarcs_age)
+	clinicalData$donor_age_at_diagnosis[match(as.character(x$icgc_donor_id), as.character(clinicalData$icgc_donor_id))] <- as.numeric(x$Age)
+rm(Sarcs_age)
+specimenData <- read.table("../ref/pcawg_specimen_histology_August2016_v9.tsv", header=TRUE, sep="\t", comment="", quote="")
+specimenData$histology_abbreviation <- sub("CA$","Ca",specimenData$histology_abbreviation)
 
 s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",")
 sample2donor <- as.character(finalData$icgc_donor_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))])
@@ -526,7 +536,7 @@ sample2icgc <- as.character(finalData$tumor_wgs_icgc_sample_id[unlist(sapply(seq
 names(sample2icgc) <- unlist(s)
 
 
-donor2type <- factor(specimenData$histology_abbreviation, levels=c(levels(specimenData$histology_abbreviation)[-1], ""))
+donor2type <- factor(specimenData$histology_abbreviation)#, levels=c(levels(specimenData$histology_abbreviation)[-1], ""))
 names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
 
