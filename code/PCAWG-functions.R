@@ -476,7 +476,7 @@ asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 #drivers <- do.call("rbind",d)
 #drivers[drivers=="NaN" | drivers==""] <- NA
 #drivers <- as.data.frame(sapply(drivers, function(x) if(all(!is.na(as.numeric(x[!is.na(x)])))) as.numeric(x) else x, simplify=FALSE))
-#finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
+finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
 #r <- gsub("-","",drivers$ref)
 #i <- grepl("-",drivers$ref) | grepl("-",drivers$alt)  #drivers$mut_type=="indel" # need to fix indels
 #r[i] <- paste0("N",r[i])
@@ -646,7 +646,7 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 	if(legend) legend("topleft", levels(time[,1]), fill=col, bg="white")
 }
 
-source("MutationTime.R")
+source("../modules/MutationTime.R/MutationTime.R")
 
 findMainCluster <- function(bb, min.dist=0.05){
 	w <- which(bb$n.snv_mnv > 20 & !is.na(bb$time))
