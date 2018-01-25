@@ -536,7 +536,7 @@ sample2icgc <- as.character(finalData$tumor_wgs_icgc_sample_id[unlist(sapply(seq
 names(sample2icgc) <- unlist(s)
 
 
-donor2type <- factor(specimenData$histology_abbreviation)#, levels=c(levels(specimenData$histology_abbreviation)[-1], ""))
+donor2type <- factor(specimenData$histology_abbreviation, levels=c(sort(unique(specimenData$histology_abbreviation))[-1], ""))
 names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
 
