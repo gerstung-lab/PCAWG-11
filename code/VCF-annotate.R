@@ -26,39 +26,11 @@ print(ID)
 
 #' ## CLUSTERS
 # Load clusters
-clusters <- try(consensusClustersToOld(loadConsensusClusters((ID))))
-NO_CLUSTER <- FALSE
-if(class(clusters)=='try-error'){
-	clusters <- data.frame(cluster=1, n_ssms=1000, proportion=1)
-	NO_CLUSTER <- TRUE
-}
-
-#' ### 1. Remove spurious superclonal clusters with less than 10% mutations and (max - 10% VAF)
-#clusters <- removeSuperclones(clusters)
-#clusters <- mergeClusters(clusters, deltaFreq=0.05)
-#
-#if(all(is.na(purityPloidy[ID,]))) # Missing purity
-#	purityPloidy[ID,] <- c(max(clusters$proportion),NA)
+clusters = wccClusters[[ID]]
 purity <- purityPloidy[ID,'purity']
 
 #' ## COPYNUMBER
 bb <- loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity'])
-
-if(NO_CLUSTER)
-	clusters <- clustersFromBB(bb)
-
-#' ### Mismatch in CN purity and clusters, use DP purity
-#if(purity == 1 | abs(max(clusters$proportion) - purity) > 0.05){
-#	bb$clonal_frequency <- bb$clonal_frequency * max(clusters$proportion) / purity
-#	purity <- max(clusters$proportion)
-#	purityPloidy[ID,'purity'] <- purity
-#}
-
-
-#' ### Missing ploidy - recalculate from BB
-if(is.na(purityPloidy[ID,"ploidy"]))
-	purityPloidy[ID,"ploidy"] <- averagePloidy(bb = bb)
-
 IS_WGD <- classWgd(bb)
 
 #' ## VCF 
@@ -87,10 +59,8 @@ L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=3, gender=as.c
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
 
-
 #' Classify mutations
 cls <- classifyMutations(vcf, reclassify='all')
-
 info(vcf)$CLS <- cls
 info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
 
@@ -98,6 +68,9 @@ info(header(vcf)) <- rbind(info(header(vcf)), DataFrame(Number="1",Type="String"
 bb$n.snv_mnv <- countOverlaps(bb, vcf)
 t <- bbToTime(bb)	
 mcols(bb) <- DataFrame(mcols(bb), t)
+
+#' Drivers
+info(vcf)$DG <- matchDrivers(vcf, finalDrivers)
 
 #' Save output
 writeVcf(vcf, file=vcfFileOut)
@@ -124,6 +97,10 @@ info(vcfIndel) <- cbind(info(vcfIndel), L$D)
 clsIndel <- classifyMutations(vcfIndel, reclassify='all')
 info(vcfIndel)$CLS <- clsIndel
 info(header(vcfIndel)) <- rbind(info(header(vcfIndel)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
+#'Drivers
+info(vcfIndel)$DG <- matchDrivers(vcfIndel, finalDrivers)
+
+
 #' Save
 writeVcf(vcfIndel, file=vcfIndelFileOut)
 bgzip(vcfIndelFileOut, overwrite=TRUE)
@@ -146,7 +123,7 @@ j <- 1
 for(v in c('vcf','vcfIndel')){
 	vv <- get(v)
 	col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)]
-	plotVcf(vcf = vv, bb = bb, clusters = clusters, col = col, ID = ID,  IS_WGD = IS_WGD, NO_CLUSTER = NO_CLUSTER, title=j==1)
+	plotVcf(vcf = vv, bb = bb, clusters = clusters, col = col, ID = ID,  IS_WGD = IS_WGD, NO_CLUSTER = FALSE, title=j==1)
 	j <- j+1
 }
 plotBB(bb, ylim=c(0,10))
