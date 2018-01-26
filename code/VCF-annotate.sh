@@ -1,6 +1,6 @@
 #!/bin/bash
 #BSUB -q normal
-#BSUB -J vcfAnnotateFinal[1-75]
+#BSUB -J vcfAnnotateFinal[1-2703]
 #BSUB -o log/vcfAnnotateFinal-%J-%I.out
 #BSUB -e log/vcfAnnotateFinal-%J-%I.err
 #BSUB -R "span[hosts=1] select[mem>4800] rusage[mem=4800]"
@@ -8,7 +8,7 @@
 #BSUB -n 1
 
 INPUT_FOLDER="../final/final_consensus_12oct_passonly/graylist/snv_mnv"
-OUTPUT_FOLDER="../final/annotated_010/graylist/snv_mnv"
+OUTPUT_FOLDER="../final/annotated_011/snv_mnv"
 OVERWRITE=true
 
 FILES=(`ls $INPUT_FOLDER/*.vcf.gz`)
