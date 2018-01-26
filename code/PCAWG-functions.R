@@ -35,8 +35,11 @@ dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 bbFiles <- dir(bbPath, pattern="_segments.txt", recursive=TRUE)
 
 wccTable <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/wcc_consensus_values_9_12.tsv", header=TRUE, sep='\t')
-d <- data.frame(cluster=wccTable$sc_n, n_ssms=wccTable$consensus_mutation_number, proportion = 0.5*(wccTable$purity * wccTable$braod_wcc_ccf + wccTable$amit_wcc_cp))
+d <- data.frame(cluster=wccTable$sc_n, n_ssms=wccTable$consensus_mutation_number, proportion = round(wccTable$consensus_cluster_cp,3))
+d[d$cluster==1,"proportion"] <- wccTable[d$cluster==1,"purity"]
 wccClusters <- split(d, wccTable$sid)
+wccPurity <- d[d$cluster==1,"proportion"] 
+#plot(wccPurity, purityPloidy[,"purity"])
 
 loadClusters <- function(ID){
 	file <- paste0(dpPath,"/",grep(paste0(ID,"[[:punct:]]"), dpFiles, value=TRUE, perl=TRUE))
