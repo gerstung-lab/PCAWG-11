@@ -518,22 +518,6 @@ addFinalDriver <- function(vcf, finalDrivers){
 }
 
 
-t <- read.table("../ref/tumour_subtype_consolidation_map.tsv - Unique List of Tumour Types_August.tsv", sep='\t', header=TRUE, comment="")
-c <- as.character(t$`Color..RGB.code.`)
-names(c) <- sub("CA$","Ca",t$`Abbreviation`)
-c <- c[c != ""  & !duplicated(names(c))]
-tissueColors <- c(table(donor2type))*NA
-tissueColors[names(c)] <- c
-
-tissueBorder <- c("white","black")[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
-names(tissueBorder) <- names(tissueColors)
-
-tissueLines <- tissueColors
-tissueLines[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")] <- "black"
-
-tissueLty <- c(1,2)[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
-names(tissueLty) <- names(tissueColors)
-
 clinicalData <- read.table("../ref/pcawg_donor_clinical_August2016_v9.tsv", header=TRUE, sep="\t", comment="", quote="")
 
 load("../ref/Sarcs_ages.RDa")
@@ -555,6 +539,23 @@ names(sample2icgc) <- unlist(s)
 donor2type <- factor(specimenData$histology_abbreviation, levels=c(sort(unique(specimenData$histology_abbreviation))[-1], ""))
 names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
+
+
+t <- read.table("../ref/tumour_subtype_consolidation_map.tsv - Unique List of Tumour Types_August.tsv", sep='\t', header=TRUE, comment="")
+c <- as.character(t$`Color..RGB.code.`)
+names(c) <- sub("CA$","Ca",t$`Abbreviation`)
+c <- c[c != ""  & !duplicated(names(c))]
+tissueColors <- c(table(donor2type))*NA
+tissueColors[names(c)] <- c
+
+tissueBorder <- c("white","black")[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
+names(tissueBorder) <- names(tissueColors)
+
+tissueLines <- tissueColors
+tissueLines[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")] <- "black"
+
+tissueLty <- c(1,2)[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
+names(tissueLty) <- names(tissueColors)
 
 averageHom <- function(bb){
 	sum(width(bb) * (bb$minor_cn == 0) * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)

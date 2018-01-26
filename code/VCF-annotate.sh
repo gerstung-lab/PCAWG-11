@@ -7,7 +7,7 @@
 #BSUB -M 4800
 #BSUB -n 1
 
-INPUT_FOLDER="../final/final_consensus_12oct_passonly/graylist/snv_mnv"
+INPUT_FOLDER="../final/final_consensus_12oct_passonly/snv_mnv"
 OUTPUT_FOLDER="../final/annotated_011/snv_mnv"
 OVERWRITE=true
 
