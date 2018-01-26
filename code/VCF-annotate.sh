@@ -8,7 +8,7 @@
 #BSUB -n 1
 
 INPUT_FOLDER="../final/final_consensus_12oct_passonly/graylist/snv_mnv"
-OUTPUT_FOLDER="../final/annotated_011/snv_mnv/graylist"
+OUTPUT_FOLDER="../final/annotated_011/graylist/snv_mnv"
 OVERWRITE=true
 
 FILES=(`ls $INPUT_FOLDER/*.vcf.gz`)
