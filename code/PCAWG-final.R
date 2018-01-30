@@ -29,15 +29,15 @@ setwd("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/code")
 source("PCAWG-functions.R")
 
 #+ evalOff, echo=FALSE
-opts_chunk$set(eval=FALSE)
-load("2017-05-10-PCAWG-final.RData")
-source("PCAWG-functions.R")
+opts_chunk$set(eval=TRUE)
+#load("2017-05-10-PCAWG-final.RData")
+#source("PCAWG-functions.R")
 
 
 #' # Load data
 #' ## Whitelist
 #' ### SNV and MNV
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/snv_mnv"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/snv_mnv"
 finalSnv <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -48,7 +48,7 @@ for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/cn"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/cn"
 finalBB <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -58,7 +58,7 @@ for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.names=FALSE))
 
 #' ### Indel
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/indel"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/indel"
 finalIndel <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 	load(f)
@@ -69,7 +69,7 @@ names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=
 #' ### Clusters and purity
 finalClusters <- list()
 finalPurity <- numeric()
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/clusters"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClusters[[f]] <- clusters
@@ -79,13 +79,6 @@ names(finalClusters) <- names(finalPurity) <- sub(".conse.+","",dir(p, pattern="
 
 
 #' ## Update drivers
-#' ### Update VCF
-for(i in seq_along(finalSnv)){
-	info(finalSnv[[i]])$DG <- matchDrivers(finalSnv[[i]], finalDrivers)
-	info(finalIndel[[i]])$DG <- matchDrivers(finalIndel[[i]], finalDrivers)
-	if(i %% 10 ==0) print(i); i <- i+1
-}
-
 #' ### Update finalDrivers
 finalDriversAnnotated <- finalDrivers
 finalDriversAnnotated$sample <- drivers$sample
@@ -109,7 +102,7 @@ for(i in seq_along(finalDriversAnnotated)){
 
 #' ## Graylisted data
 #' ### SNV and MNV
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/graylist/snv_mnv"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/snv_mnv"
 finalSnvGray <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -121,7 +114,7 @@ names(finalSnvGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.name
 finalSnv[names(finalSnvGray)] <- finalSnvGray
 
 #' ### Copy number profiles
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/graylist/cn"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/cn"
 finalBBGray <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -133,7 +126,7 @@ finalBB[names(finalBBGray)] <- finalBBGray
 
 
 #' ### Indel
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/graylist/indel"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/indel"
 finalIndelGray <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 	load(f)
@@ -146,7 +139,7 @@ finalIndel[names(finalIndelGray)] <- finalIndelGray
 #' ### Clusters and purity
 finalClustersGray <- list()
 finalPurityGray <- numeric()
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_010/graylist/clusters"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClustersGray[[f]] <- clusters
@@ -531,8 +524,12 @@ sigTable <- aperm(sigTable, c(2,3,1))
 
 #' # Real-time WGD & subclones
 #' ## Prelim
+isDeaminationNoUV <-  function(vcf) grepl("(A.CG[C,T])|(T.[A,G]CG)", paste(as.character(unlist(alt(vcf))),vcf@info$TNC))
+
 wgdTime <- function(vcf, bb, clusters, purity){
 	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
+	if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+		w <- intersect(w, which(isDeaminationNoUV(vcf)))
 	v <- vcf[w]
 	if(nrow(v)<=100) return(NULL)
 	seqnames(rowRanges(v)) <- factor(rep(1, nrow(v)), levels=seqlevels(v))
@@ -599,11 +596,11 @@ n <- dimnames(finalWgdPiAdj)[[5]]
 finalWgdTime <- finalWgdPiAdj[,,,,n] * rep(age[sample2donor[n]], each=2)
 
 typeNa <- gsub("\t","",strsplit("Bone-Cart
-				Breast-LobularCA
+				Breast-LobularCa
 				Breast-DCIS
 				Lymph-NOS
 				Myeloid-MDS
-				Cervix-AdenoCA", "\n")[[1]])
+				Cervix-AdenoCa", "\n")[[1]])
 
 d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
@@ -618,20 +615,17 @@ timeWgd <- sapply(s, function(l) {
 			#apply(m, 1, median)
 		}, simplify=FALSE)
 
-tissueBorder <- c("white","black")[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCA")+1]
-names(tissueBorder) <- names(tissueColors)
-
 #+ realTimeWgd, fig.height=3, fig.width=4
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- names(finalSnv)[uniqueSamples]
 qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 a <- "5x"
 m <- qWgd[3,a,]#t[1,3,]
-m["Ovary-AdenoCA"] <- qWgd[3,"7.5x","Ovary-AdenoCA"]
+m["Ovary-AdenoCa"] <- qWgd[3,"7.5x","Ovary-AdenoCa"]
 o <- order(m, na.last=NA)
 x <- seq_along(m[o])
 y <- sapply(timeWgd, `[`, (quote(f(,)))[[2]], 1:3,a)
-y[["Ovary-AdenoCA"]] <- timeWgd[["Ovary-AdenoCA"]][,,"7.5x"]
+y[["Ovary-AdenoCa"]] <- timeWgd[["Ovary-AdenoCa"]][,,"7.5x"]
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(unlist(y), na.rm=TRUE)+.5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
@@ -653,13 +647,14 @@ nDeam22 <- sapply(finalWgdParam, function(x) if(!is.null(x$D)) nrow(x$D) else NA
 names(nDeam22) <- names(finalSnv)[isWgd]
 w22 <- sapply(finalBB[isWgd], function(bb) {
 			w <- bb$major_cn==2 & bb$minor_cn==2 & !duplicated(bb)
-			sum(width(bb)[w], na.rm=TRUE)})
-nDeam22 <- nDeam22/w22*3e9
+			sum(as.numeric(width(bb)[w]), na.rm=TRUE)})
+nDeam22 <- nDeam22/w22*1e9
 
 t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  finalWgdPi["clonal.1","hat",])
 names(t0) <- dimnames(finalWgdPiAdj)[[5]]
 
-par(mfrow=c(5,5), mar=c(3,3,1,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
+#' Mutations per year vs time
+par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 for(n in names(y)){
 	a <- age[sample2donor[rownames(y[[n]])]]
 	yy <- nDeam22[rownames(y[[n]])]/a
@@ -668,14 +663,80 @@ for(n in names(y)){
 				l <- lm(yy ~ xx)
 				x0 <- -l$coef[2]/l$coef[1]
 				#print(x0)
-				plot(xx, yy, col=tissueColors[n], pch=16, log='', xlab="Time", ylab="SNVs/yr", main=n, ylim=c(0,max(yy, na.rm=TRUE)), xlim=c(0,max(xx, na.rm=TRUE)))
-				abline(l, lty=3)
-				abline(l$coef[1], l$coef[1])
-				m <- median(yy,na.rm=TRUE)
-				abline(m, m, lty=2)
+				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n],, pch=21, log='', xlab="1-time [mutations]", ylab="SNVs/Gb/yr", main=n, ylim=c(0,max(yy, na.rm=TRUE)), xlim=c(0,max(xx, na.rm=TRUE)), cex.main=1)
+				#abline(l, lty=3)
+				#abline(l$coef[1], l$coef[1])
+				m <- median(yy/(1+xx),na.rm=TRUE)
+				abline(m, m, lty=3)
 				#lines(c(x0,2*x0), c(0,1))
 			})
 }
+
+#' Age at diagnosis
+par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
+rr <- list()
+for(n in names(y)){
+	a <- age[sample2donor[rownames(y[[n]])]]
+	yy <- nDeam22[rownames(y[[n]])]/(2-t0[rownames(y[[n]])])
+	xx <- a
+	r <- yy/xx 
+	m <- median(r,na.rm=TRUE)
+	rr[[n]] <- r
+	try({
+				w <- (r-m)^2/m^2 <= 2^2 
+				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,max(yy, na.rm=TRUE)), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
+				par(xpd=NA)
+				segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
+				points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
+				par(xpd=FALSE)
+				#abline(l, lty=3)
+				#abline(l$coef[1], l$coef[1])
+				abline(0, m, lty=3)
+				#lines(c(x0,2*x0), c(0,1))
+			})
+}
+n <- names(rr)
+q <- sapply(rr, function(r){
+			m <- median(r,na.rm=TRUE)
+			w <- (r-m)^2/m^2 <= 2^2 
+			range(r[w], na.rm=TRUE)})
+plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
+segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
+points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
+
+#' Conceptual plot
+#par(mfrow=c(1,1), mar=c(3,3,1,1), mgp=c(2,0.5,0), bty="L")
+x0 <- 70
+y0 <- 1
+a <- 5
+plot(x0,y0, xlab="Time [yr]", ylab="Time [fraction of mutations]", pch=19, xlim=c(0,80), ylim=c(0,y0*1.1))
+r <- seq(0.66,1,0.001)
+yy <- c(0,y0*r/(a*(1-r)+r))
+xx <- c(0,r)*x0
+polygon(xx, yy, col="grey", border=NA)
+for(i in seq(51, 341,30))
+	lines(c(0,xx[i],x0), c(0,yy[i],y0), col='darkgrey')
+t <- 3/5*y0
+ta <- function(t0, a, ta){
+	t1 <- t0 + (1-t0) *(a-1)/a*ta #acc before dup
+	t2 <- t0 * (ta + a*(1-ta)) ## after
+	tf <- pmin(t1, t2) # as fraction of clonal
+	return(tf)
+}
+tf <- sapply(r, function(rr) ta(t/y0, a, rr))
+tmax <- xx[which.min(abs(yy-t))]
+tmin <- t/ y0*x0
+lines(c(x0,x0,0), c(0,y0,y0), lty=3)
+lines(c(tmax,tmax,0), c(0,t,t), lty=2)
+lines(c(tmin,tmin,0), c(0,t,t), lty=2)
+#d <- density(tf*x, from=tmin, to=tmax)
+lines(quantile(tf, c(0.025,0.975))*x0, c(0,0), lwd=2)
+points(c(tmin,median(tf)*x0), c(0,0), pch=c(1,19))
+mtext(side=1, at=x0, text="Diagnosis", line=2)
+text(x=0, y=t, labels="WGD", pos=4, adj=c(0,1))
+#lines(d$x,d$y/max(d$y)*50)
+
+
 
 c <- sapply(names(y), function(n) {
 			a <- age[sample2donor[rownames(y[[n]])]]
