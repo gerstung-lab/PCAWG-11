@@ -493,7 +493,7 @@ finalData <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final
 #p[i & !grepl("-", drivers$ref)] <- p[i & !grepl("-", drivers$ref)]-1
 #m <- sapply(levels(drivers$sample), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
 #finalDrivers <- VRanges(seqnames = drivers$chr, ranges=IRanges(p, width =  width(r)), ref=DNAStringSet(r), alt=DNAStringSet(a), sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
-#mcols(finalDrivers) <- cbind(samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], ID= drivers$gene_id, drivers[,8:22])
+#mcols(finalDrivers) <- cbind(sample=drivers$sample, samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], ID= drivers$gene_id, drivers[,8:22], mut_type=ifelse(i, "indel","snv"))
 #save(finalDrivers, file="/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/TableS2_driver_point_mutations_annotation.RData")
 load(file="/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/ref/TableS2_driver_point_mutations_annotation.RData")
 CANCERGENES <- levels(finalDrivers$ID)

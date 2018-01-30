@@ -81,9 +81,7 @@ names(finalClusters) <- names(finalPurity) <- sub(".conse.+","",dir(p, pattern="
 #' ## Update drivers
 #' ### Update finalDrivers
 finalDriversAnnotated <- finalDrivers
-finalDriversAnnotated$sample <- drivers$sample
-finalDriversAnnotated$mut_type <- drivers$mut_type
-d <- info(finalSnv[[3]])[seq_along(finalDriversAnnotated),19:33]
+d <- info(finalSnv[[3]])[seq_along(finalDriversAnnotated),19:32]
 #d[,] <- NA
 mcols(finalDriversAnnotated)[colnames(d)] <- d
 for(i in seq_along(finalDriversAnnotated)){
