@@ -629,8 +629,8 @@ par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- names(finalSnv)[uniqueSamples]
 qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 a <- "5x"
-m <- qWgd[3,a,]#t[1,3,]
-m["Ovary-AdenoCa"] <- qWgd[3,"7.5x","Ovary-AdenoCa"]
+m <- qWgd['75%',a,]#t[1,3,]
+m["Ovary-AdenoCa"] <- qWgd["75%","7.5x","Ovary-AdenoCa"]
 o <- order(m, na.last=NA)
 x <- seq_along(m[o])
 y <- sapply(timeWgd, `[`, (quote(f(,)))[[2]], 1:3,a)
@@ -777,11 +777,10 @@ effGenome <- unlist(mclapply(finalSnv, function(vcf) {
 names(effGenome) <- names(finalSnv)
 
 subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
-							w <- info(vcf)$CLS!="subclonal"
 							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
-								w <- w & isDeaminationNoUV(vcf)
+								w <- isDeaminationNoUV(vcf)
 							else
-								w <- w & isDeamination(vcf)
+								w <- isDeamination(vcf)
 							p <- info(vcf)$pSub[w]; 
 							c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))})))
 
@@ -793,7 +792,7 @@ set.seed(42)
 timeSubclones <- sapply(s, function(l) {
 			i <- d==l
 			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
-			resB <- sapply(1:1000, function(foo){
+			resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
 						tt <- matrix(rpois(length(tt0), lambda=tt0), ncol=ncol(tt0))
 						res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
 						colnames(res) <- paste0(accel, "x")
@@ -805,24 +804,13 @@ timeSubclones <- sapply(s, function(l) {
 			arr <- abind::abind(res, resCI, along=1)
 			rownames(arr)[1] <- "hat"
 			arr <- aperm(arr, c(2,1,3))
-			r <- which(rowSums(subcloneDeam[i,]) < 50)
+			tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+			mr <- rowSums(tt0)/age[sample2donor[names(finalSnv)[i]]] # mutation rate 
+			r <- which(rowSums(subcloneDeam[i,]) < 50 | (mr-median(mr, na.rm=TRUE))^2/median(mr,na.rm=TRUE)^2 > 2^2 ) ## Exclude samples with less than 50 subs or > 2x median
 			arr[r,,] <- NA
 			return(arr)
 		})
 
-t <- sapply(timeSubclones, colMeans, na.rm=TRUE)
-
-m <- t[3,]
-
-o <- order(m, na.last=NA)
-
-timeSubclones0 <- sapply(s, function(l) {
-			i <- d==l
- 			tt <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
- 			res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
- 			colnames(res) <- paste0(accel, "x")
- 			#res[res==0] <- NA
- 			res})
 
 #' Plot
 #+ realTimeSubclone, fig.width=5, fig.height=4.667
@@ -832,10 +820,10 @@ par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 a <- "5x"
 m <- qSubclone[2,a,]#t[1,3,]
-m["Ovary-AdenoCA"] <- qSubclone[2,"7.5x","Ovary-AdenoCA"]
+m["Ovary-AdenoCa"] <- qSubclone[2,"7.5x","Ovary-AdenoCa"]
 o <- order(m, na.last=NA)
 y <- sapply(timeSubclones, `[`, (quote(f(,)))[[2]], 1:3,a)
-y[["Ovary-AdenoCA"]] <- timeSubclones[["Ovary-AdenoCA"]][,,"7.5x"]
+y[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][,,"7.5x"]
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,40))
 x <- seq_along(m[o])
 mg14::rotatedLabel(x, labels=names(sort(m)))
@@ -860,9 +848,9 @@ plot(qSubclone["50%",a,dimnames(qWgd)[[3]]], qWgd["50%",a,], col=tissueColors[di
 par( mar=c(3,3,3,10), mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="n", xpd=FALSE, las=1)
 w <- "50%"
 x <- qSubclone[w,a,]
-x["Ovary-AdenoCA"] <- qSubclone[w,"7.5x","Ovary-AdenoCA"]
+x["Ovary-AdenoCa"] <- qSubclone[w,"7.5x","Ovary-AdenoCa"]
 y <- qWgd[w,a,]
-y["Ovary-AdenoCA"] <- qWgd[w,"7.5x","Ovary-AdenoCA"]
+y["Ovary-AdenoCa"] <- qWgd[w,"7.5x","Ovary-AdenoCa"]
 plot(c(rep(1, dim(qSubclone)[3]), rep(2, each=dim(qWgd)[3])), c(x,y), bg=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qWgd)[[3]])], pch=21, cex=1, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(y, na.rm=TRUE)))
 segments(rep(1, each=dim(qWgd)[3]), x[dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), y,col=tissueColors[dimnames(qWgd)[[3]]])
 o <- order(y, na.last=NA)
