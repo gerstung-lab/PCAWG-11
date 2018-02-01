@@ -29,14 +29,15 @@ setwd("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/code")
 source("PCAWG-functions.R")
 
 #+ evalOff, echo=FALSE
-opts_chunk$set(eval=TRUE)
-#load("2017-05-10-PCAWG-final.RData")
-#source("PCAWG-functions.R")
+opts_chunk$set(eval=FALSE)
+load("2018-01-30-PCAWG-final.RData")
+source("PCAWG-functions.R")
 
 
 #' # Load data
 #' ## Whitelist
 #' ### SNV and MNV
+#+ loadSNV
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/snv_mnv"
 finalSnv <- list()
 j <- 1
@@ -48,6 +49,7 @@ for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
+#+ loadBB
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/cn"
 finalBB <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
@@ -58,6 +60,7 @@ for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.names=FALSE))
 
 #' ### Indel
+#+ loadIndel
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/indel"
 finalIndel <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -67,6 +70,7 @@ for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Clusters and purity
+#+ loadClusters
 finalClusters <- list()
 finalPurity <- numeric()
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/clusters"
@@ -80,6 +84,7 @@ names(finalClusters) <- names(finalPurity) <- sub(".conse.+","",dir(p, pattern="
 
 #' ## Update drivers
 #' ### Update finalDrivers
+#+ updateDrivers
 finalDriversAnnotated <- finalDrivers
 d <- info(finalSnv[[3]])[seq_along(finalDriversAnnotated),19:32]
 #d[,] <- NA
@@ -100,6 +105,7 @@ for(i in seq_along(finalDriversAnnotated)){
 
 #' ## Graylisted data
 #' ### SNV and MNV
+#+ loadSnvGray
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/snv_mnv"
 finalSnvGray <- list()
 j <- 1
@@ -112,6 +118,7 @@ names(finalSnvGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.name
 finalSnv[names(finalSnvGray)] <- finalSnvGray
 
 #' ### Copy number profiles
+#+ loadBBGray
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/cn"
 finalBBGray <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
@@ -124,6 +131,7 @@ finalBB[names(finalBBGray)] <- finalBBGray
 
 
 #' ### Indel
+#+ loadIndelGray
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/indel"
 finalIndelGray <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -135,6 +143,7 @@ finalIndel[names(finalIndelGray)] <- finalIndelGray
 
 
 #' ### Clusters and purity
+#+ loadClustersGray
 finalClustersGray <- list()
 finalPurityGray <- numeric()
 p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/clusters"
@@ -173,24 +182,28 @@ for(i in seq_along(finalSnv)[1:25]){
 
 #' # Driver genotypes
 #' ## MAP genotypes
+#+ finalGenotypes
 finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, mc.cores=2, useNA="always"))
 finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, mc.cores=2, useNA="always"))
 finalGenotypes <- aperm(abind::abind(subs=finalGenotypesSnv,indels=finalGenotypesIndel, along=5), c(1,5,2,3,4))
 rm(finalGenotypesSnv,finalGenotypesIndel)
 
 #' ## Probabilistic genotypes
+#+ finalGenotypesP
 finalGenotypesSnvP <- simplify2array(mclapply(finalSnv[whiteList], probGenotype, mc.cores=2))
 finalGenotypesIndelP <- simplify2array(mclapply(finalIndel[whiteList], probGenotype, mc.cores=2))
 finalGenotypesP <- aperm(abind::abind(subs=finalGenotypesSnvP,indels=finalGenotypesIndelP, along=4), c(1,4,2,3))
 rm(finalGenotypesSnvP,finalGenotypesIndelP)
 
 #' ## Probabilistic genotypes - tail prob (QC)
+#+ finalGenotypesQ
 finalGenotypesSnvQ <- simplify2array(mclapply(finalSnv[whiteList], probGenotypeTail, mc.cores=2))
 finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenotypeTail, mc.cores=2))
 finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenotypesIndelQ, along=3), c(1,3,2))
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
 #' # Save output
+#+ saveOut
 save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
 #save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
@@ -522,8 +535,6 @@ sigTable <- aperm(sigTable, c(2,3,1))
 
 #' # Real-time WGD & subclones
 #' ## Prelim
-isDeaminationNoUV <-  function(vcf) grepl("(A.CG[C,T])|(T.[A,G]CG)", paste(as.character(unlist(alt(vcf))),vcf@info$TNC))
-
 wgdTime <- function(vcf, bb, clusters, purity){
 	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
 	if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
@@ -629,18 +640,17 @@ mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	f <- function(x) x/max(abs(x))
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
-#	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col='#DDDDDD')
-#	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
-	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueColors[names(m)[o[i]]], lwd=2)
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=16, col="white", cex=0.5)
+	d <- density(na.omit(y[[o[i]]][,"hat"]))
+	polygon(c(d$y/max(d$y)/2.5+i, rev(-d$y/max(d$y)/2.5+i)),c(d$x, rev(d$x)), border=tissueLines[names(m)[o[i]]],  col=mg14::colTrans(tissueColors[names(m)[o[i]]],3))
+	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueLines[names(m)[o[i]]])
+	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
+#	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueColors[names(m)[o[i]]], lwd=2)
+#	points(j, na.omit(y[[o[i]]][,"hat"]), pch=16, col="white", cex=0.5)
 }
 par(xpd=TRUE)
 #s <- 12/8
 #dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
 
-sapply(timeWgd, nrow)
-
-nDeam <- sapply(finalSnv, function(vcf) sum(isDeamination(vcf)))
 nDeam22 <- sapply(finalWgdParam, function(x) if(!is.null(x$D)) nrow(x$D) else NA)
 names(nDeam22) <- names(finalSnv)[isWgd]
 w22 <- sapply(finalBB[isWgd], function(bb) {
@@ -652,6 +662,7 @@ t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  final
 names(t0) <- dimnames(finalWgdPiAdj)[[5]]
 
 #' Mutations per year vs time
+#+ mutYearTime, fig.height=6, fig.width=6
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 for(n in names(y)){
 	a <- age[sample2donor[rownames(y[[n]])]]
@@ -671,6 +682,7 @@ for(n in names(y)){
 }
 
 #' Age at diagnosis
+#+ mutAge, fig.height=6, fig.width=6
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 rr <- list()
 for(n in names(y)){
@@ -703,6 +715,7 @@ segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
 points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
 
 #' Conceptual plot
+#+ concept
 #par(mfrow=c(1,1), mar=c(3,3,1,1), mgp=c(2,0.5,0), bty="L")
 x0 <- 70
 y0 <- 1
@@ -753,10 +766,24 @@ for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueColors
 
 #' ## Subclones
 #+ effGenome
-effGenome <- unlist(mclapply(finalSnv, function(vcf) 2/avgWeights(vcf[na.omit(info(vcf)$CLS!="subclonal")], type="deam"), mc.cores=4))
+effGenome <- unlist(mclapply(finalSnv, function(vcf) {
+					w <- info(vcf)$CLS!="subclonal"
+					if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+						w <- w & isDeaminationNoUV(vcf)
+					else
+						w <- w & isDeamination(vcf)
+					2/avgWeights(vcf[na.omit(w)])
+				}, mc.cores=4))
 names(effGenome) <- names(finalSnv)
 
-subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {p <- info(vcf)$pSub[isDeamination(vcf)]; c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))})))
+subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
+							w <- info(vcf)$CLS!="subclonal"
+							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+								w <- w & isDeaminationNoUV(vcf)
+							else
+								w <- w & isDeamination(vcf)
+							p <- info(vcf)$pSub[w]; 
+							c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))})))
 
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))

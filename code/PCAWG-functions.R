@@ -241,6 +241,8 @@ loadVcf <- function(ID){
 }
 
 isDeamination <- function(vcf) grepl("(A.CG)|(T..CG)", paste(as.character(unlist(alt(vcf))),vcf@info$TNC))
+isDeaminationNoUV <-  function(vcf) grepl("(A.CG[C,T])|(T.[A,G]CG)", paste(as.character(unlist(alt(vcf))),vcf@info$TNC))
+
 
 testDriver <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FALSE  else any(x %in% c('nonsense','missense','ess_splice','frameshift','inframe','cds_distrupted')))
 
