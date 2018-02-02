@@ -638,12 +638,16 @@ y[["Ovary-AdenoCa"]] <- timeWgd[["Ovary-AdenoCa"]][,,"7.5x"]
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(unlist(y), na.rm=TRUE)+.5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
+	n <- names(m)[o[i]]
 	f <- function(x) x/max(abs(x))
+	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
-	d <- density(na.omit(y[[o[i]]][,"hat"]))
-	polygon(c(d$y/max(d$y)/2.5+i, rev(-d$y/max(d$y)/2.5+i)),c(d$x, rev(d$x)), border=tissueLines[names(m)[o[i]]],  col=mg14::colTrans(tissueColors[names(m)[o[i]]],3))
-	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueLines[names(m)[o[i]]])
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
+	rect(i-0.33,qWgd[1,a,n],i+0.33,qWgd[3,a,n], border=tissueLines[n],  col=mg14::colTrans(tissueColors[n],3))
+	segments(i-0.33,qWgd[2,a,n],i+0.33,qWgd[2,a,n],col=tissueLines[n], lwd=2)
+	#d <- density(na.omit(y[[o[i]]][,"hat"]))
+	#polygon(c(d$y/max(d$y)/2.5+i, rev(-d$y/max(d$y)/2.5+i)),c(d$x, rev(d$x)), border=tissueLines[names(m)[o[i]]],  col=mg14::colTrans(tissueColors[names(m)[o[i]]],3))
+	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueLines[n])
+	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[n]=="#000000") "white" else "black", bg=tissueColors[n], cex=0.66)
 #	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueColors[names(m)[o[i]]], lwd=2)
 #	points(j, na.omit(y[[o[i]]][,"hat"]), pch=16, col="white", cex=0.5)
 }
@@ -682,7 +686,7 @@ for(n in names(y)){
 }
 
 #' Age at diagnosis
-#+ mutAge, fig.height=6, fig.width=6
+#+ mutAgeWgd, fig.height=6, fig.width=6
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 rr <- list()
 for(n in names(y)){
@@ -811,6 +815,42 @@ timeSubclones <- sapply(s, function(l) {
 			return(arr)
 		})
 
+#+ timeSubcloneAge, 10,10
+rr <- list()
+par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
+for(n in s){
+	i <- d==n
+	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
+	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+	yy <- rowSums(tt0)
+	a <- age[sample2donor[names(finalSnv)[i]]]
+	xx <- a
+	r <- yy/xx 
+	m <- median(r,na.rm=TRUE)
+	rr[[n]] <- r
+	try({
+				w <- (r-m)^2/m^2 <= 2^2 
+				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(5000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
+				#par(xpd=NA)
+				segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
+				points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
+				#par(xpd=FALSE)
+				#abline(l, lty=3)
+				#abline(l$coef[1], l$coef[1])
+				abline(0, m, lty=3)
+				#lines(c(x0,2*x0), c(0,1))
+				#print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
+			})
+}
+n <- names(rr)
+q <- sapply(rr, function(r){
+			m <- median(r,na.rm=TRUE)
+			w <- (r-m)^2/m^2 <= 2^2 
+			range(r[w], na.rm=TRUE)})
+plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
+segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
+points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
+
 
 #' Plot
 #+ realTimeSubclone, fig.width=5, fig.height=4.667
@@ -828,10 +868,16 @@ plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xa
 x <- seq_along(m[o])
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
+	n <- names(m)[o[i]]
+	f <- function(x) x/max(abs(x))
+	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
+	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
+	rect(i-0.33,qSubclone[1,a,n],i+0.33,qSubclone[3,a,n], border=tissueLines[n],  col=mg14::colTrans(tissueColors[n],3))
+	segments(i-0.33,qSubclone[2,a,n],i+0.33,qSubclone[2,a,n],col=tissueLines[n], lwd=2)
 	f <- function(x) x/max(abs(x))
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
-	segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col='#DDDDDD')
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[names(m)[o[i]]]=="#000000") "white" else "black", bg=tissueColors[names(m)[o[i]]], cex=1)
+	segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col=tissueLines[n])
+	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[n]=="#000000") "white" else "black", bg=tissueColors[n], cex=0.66)
 }
 
 #par(xpd=TRUE)
