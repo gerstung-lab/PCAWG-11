@@ -669,7 +669,7 @@ t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  final
 names(t0) <- dimnames(finalWgdPiAdj)[[5]]
 
 #' Mutations per year vs time
-#+ mutYearTime, fig.height=6, fig.width=6
+#+ mutYearTime, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 for(n in names(y)){
 	a <- age[sample2donor[rownames(y[[n]])]]
@@ -689,7 +689,7 @@ for(n in names(y)){
 }
 
 #' Age at diagnosis
-#+ mutAgeWgd, fig.height=6, fig.width=6
+#+ mutAgeWgd, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 rr <- list()
 for(n in names(y)){
@@ -818,7 +818,7 @@ timeSubclones <- sapply(s, function(l) {
 			return(arr)
 		})
 
-#+ timeSubcloneAge, 10,10
+#+ timeSubcloneAge, fig.width=10, fig.height=10
 rr <- list()
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 for(n in s){
