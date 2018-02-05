@@ -27,6 +27,7 @@ my_png <-  function(file, width, height, pointsize=12, ...) {
 library(VariantAnnotation)
 setwd("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/code")
 source("PCAWG-functions.R")
+MC_CORES=2
 
 #+ evalOff, echo=FALSE
 opts_chunk$set(eval=FALSE)
@@ -183,22 +184,22 @@ for(i in seq_along(finalSnv)[1:25]){
 #' # Driver genotypes
 #' ## MAP genotypes
 #+ finalGenotypes
-finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, mc.cores=2, useNA="always"))
-finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, mc.cores=2, useNA="always"))
+finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, mc.cores=MC_CORES, useNA="always"))
+finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, mc.cores=MC_CORES, useNA="always"))
 finalGenotypes <- aperm(abind::abind(subs=finalGenotypesSnv,indels=finalGenotypesIndel, along=5), c(1,5,2,3,4))
 rm(finalGenotypesSnv,finalGenotypesIndel)
 
 #' ## Probabilistic genotypes
 #+ finalGenotypesP
-finalGenotypesSnvP <- simplify2array(mclapply(finalSnv[whiteList], probGenotype, mc.cores=2))
-finalGenotypesIndelP <- simplify2array(mclapply(finalIndel[whiteList], probGenotype, mc.cores=2))
+finalGenotypesSnvP <- simplify2array(mclapply(finalSnv[whiteList], probGenotype, mc.cores=MC_CORES))
+finalGenotypesIndelP <- simplify2array(mclapply(finalIndel[whiteList], probGenotype, mc.cores=MC_CORES))
 finalGenotypesP <- aperm(abind::abind(subs=finalGenotypesSnvP,indels=finalGenotypesIndelP, along=4), c(1,4,2,3))
 rm(finalGenotypesSnvP,finalGenotypesIndelP)
 
 #' ## Probabilistic genotypes - tail prob (QC)
 #+ finalGenotypesQ
-finalGenotypesSnvQ <- simplify2array(mclapply(finalSnv[whiteList], probGenotypeTail, mc.cores=2))
-finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenotypeTail, mc.cores=2))
+finalGenotypesSnvQ <- simplify2array(mclapply(finalSnv[whiteList], probGenotypeTail, mc.cores=MC_CORES))
+finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenotypeTail, mc.cores=MC_CORES))
 finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenotypesIndelQ, along=3), c(1,3,2))
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
@@ -530,7 +531,8 @@ axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
 dev.off()
 
 #' ## Signatures
-sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutations(vcf, reclassify="none"), tncToPyrimidine(vcf)), mc.cores=2))
+#+ sigTable
+sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutations(vcf, reclassify="none"), tncToPyrimidine(vcf)), mc.cores=MC_CORES))
 sigTable <- aperm(sigTable, c(2,3,1))
 
 #' # Real-time WGD & subclones
@@ -548,9 +550,10 @@ wgdTime <- function(vcf, bb, clusters, purity){
 
 nClones <- sapply(finalClusters, nrow)
 
+#+ finalWgdParam
 finalWgdParam <- mclapply(names(finalSnv)[isWgd], function(ID){
 			wgdTime(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
-		},  mc.cores=4)
+		},  mc.cores=MC_CORES)
 
 finalWgdPi <- sapply(finalWgdParam[!sapply(finalWgdParam, is.null)], function(x) {
 			pi <- x$P[[1]][,"P.m.sX"] * x$P[[1]][,"pi.s"]
@@ -777,7 +780,7 @@ effGenome <- unlist(mclapply(finalSnv, function(vcf) {
 					else
 						w <- w & isDeamination(vcf)
 					2/avgWeights(vcf[na.omit(w)])
-				}, mc.cores=4))
+				}, mc.cores=MC_CORES))
 names(effGenome) <- names(finalSnv)
 
 subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
