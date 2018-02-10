@@ -96,6 +96,7 @@ loadConsensusCNA <- function(ID, purity=1, path="/lustre/scratch112/sanger/cgppi
 		gr$clonal_frequency[which(subclonalIndex)] <- tab$battenberg_frac1_A[subclonalIndex] * purity
 		gr$major_cn[which(subclonalIndex)] <- tab$battenberg_nMaj1_A[subclonalIndex]
 		gr$minor_cn[which(subclonalIndex)] <- tab$battenberg_nMin1_A[subclonalIndex]
+		gr$total_cn[which(subclonalIndex)] <- tab$battenberg_nMaj1_A[subclonalIndex] + tab$battenberg_nMin1_A[subclonalIndex]
 		gr$clonal_frequency[-(1:nrow(tab))] <- tab$battenberg_frac2_A[subclonalIndex] * purity
 		gr$total_cn[-(1:nrow(tab))] <- tab$battenberg_nMaj2_A[subclonalIndex] + tab$battenberg_nMin2_A[subclonalIndex]
 		gr$major_cn[-(1:nrow(tab))] <- tab$battenberg_nMaj2_A[subclonalIndex]
