@@ -81,7 +81,6 @@ save(vcf, file=paste0(vcfFileOut,".RData"))
 
 
 #' Save BB
-bb$n.indel <- countOverlaps(bb, vcfIndel)
 seqlevels(bb) <- c(1:22, "X","Y")
 bb <- sort(bb)
 save(bb, file=sub("snv_mnv","cn",sub(".vcf$",".bb_granges.RData",vcfFileOut)))
