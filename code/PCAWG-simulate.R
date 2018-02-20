@@ -52,11 +52,8 @@ if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 }
 
 #' Add mutation copy numbers
-# vcf <-  addMutCn(vcf, bb, clusters)
-i = header(vcf)@header$INFO
-exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
 L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=0, gender=as.character(allGender[ID, "pred_gender"]), isWgd=IS_WGD, n.boot=500)
-info(vcf) <- cbind(info(vcf), L$D)
+info(vcf)[colnames(L$D)] <- L$D
 bb$timing_param <- L$P 
 
 #' Classify mutations
