@@ -278,7 +278,7 @@ getIndels <- function(vcf){
 	indel[indel=="del"] <- paste("del", r[indel=="del"], sep="")
 	i <- c(t(outer(c("del","ins"), c("C","T", DINUCLEOTIDES, levels(l)), paste, sep="")), "indel")
 	t <- table(factor(indel, levels=i), useNA='a')
-	names(t)[lenght(t)] <- "indel(other)"
+	names(t)[length(t)] <- "indel(other)"
 	t
 }
 
