@@ -3572,3 +3572,342 @@ op <- sapply(1:nrow(q), function(i){
 			sum(hotspots[which(q[i,]<0.1)] %over% finalSnv[[which(selectedSamples)[i]]])
 		})
 
+
+#' All mutations
+allSubsTransRepClust <- rhdf5::h5read("allSubsTransRepClust3.h5","allSubsTransRepClust")
+X <- t(matrix(allSubsTransRepClust, ncol=dim(allSubsTransRepClust)[[5]]))
+a <- allSubsTransRepClust
+dim(a) <- c(96,2,dim(a)[-1])
+allTable <- as.matrix(read.table("allTable.txt", sep="\t", check.names=FALSE))
+Z <- cbind(t(mg14:::asum(a, 2:5)), allTable[,-c(1:96, 331:475)])
+w <- which(!is.na(allTable[,330]))
+Z <- Z[w,]
+any(is.na(Z))
+
+cosineDist <- function(x,y){
+	t(x)%*%y/(sqrt(colSums(x^2)  %*% t(colSums(y^2))) )
+}
+
+#lrtDist <- function(x,y){
+#	z <- x+y 
+#	p <- z/sum(z)
+#	d <- 2*(dmultinom(x, prob=x/sum(x), log=TRUE) + dmultinom(y, prob=y/sum(y), log=TRUE) - dmultinom(x, prob=p, log=TRUE) - dmultinom(y, prob=p, log=TRUE))
+#	#pv <- pchisq(d, df= length(p)-1, lower.tail=FALSE)
+#	return(d)
+#}
+#d <- sapply(1:ncol(z), function(i) sapply(1:ncol(z), function(j) lrtDist(z[,i], z[,j])))
+
+
+
+z <- t(cbind(X,allTable[,-c(1:96, 331:475)]))[,w]
+r <- colSums(z)
+d <- 1-cosineDist(z,z)
+d0 <- d
+d <- d0 + abs(log10(outer(r,r,"/")))/10
+#d <- 1-d
+ 
+set.seed(42)
+tsne <- Rtsne::Rtsne(as.dist(d), theta=0.0, pca=FALSE)
+t <- tsne$Y
+
+
+o <- order(colSums(z), decreasing=TRUE)
+
+pdf("tSNE-TRC-MNV-indel-SV.pdf",16,16)
+scale <- 5000
+b <- ifelse(colMeans(col2rgb(tissueColors)/255) > 0.25, "black","lightgrey")
+plot(-t[o,1],t[o,2], bg=tissueColors[as.character(donor2type[sample2donor[colnames(z)[o]]])], pch=21, cex=sqrt(colSums(z)[o]/scale)+0.5, xlab="t-SNE 1", ylab="t-SNE 2", col=b[as.character(donor2type[sample2donor[colnames(z)[o]]])], 
+		bty="n", xaxt="n", yaxt="n", xpd=NA)
+legend("topleft", pch=21, pt.bg=tissueColors, legend=names(tissueColors), bty="n", ncol=3, pt.cex=2)
+
+Z0 <- Z/rowSums(Z)
+
+col330 <- c(rep(RColorBrewer::brewer.pal(7,"Set1")[-6], each=16), 
+		rep("darkgrey",91), 
+		rep(RColorBrewer::brewer.pal(8,"Dark2")[7:8], each=20),
+		"black", rep("pink",102))
+
+x <- round(range(t[,1])+c(-10,10),-1)
+x <- seq(x[1],x[2],5)
+y <- round(range(t[,2])+c(-10,10),-1)
+y <- seq(y[1],y[2],2.5)
+par(mfrow=c(length(y)-1, length(x)-1), mar=c(0.5,0.1,0.1,0.1), xpd=NA)
+for(j in rev(seq_along(y)[-1])){
+	for(i in rev(seq_along(x))[-1]){
+		w <- which(t[,1]>x[i-1] & t[,1]< x[i] & t[,2]> y[j-1] & t[,2]< y[j])
+		try({barplot((colMeans(Z0[w,,drop=FALSE])), border=NA, col=col330, ylim=c(0,0.25), xaxt="n", yaxt="n", las=2)->b; mtext(text=colnames(Z), at=b, las=2, line=0,side=1, cex=0.01, xpd=NA )})
+	}
+}
+
+dev.off()
+
+
+#' Expression data
+
+fpkm <- read.table("../fpkm/joint_fpkm_uq.tsv.gz", header=TRUE, sep="\t", check.names=FALSE)
+g <- fpkm$feature
+fpkm <- as.matrix(fpkm[,-1])
+rownames(fpkm) <- g
+
+load("../ref/gencode.v19.annotation.gtf.RData")
+gencode <- gencode[gencode$type=="gene"]
+
+genes <-  strsplit("MLH1, MLH3, MSH2, MSH3, MSH6, PMS1, PMS2, POLD1, POLE, POLG, POLH, POLK, REV1, APOBEC3A, APOBEC3B, APOBEC3G, BRCA1, BRCA2, RIF1, TP53, MBD4, NEIL1, MGMT", ", ")[[1]]
+
+ensg <- gencode$gene_id[match(genes, gencode$gene_name)]
+names(ensg) <- genes
+
+m <- match(ensg, rownames(fpkm))
+
+g2t <- as.character(finalData$tumor_rna_seq_aliquot_id)
+names(g2t) <- finalData$sanger_variant_calling_file_name_prefix
+g2t[g2t==""] <- NA
+
+scale <- 5000
+b <- ifelse(colMeans(col2rgb(tissueColors)/255) > 0.25, "black","lightgrey")
+c <- rev(paste(RColorBrewer::brewer.pal(9, "Spectral"),"AA", sep=""))
+s <- colnames(z)[o]
+f <- fpkm[m,match(g2t[s], colnames(fpkm))]
+q <- t(apply(f, 1, function(x) {
+#					y <- unlist(sapply(split(x, donor2type[sample2donor[s]]), 
+#									function(xx){n <- xx/mean(xx, na.rm=TRUE)
+#										#log(n+0.01)
+#										rank(n, na.last="keep")/sum(!is.na(n))
+#									}
+#										))[match(s, unlist(split(s, donor2type[sample2donor[s]])))]
+					rank(x,na.last="keep")/sum(!is.na(x))
+					#as.numeric(cut(x,quantile(x,seq(0,1,0.01), na.rm=TRUE), include.lowest=TRUE))/100
+}))
+par(mfrow=c(5,5))
+#pdf("tSNE-fpkm.pdf",16,16)
+for(i in seq_along(ensg)){
+ x <- q[i,]
+ plot(-t[o,1],t[o,2], bg=c[cut(x,9)], pch=21, cex=sqrt(colSums(z)[o]/scale)+0.5, xlab="t-SNE 1", ylab="t-SNE 2",bty="n", xaxt="n", yaxt="n", xpd=NA, main=names(ensg)[i], col=NA)
+}
+#dev.off()
+x <- colMeans(q)
+#plot(-t[o,1],t[o,2], bg=c[cut(x,9)], pch=21, cex=sqrt(colSums(z)[o]/scale)+0.5, xlab="t-SNE 1", ylab="t-SNE 2",bty="n", xaxt="n", yaxt="n", xpd=NA, main="MMR")
+
+w <- donor2type[sample2donor[s]]=="Skin-Melanoma"
+f <- fpkm[,match(g2t[s], colnames(fpkm))]
+cr <- cor(t(f[,w]), colSums(z[,s])[w], use="c", method='s')
+
+medFpkm <- t(sapply(split(as.data.frame(t(f)), donor2type[sample2donor[s]]), sapply, median, na.rm=TRUE))
+colnames(medFpkm) <- genes
+
+mbd4 <- fpkm[gencode$gene_id[match("MBD4", gencode$gene_name)],]
+foo <- rr
+names(foo) <- NULL
+u <- unlist(foo)
+
+summary(lm(log(u) ~ log(mbd4[g2t[names(u)]]) ))
+
+plot(mbd4[g2t[names(u)]], u, bg=tissueColors[donor2type[sample2donor[names(u)]]], col=tissueBorder[donor2type[sample2donor[names(u)]]], pch=21, log='xy')
+
+plot(fpkm[gencode$gene_id[match("MLH1", gencode$gene_name)],match(g2t[rownames(Z)], colnames(fpkm))], Z[,"delT"], bg=tissueColors[donor2type[sample2donor[rownames(Z)]]], col=tissueBorder[donor2type[sample2donor[rownames(Z)]]], pch=21, log='xy')
+plot(fpkm[gencode$gene_id[match("MSH2", gencode$gene_name)],match(g2t[rownames(Z)], colnames(fpkm))], Z[,"delT"], bg=tissueColors[donor2type[sample2donor[rownames(Z)]]], col=tissueBorder[donor2type[sample2donor[rownames(Z)]]], pch=21, log='xy')
+
+
+KLD <- function(x,y){
+	sum(log(x^x) - log(x^y) + log(y^y) - log(y^x))
+}
+
+S <- as.matrix(read.table("../ref/PCAWG_signature_patterns.txt", header=TRUE, sep="\t")[,-(1:2)])
+
+f <- function(x, e=0.001) (x+e)/sum(x+e)
+
+k <- sapply(1:ncol(S), function(i) sapply(1:ncol(S), function(j) KLD(f(S[,i]), f(S[,j])))) 
+c <- cosineDist(S,S)
+
+
+t <- do.call("rbind", lapply(timeWgd, `[`, , , "5x"))
+library(survival)
+s <- Surv(clinicalData$donor_survival_time, grepl("deceased",clinicalData$donor_vital_status))
+
+ss <- s[match(sample2donor[rownames(t)], clinicalData$icgc_donor_id)]
+l <- droplevels(donor2type[sample2donor[rownames(t)]])
+m <- model.matrix(~l - 1)
+
+coxph(ss~ t[,"hat"] +  age[sample2donor[rownames(t)]] + ridge(m))
+
+for(ll in levels(l)){
+	print(ll)
+	try(print(summary(coxph(ss~ t[,"hat"] +  age[sample2donor[rownames(t)]], subset=l==ll))))
+}
+
+
+t <- do.call("rbind", lapply(timeSubclones, `[`, , , "5x"))
+t <- t[order(t[,"hat"]),]
+tt <- tail(na.omit(t), 100)
+
+pdf("early-subclones.pdf", 4,4)
+for(i in rownames(tt))
+try({
+	plotSample(i)
+	title(xlab=i)
+})
+dev.off()
+
+d <- finalDriversAnnotated[grep("DNMT3A",finalDriversAnnotated$ID)][5]
+for(s in names(finalSnv)[donor2type[sample2donor[names(finalSnv)]] == "Myeloid-MPN"])
+	print(nrow(findOverlaps(finalSnv[[s]], granges(d))))
+
+
+n <- GRanges(5, IRanges(170814120,170837569 ))
+for(s in names(finalSnv)[donor2type[sample2donor[names(finalSnv)]] == "Myeloid-AML"])
+	print(nrow(findOverlaps(finalIndel[[s]], n)))
+
+s <- names(finalSnv)[grep("Myeloid",donor2type[sample2donor[names(finalSnv)]] )]
+
+
+s <- "f92a78d1-90ff-70c8-e040-11ac0d485eca"
+bb <- finalBB[["f92a78d1-90ff-70c8-e040-11ac0d485eca"]]
+bb[seqnames(bb)=="9"]$total_cn[1:2] <- 2 
+bb[seqnames(bb)=="9"]$major_cn[1:2] <- 1 
+bb[seqnames(bb)=="9"]$clonal_frequency[1:2] <- 0.940- 0.580
+bb <- c(bb, bb[seqnames(bb)=="9"][1:2])
+bb$total_cn[length(bb)+c(-1,0)] <- 2
+bb$major_cn[length(bb)+c(-1,0)] <- 2
+bb$minor_cn[length(bb)+c(-1,0)] <- 0
+bb$clonal_frequency[length(bb)+c(-1,0)] <- 0.580
+bb <- sort(bb)
+bb$timing_param <- NULL
+
+
+vcf <- finalSnv[["f92a78d1-90ff-70c8-e040-11ac0d485eca"]]
+MCN <- computeMutCn(vcf, bb, finalClusters[[s]], finalPurity[[s]], n.boot=0)
+
+bb$timing_param <- MCN$P
+
+# JAK2
+j <- GRanges(9, IRanges(5073770, width=1))
+subsetByOverlaps(bb,j)
+
+t <- subsetByOverlaps(bb,j)$timing_param[[1]]
+t[1:2,"P.m.sX"] <- c(0.5,0.5)
+posteriorMutCN(56,56+29, t)
+
+
+# TET2
+t <- subsetByOverlaps(bb,rowData(vcf)[grep("TET2",info(vcf)$DG)])$timing_param[[1]]
+posteriorMutCN(info(vcf)$t_alt_count[grep("TET2",info(vcf)$DG)],
+		info(vcf)$t_alt_count[grep("TET2",info(vcf)$DG)] + info(vcf)$t_ref_count[grep("TET2",info(vcf)$DG)] , t)
+
+pdf(paste0(s, ".pdf"), 4,4)
+plotSample(s, bb=bb)
+dev.off()
+
+
+
+d <- hotspots[!hotspots %over% finalDrivers]
+t <- read.table("../ref/foo.tsv", header=TRUE, sep='\t')
+
+
+permuteCn <- function(bb, cn.min=8){
+	u <- unique(bb)
+	w <- which(u$total_cn < cn.min & seqnames(u) %in% 1:22 & !sapply(u$timing_param, is.null))
+	s <- sample(w)
+	f <- findOverlaps(bb, u[w])
+	bbb <- bb
+	seqnames(bbb)[queryHits(f)] <- seqnames(u)[s][subjectHits(f)]
+	bbb$n.snv_mnv[queryHits(f)] <- round((bbb$n.snv_mnv[queryHits(f)]+0.5) * as.numeric(width(ranges(u)[s][subjectHits(f)]))/as.numeric(width(bbb)[queryHits(f)]))
+	ranges(bbb)[queryHits(f)] <- ranges(u)[s][subjectHits(f)]
+	bbb <- sort(bbb)
+	return(bbb)
+}
+
+simulateMutations <- function(bb, purity=max(bb$clonal_frequency, na.rm=TRUE),  n=40, rho=0.01, xmin=3){
+	g <- (averagePloidy(bb)*purity + 2*(1-purity))
+	V <- list(VRanges())#VRanges()
+	for(i in which(!duplicated(bb)))
+		if(bb$n.snv_mnv[i]>1 & !is.null( bb$timing_param[[i]]))try({
+			cnStates <- bb$timing_param[[i]]
+			p <- cnStates[,"pi.s"]* if(!any(is.na(cnStates[,"P.m.sX"]))) cnStates[,"P.m.sX"] else cnStates[,"pi.m.s"]
+			pwr <- cnStates[,"power.m.s"]#(cnStates[,"power.s"] * cnStates[,"power.m.s"])
+			s <- sample(1:nrow(cnStates), size=pmax(1,ceiling(bb$n.snv_mnv[i] * (p %*% (1/pwr)))), prob=p, replace=TRUE)
+			f <- cnStates[s,"f"]
+			mu.c <- (bb$total_cn[i]*purity + 2*(1-purity))/g * n
+			c <- rnbinom(length(f), size=1/rho, mu=mu.c)
+			x <- rbetabinom(n=length(f), size=c, prob=f, rho=rho)
+			pos <- round(runif(length(f), min=start(bb)[i], max=end(bb)[i]))
+			w <- which(x>=xmin)
+			V[[i]] <- VRanges(seqnames=seqnames(bb)[i], IRanges(pos, width=1), ref="N", alt="A", totalDepth=c, altDepth=x)[w]
+		})
+	V <- do.call("c", V[!sapply(V, is.null)])
+	sampleNames(V) <- "SAMPLE"
+	v <- as(V, "VCF")
+	exptData(v)$header@header$INFO <- rbind(header(v)@header$INFO,info(header(finalSnv[[1]]))[c("t_ref_count","t_alt_count"),])
+	info(v)$t_alt_count <- altDepth(V)
+	info(v)$t_ref_count <- totalDepth(V) - altDepth(V)
+	return(v)
+}
+
+w <- which(isWgd)
+simSnv <- list()
+simBB <- list()
+for(ww in w[which(!names(finalBB[isWgd])[1:200] %in% names(simBB))])try({
+	print(ww)
+	names(ww) <- names(finalSnv)[ww]
+	set.seed(42)
+	b <- finalBB[[ww]]# permuteCn(finalBB[[ww]])
+	v <- simulateMutations(b, n=mean(getTumorDepth(finalSnv[[ww]]), na.rm=TRUE))
+	b$timing_param <- NULL
+	L <- computeMutCn(v, b, clusters=finalClusters[[ww]], purity=finalPurity[ww], gender=allGender[names(ww), "pred_gender"], isWgd=isWgd[ww], n.boot=0, xmin=0)
+	
+	i = header(v)@header$INFO
+	exptData(v)$header@header$INFO <- rbind(i,mcnHeader())
+	info(v) <- cbind(info(v), L$D)
+	b$timing_param <- L$P 
+	
+#' Classify mutations
+	cls <- classifyMutations(info(v), reclassify='all')
+	info(v)$CLS <- cls
+	info(header(v)) <- rbind(info(header(v)), DataFrame(Number="1",Type="String",Description="Mutation classification: {clonal [early/late/NA], subclonal}", row.names="CLS"))
+	
+#' Timing
+	b$n.snv_mnv <- countOverlaps(b, v)
+	t <- bbToTime(b)	
+	mcols(b)[names(t)] <- DataFrame(t)
+	
+	simBB[[names(ww)]] <- b
+	simSnv[[names(ww)]] <- v
+#	plotSample(ww, vcf=v, bb=b)
+})
+
+plot(finalBB[[ww]]$time, b$time, cex=sqrt(finalBB[[ww]]$n.snv_mnv/100))
+
+simBB <- simBB[order(names(simBB))]
+simSnv <- simSnv[order(names(simSnv))]
+
+save(simBB, simSnv, file="sim200.RData")
+
+for(n in names(simBB)){
+	writeVcf(simSnv[[n]], file=paste0("../sim200/vcf/",n,".vcf"))
+	write.table(as.data.frame(simBB[[n]])[,c(1:9)], file=paste0("../sim200/cn/",n,".txt"), col.names=TRUE, sep="\t", quote=FALSE)
+}
+
+simTime <- do.call("rbind",lapply(simBB, mcols))
+realTime <- do.call("rbind", lapply(finalBB[names(simBB)], mcols))
+
+msq <- sqrt((realTime$time - simTime$time)^2)
+
+boxplot(msq ~ cut(simTime$n.snv_mnv, c(0,10^(0:5))), log='y', ylim=c(1e-5, 1))
+
+w <- simTime$time >0.01 & simTime$time <0.99
+
+plot(simTime$n.snv_mnv[w],msq[w] + 1e-4, log='xy', pch=16, cex=0.5)
+x <- c(10^seq(0,4.5,0.5))
+q <- sapply(split( msq[w] +1e-6, cut(simTime$n.snv_mnv[w], x)), quantile, c(0.025, 0.25, 0.5, 0.75, 0.975), na.rm=TRUE)
+lines(x[-length(x)]*2.5, q["50%",], col='red', lwd=2)
+lines(x[-length(x)]*2.5, q["25%",], col='red')
+lines(x[-length(x)]*2.5, q["75%",], col='red')
+lines(x[-length(x)]*2.5, q["2.5%",], col='red', lty=3)
+lines(x[-length(x)]*2.5, q["97.5%",], col='red', lty=3)
+
+
+plot(msq, realTime$time.up - realTime$time.lo)
+
+table(realTime$time.up >= simTime$time & realTime$time.lo <= simTime$time, cut(simTime$n.snv_mnv, 10^(0:5)))
+
+
+consensusClustersToOld(loadConsensusClusters((names(finalSnv)[3])))
