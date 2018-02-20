@@ -8,7 +8,7 @@
 #BSUB -n 1
 
 INPUT_FOLDER="../sim200/vcf"
-OUTPUT_FOLDER="../sim200/annotated"
+OUTPUT_FOLDER="../sim200/annotated/snv_mnv"
 OVERWRITE=true
 
 FILES=(`ls $INPUT_FOLDER/*.vcf.gz`)
@@ -23,7 +23,7 @@ ID=`echo $STEM | awk '{x=$0; gsub("\\\..*","",x); print x}'`
 #fi
 OUTPUT="$OUTPUT_FOLDER/$STEM"
 if [ ! -f "$OUTPUT_FOLDER/$STEM.complete_annotation.vcf.bgz" ] || [ "$OVERWRITE" = true ]; then
-Rscript VCF-annotate.R $INPUT $OUTPUT_FOLDER/$STEM.complete_annotation.vcf
+Rscript PCAWG-simulate.R $INPUT $OUTPUT_FOLDER/$STEM.complete_annotation.vcf
 else
 echo "$STEM.output exists. skipping."
 fi
