@@ -445,59 +445,36 @@ write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), tab, quote=FALSE, row.na
 #mg14:::violinJitterPlot((nt.wgd/nt.total)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(nt.total[i]/3e9), pch=16, ylim=c(0,100), ylab="Co-amplified nucleotides",  col.pty=rep("#00000088",2), plot.violins=FALSE)
 
 #' ## Timing examples
-p <- function(w) {
-	stackTime <- function(bb, t=seq(0,1,0.01)){
-		u <- unique(bb)
-		w <- as.numeric(width(u))
-		f <- function(x) pmin(pmax(x,0.01),0.99)
-		ut <- f((0.5*5+u$time * u$n.snv_mnv)/(5+u$n.snv_mnv))
-		uu <- f(u$time.up)
-		ul <- f(u$time.lo)
-		diff(car::logit(f(t))) * rowSums(sapply(which(!is.na(ut)), function(i) w[i]*dnorm(car::logit(t[-1] - diff(t)/2), mean=car::logit(ut[i]), sd= (car::logit(uu[i]) - car::logit(ul[i]) + 0.05)/4)))#(t <= u$time.up[i] & t >= u$time.lo[i])))
-		#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
-	}
-	layout(matrix(1:3, ncol=1), height=c(4,1.2,3.5))
-	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
-	plotVcf(finalSnv[[w]], finalBB[[w]], finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33)
-	mtext(line=-1, side=3, names(w), las=1)
-	plotBB(finalBB[[w]], ylim=c(0,5), legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE)
-	par(mar=c(3,3,0.5,0.5))
-	plotTiming(finalBB[[w]], legend=FALSE, col.grid=NA)
-	s <- stackTime(finalBB[[w]])
-	g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
-	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
-	print(w)
-}
 
 #+ timingExamples, fig.width=4, fig.height=4
 w <- which(wgdStar=="likely" & !isWgd)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p(w[1])
-p(w[2])
-p(w[3])
+plotSample(w[1])
+plotSample(w[2])
+plotSample(w[3])
 #dev.off()
 
 w <- which(wgdStar=="very likely" & isWgd)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p(w[1])
-p(w[2])
-p(w[9])
+plotSample(w[1])
+plotSample(w[2])
+plotSample(w[9])
 #dev.off()
 
 w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p(w[1])
-p(w[2])
-p(w[3])
+plotSample(w[1])
+plotSample(w[2])
+plotSample(w[3])
 #dev.off()
 
 #' ## GBM examples
 #+ timingExamplesGbm, fig.width=4, fig.height=4
 w <- which(fracGenomeWgdComp[,"time.wgd"]<0.1 & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.1 &  !isWgd & donor2type[sample2donor[names(finalBB)]]=="CNS-GBM")
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-p(w[1])
-p(w[2])
-p(w[3])
+plotSample(w[1])
+plotSample(w[2])
+plotSample(w[3])
 #dev.off()
 
 #' ## Relationship with mutation rates
@@ -645,12 +622,14 @@ for(i in seq_along(o)){
 	f <- function(x) x/max(abs(x))
 	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
-	rect(i-0.33,qWgd[1,a,n],i+0.33,qWgd[3,a,n], border=tissueLines[n],  col=mg14::colTrans(tissueColors[n],3))
-	segments(i-0.33,qWgd[2,a,n],i+0.33,qWgd[2,a,n],col=tissueLines[n], lwd=2)
+	tpy <- 2
+	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy))
+	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), cex=0.66)
+	bwd <- 0.8/2
+	rect(i-bwd,qWgd[1,a,n],i+bwd,qWgd[3,a,n], border=tissueLines[n],  col=paste0(tissueColors[n],"44"))
+	segments(i-bwd,qWgd[2,a,n],i+bwd,qWgd[2,a,n],col=tissueLines[n], lwd=2)
 	#d <- density(na.omit(y[[o[i]]][,"hat"]))
 	#polygon(c(d$y/max(d$y)/2.5+i, rev(-d$y/max(d$y)/2.5+i)),c(d$x, rev(d$x)), border=tissueLines[names(m)[o[i]]],  col=mg14::colTrans(tissueColors[names(m)[o[i]]],3))
-	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueLines[n])
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[n]=="#000000") "white" else "black", bg=tissueColors[n], cex=0.66)
 #	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueColors[names(m)[o[i]]], lwd=2)
 #	points(j, na.omit(y[[o[i]]][,"hat"]), pch=16, col="white", cex=0.5)
 }
@@ -856,14 +835,14 @@ points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueCol
 
 
 #' Plot
-#+ realTimeSubclone, fig.width=5, fig.height=4.667
+#+ realTimeSubclone, fig.width=6, fig.height=2.625
 u <- names(finalSnv)[uniqueSamples]
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 #qSubclone <- sapply(timeSubclones, function(x) apply(x[,], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
-qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
+qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 a <- "5x"
-m <- qSubclone[2,a,]#t[1,3,]
-m["Ovary-AdenoCa"] <- qSubclone[2,"7.5x","Ovary-AdenoCa"]
+m <- qSubclone["50%",a,]#t[1,3,]
+m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
 o <- order(m, na.last=NA)
 y <- sapply(timeSubclones, `[`, (quote(f(,)))[[2]], 1:3,a)
 y[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][,,"7.5x"]
@@ -875,17 +854,21 @@ for(i in seq_along(o)){
 	f <- function(x) x/max(abs(x))
 	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
-	rect(i-0.33,qSubclone[1,a,n],i+0.33,qSubclone[3,a,n], border=tissueLines[n],  col=mg14::colTrans(tissueColors[n],3))
-	segments(i-0.33,qSubclone[2,a,n],i+0.33,qSubclone[2,a,n],col=tissueLines[n], lwd=2)
-	f <- function(x) x/max(abs(x))
+	bwd <- 0.8/2
 	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
-	segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col=tissueLines[n])
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=if(tissueColors[n]=="#000000") "white" else "black", bg=tissueColors[n], cex=0.66)
+	tpy <- 2
+	segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col=mg14::colTrans(tissueLines[n],tpy))
+	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n],tpy), bg=mg14::colTrans(tissueColors[n],tpy), cex=0.66)
+	rect(i-bwd,qSubclone["25%",a,n],i+bwd,qSubclone["75%",a,n], border=tissueLines[n],  col=paste(tissueColors[n],"44", sep=""))
+	segments(i-bwd,qSubclone["50%",a,n],i+bwd,qSubclone["50%",a,n],col=tissueLines[n], lwd=2)
+	segments(i,qSubclone["75%",a,n],i,qSubclone["95%",a,n],col=tissueLines[n], lwd=1.5)
+	segments(i,qSubclone["5%",a,n],i,qSubclone["25%",a,n],col=tissueLines[n], lwd=1.5)
+	f <- function(x) x/max(abs(x))
 }
 
-#par(xpd=TRUE)
-#s <- 12/8
-#dev.copy2pdf(file="realTimeSubclone.pdf", width=5*s, height=3.5*3/4*s, pointsize=8*s)
+par(xpd=TRUE)
+s <- 12/8
+dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/4*s, pointsize=8*s)
 
 sapply(timeSubclones, nrow)
 

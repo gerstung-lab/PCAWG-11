@@ -714,13 +714,46 @@ flattenBB <- function(bb){
 	u
 }
 
-mergeAdjacentBB <- function(bb){
-	b <- split(bb, do.call("paste", mcols(bb), sep=":"))
+reduceBB <- function(bb){
+	b <- split(bb, do.call("paste", mcols(bb)[c("clonal_frequency","major_cn","minor_cn")]))
 	r <- reduce(b)
 	s <- sort(unlist(r))
-	d <- DataFrame(t(sapply(strsplit(names(s), ":"), as.numeric)))
-	names(d) <- names(mcols(bb))
+	d <- DataFrame(t(sapply(strsplit(names(s), " "), as.numeric)))
+	names(d) <- c("clonal_frequency","major_cn","minor_cn")#names(mcols(bb))
 	mcols(s) <- d
 	names(s) <- NULL
+	u <- unique(bb)
+	f <- findOverlaps(s, u)
+	t <- table(subjectHits(f), queryHits(f))
+	s$n.snv_mnv <- u$n.snv_mnv %*% as.matrix(t)
+	s$total_cn <- s$major_cn + s$minor_cn
+	s$timing_param <- vector(mode="list", length=length(s))
+	s$timing_param[subjectHits(f)] <- u$timing_param[queryHits(f)]
 	return(s)
+}
+
+plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]]) {
+	p <- par()
+	stackTime <- function(bb, t=seq(0,1,0.01)){
+		u <- unique(bb)
+		w <- as.numeric(width(u))
+		f <- function(x) pmin(pmax(x,0.01),0.99)
+		ut <- f((0.5*5+u$time * u$n.snv_mnv)/(5+u$n.snv_mnv))
+		uu <- f(u$time.up)
+		ul <- f(u$time.lo)
+		diff(car::logit(f(t))) * rowSums(sapply(which(!is.na(ut)), function(i) w[i]*dnorm(car::logit(t[-1] - diff(t)/2), mean=car::logit(ut[i]), sd= (car::logit(uu[i]) - car::logit(ul[i]) + 0.05)/4)))#(t <= u$time.up[i] & t >= u$time.lo[i])))
+		#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
+	}
+	layout(matrix(1:3, ncol=1), height=c(4,1.2,3.5))
+	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
+	plotVcf(vcf, bb, finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33)
+	mtext(line=-1, side=3, names(w), las=1)
+	plotBB(bb, ylim=c(0,5), legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE)
+	par(mar=c(3,3,0.5,0.5))
+	plotTiming(bb, legend=FALSE, col.grid=NA)
+	s <- stackTime(bb)
+	g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
+	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
+	print(w)
+	par(p)
 }
