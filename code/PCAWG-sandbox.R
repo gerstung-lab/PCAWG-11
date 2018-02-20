@@ -3886,8 +3886,16 @@ for(n in names(simBB)){
 	write.table(as.data.frame(simBB[[n]])[,c(1:9)], file=paste0("../sim200/cn/",n,".txt"), col.names=TRUE, sep="\t", quote=FALSE)
 }
 
-simTime <- do.call("rbind",lapply(simBB, mcols))
-realTime <- do.call("rbind", lapply(finalBB[names(simBB)], mcols))
+files <- dir("../sim200/annotated/cn", pattern=".RData", full.names=TRUE)
+e <- new.env()
+for(f in files){
+	n <- sub("\\..+","",gsub(".+/","",f))
+	load(f, envir=e)
+	simBB[[n]] <- e$bb
+}
+
+simTime <- do.call("rbind",lapply(simBB[-13], mcols))
+realTime <- do.call("rbind", lapply(finalBB[names(simBB)[-13]], mcols))
 
 msq <- sqrt((realTime$time - simTime$time)^2)
 
@@ -3895,7 +3903,11 @@ boxplot(msq ~ cut(simTime$n.snv_mnv, c(0,10^(0:5))), log='y', ylim=c(1e-5, 1))
 
 w <- simTime$time >0.01 & simTime$time <0.99
 
-plot(simTime$n.snv_mnv[w],msq[w] + 1e-4, log='xy', pch=16, cex=0.5)
+par(mfrow=c(1,2))
+plot(realTime$time, simTime$time, pch=16, cex=sqrt(realTime$n.snv_mnv/500), xlab="Time [simulated]", ylab="Time [estimated]", col="#00000044")
+abline(0,1, col='red')
+
+plot(simTime$n.snv_mnv[w],msq[w] + 1e-4, log='xy', pch=16, cex=1, xlab="Number of SNVs", ylab="Error",col="#00000044")
 x <- c(10^seq(0,4.5,0.5))
 q <- sapply(split( msq[w] +1e-6, cut(simTime$n.snv_mnv[w], x)), quantile, c(0.025, 0.25, 0.5, 0.75, 0.975), na.rm=TRUE)
 lines(x[-length(x)]*2.5, q["50%",], col='red', lwd=2)
@@ -3907,7 +3919,7 @@ lines(x[-length(x)]*2.5, q["97.5%",], col='red', lty=3)
 
 plot(msq, realTime$time.up - realTime$time.lo)
 
-table(realTime$time.up >= simTime$time & realTime$time.lo <= simTime$time, cut(simTime$n.snv_mnv, 10^(0:5)))
+table(simTime$time.up >= realTime$time & simTime$time.lo <= simTime$time, cut(simTime$n.snv_mnv, 10^(0:5)))
 
 
 consensusClustersToOld(loadConsensusClusters((names(finalSnv)[3])))
