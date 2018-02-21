@@ -26,7 +26,8 @@ print(ID)
 
 #' ## CLUSTERS
 # Load clusters
-clusters = wccClusters[[ID]]
+clusters <- consensusClustersToOld(loadConsensusClusters((ID))) # consensus clusters
+clusters$proportion <- wccClusters[[ID]]$proportion # WCC adjusted CP
 purity <- purityPloidy[ID,'purity']
 
 #' ## COPYNUMBER
