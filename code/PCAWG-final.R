@@ -792,7 +792,8 @@ timeSubclones <- sapply(s, function(l) {
 			arr <- aperm(arr, c(2,1,3))
 			tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
 			mr <- rowSums(tt0)/age[sample2donor[names(finalSnv)[i]]] # mutation rate 
-			r <- which(rowSums(subcloneDeam[i,]) < 50 | (mr-median(mr, na.rm=TRUE))^2/median(mr,na.rm=TRUE)^2 > 2^2 ) ## Exclude samples with less than 50 subs or > 2x median
+			w <- TiN[sample2donor[names(mr)]] <= 0.01 & ! is.na(TiN[sample2donor[names(mr)]])
+			r <- which(!w | rowSums(subcloneDeam[i,]) < 50 | (mr-median(mr[w], na.rm=TRUE))^2/median(mr[w],na.rm=TRUE)^2 > 2^2 ) ## Exclude samples with less than 50 subs or > 2x median
 			arr[r,,] <- NA
 			return(arr)
 		})
@@ -808,26 +809,25 @@ for(n in s){
 	a <- age[sample2donor[names(finalSnv)[i]]]
 	xx <- a
 	r <- yy/xx 
-	m <- median(r,na.rm=TRUE)
+	m <- median(r[TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])],na.rm=TRUE)
 	rr[[n]] <- r
 	try({
-				w <- (r-m)^2/m^2 <= 2^2 
-				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(5000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
+				w <- (r-m)^2/m^2 <= 2^2 & TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])
+				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(3000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
 				#par(xpd=NA)
 				segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
 				points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
-				#par(xpd=FALSE)
-				#abline(l, lty=3)
-				#abline(l$coef[1], l$coef[1])
 				abline(0, m, lty=3)
 				#lines(c(x0,2*x0), c(0,1))
-				#print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
+				print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
+				f <- (summary(lm(yy[w] ~ xx[w])))
+				print(f$coefficients)
 			})
 }
 n <- names(rr)
 q <- sapply(rr, function(r){
-			m <- median(r,na.rm=TRUE)
-			w <- (r-m)^2/m^2 <= 2^2 
+			m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)
+			w <- (r-m)^2/m^2 <= 2^2 & TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])
 			range(r[w], na.rm=TRUE)})
 plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
 segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
@@ -838,24 +838,23 @@ points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueCol
 #+ realTimeSubclone, fig.width=6, fig.height=2.625
 u <- names(finalSnv)[uniqueSamples]
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-#qSubclone <- sapply(timeSubclones, function(x) apply(x[,], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 a <- "5x"
-m <- qSubclone["50%",a,]#t[1,3,]
-m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
-o <- order(m, na.last=NA)
 y <- sapply(timeSubclones, `[`, (quote(f(,)))[[2]], 1:3,a)
 y[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][,,"7.5x"]
-plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,40))
+m <- qSubclone["50%",a,]#t[1,3,]
+m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
+m[sapply(y, function(x) sum(!is.na(x[,1]))) < 5] <- NA
+o <- order(m, na.last=NA)
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,25))
 x <- seq_along(m[o])
 mg14::rotatedLabel(x, labels=names(sort(m)))
-for(i in seq_along(o)){
+for(i in seq_along(o))try({
 	n <- names(m)[o[i]]
 	f <- function(x) x/max(abs(x))
 	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
-	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
 	bwd <- 0.8/2
-	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
+	j <- if(length(na.omit(y[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i else i
 	tpy <- 2
 	segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col=mg14::colTrans(tissueLines[n],tpy))
 	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n],tpy), bg=mg14::colTrans(tissueColors[n],tpy), cex=0.66)
@@ -864,7 +863,7 @@ for(i in seq_along(o)){
 	segments(i,qSubclone["75%",a,n],i,qSubclone["95%",a,n],col=tissueLines[n], lwd=1.5)
 	segments(i,qSubclone["5%",a,n],i,qSubclone["25%",a,n],col=tissueLines[n], lwd=1.5)
 	f <- function(x) x/max(abs(x))
-}
+})
 
 par(xpd=TRUE)
 s <- 12/8

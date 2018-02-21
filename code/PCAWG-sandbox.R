@@ -3962,18 +3962,18 @@ cor(cbind(bb=finalBB[[1]]$time, t=t$time, t0=t0$time, t3=t3$time),use='c')
 table(classifyMutations(v3), classifyMutations(v0))
 table(classifyMutations(v3), info(v)$CLS)
 
-TiN <- read.table("../ref/release_may2016.v1.1.TiN__donor.TiNsorted.20Jul2016.tsv", header=TRUE, sep="\t")
+
 
 ySubclone <- do.call("rbind", y)
 
-m <- sapply(rownames(yy),grep, as.character(TiN$tumor_wgs_aliquot_id))
+m <- sapply(rownames(ySubclone),grep, as.character(TiN$tumor_wgs_aliquot_id))
 plot(ySubclone[,"hat"], TiN[m, "TiN_donor"], col=tissueColors[donor2type[sample2donor[rownames(ySubclone)]]], pch=19, log='x', xlab="Time [yr]", ylab="TiN")
 boxplot(ySubclone[,"hat"]~ TiN[m, "TiN_donor"], notch=TRUE)#, ylim=c(0,10))
 
 t(sapply(split(TiN[m, "TiN_donor"], donor2type[sample2donor[rownames(ySubclone)]]), quantile, na.rm=TRUE))
 
 
-sapply(split(ySubclone[,"hat"], TiN[match(rownames(ySubclone),as.character(TiN$tumor_wgs_aliquot_id)), "TiN_donor"]), quantile,na.rm=TRUE)
+sapply(split(ySubclone[,"hat"], TiN[m, "TiN_donor"]), quantile,na.rm=TRUE)
 #m <- match(rownames(yy),as.character(TiN$tumor_wgs_aliquot_id))
 t(sapply(split(TiN[m, "TiN_donor"], donor2type[sample2donor[rownames(ySubclone)]]), quantile, na.rm=TRUE))
 sapply(split(TiN[m, "TiN_donor"], donor2type[sample2donor[rownames(ySubclone)]]), median, na.rm=TRUE)
@@ -3984,4 +3984,6 @@ plot(yWgd[,"hat"], TiN[match(rownames(yWgd),as.character(TiN$tumor_wgs_aliquot_i
 
 sapply(split(yWgd[,"hat"], TiN[match(rownames(yWgd),as.character(TiN$tumor_wgs_aliquot_id)), "TiN_donor"]), quantile,na.rm=TRUE)
 boxplot(yWgd[,"hat"]~ TiN[match(rownames(yWgd),as.character(TiN$tumor_wgs_aliquot_id)), "TiN_donor"], notch=TRUE)
+
+allClusters <- sapply(names(finalSnv), function(ID) consensusClustersToOld(loadConsensusClusters((ID))), simplify=FALSE)
 
