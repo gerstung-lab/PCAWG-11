@@ -3894,8 +3894,8 @@ for(f in files){
 	simBB[[n]] <- e$bb
 }
 
-simTime <- do.call("rbind",lapply(simBB[-13], mcols))
-realTime <- do.call("rbind", lapply(finalBB[names(simBB)[-13]], mcols))
+simTime <- do.call("rbind",lapply(simBB, mcols))
+realTime <- do.call("rbind", lapply(finalBB[names(simBB)], mcols))
 
 msq <- sqrt((realTime$time - simTime$time)^2)
 
@@ -3921,5 +3921,67 @@ plot(msq, realTime$time.up - realTime$time.lo)
 
 table(simTime$time.up >= realTime$time & simTime$time.lo <= simTime$time, cut(simTime$n.snv_mnv, 10^(0:5)))
 
+#' A few more checks re power and WCC
+load("../final/annotated_010/clusters/0009b464-b376-4fbc-8a56-da538269a02f.consensus.20160830.somatic.snv_mnv.complete_annotation.clusters_purity.RData")
+bb <- finalBB[[1]]
+bb$timing_param <- NULL
+D <- computeMutCn(finalSnv[[1]], bb=bb, purity= purityPloidy[1,"purity"], clusters=clusters, isWgd=TRUE, gender='female', xmin=3, n.boot=0)
+v <- finalSnv[[1]]
+info(v)[colnames(D$D)] <- D$D
 
-consensusClustersToOld(loadConsensusClusters((names(finalSnv)[3])))
+D0 <- computeMutCn(finalSnv[[1]], bb=bb, purity= purityPloidy[1,"purity"], clusters=wccClusters[[1]], isWgd=TRUE, gender='female', xmin=0, n.boot=0)
+v0 <- finalSnv[[1]]
+info(v0)[colnames(D0$D)] <- D0$D
+
+table(classifyMutations(v), classifyMutations(v0))
+table(info(v)$CLS, classifyMutations(v0))
+
+
+b <- finalBB[[1]]
+b$timing_param <- D$P
+t <- bbToTime(b)
+
+b0 <- finalBB[[1]]
+b0$timing_param <- D0$P
+t0 <- bbToTime(b0)
+
+plot(t$time, t0$time)
+plot(finalBB[[1]]$time, t$time)
+
+cl <- clusters
+cl$proportion <- wccClusters[[1]]$proportion
+
+D3 <- computeMutCn(finalSnv[[1]], bb=bb, purity= purityPloidy[1,"purity"], clusters=cl, isWgd=TRUE, gender='female', xmin=3, n.boot=0)
+v3 <- finalSnv[[1]]
+info(v3)[colnames(D3$D)] <- D3$D
+b0$timing_param <- D3$P
+t3 <- bbToTime(b0)
+
+cor(cbind(bb=finalBB[[1]]$time, t=t$time, t0=t0$time, t3=t3$time),use='c')
+
+table(classifyMutations(v3), classifyMutations(v0))
+table(classifyMutations(v3), info(v)$CLS)
+
+TiN <- read.table("../ref/release_may2016.v1.1.TiN__donor.TiNsorted.20Jul2016.tsv", header=TRUE, sep="\t")
+
+ySubclone <- do.call("rbind", y)
+
+m <- sapply(rownames(yy),grep, as.character(TiN$tumor_wgs_aliquot_id))
+plot(ySubclone[,"hat"], TiN[m, "TiN_donor"], col=tissueColors[donor2type[sample2donor[rownames(ySubclone)]]], pch=19, log='x', xlab="Time [yr]", ylab="TiN")
+boxplot(ySubclone[,"hat"]~ TiN[m, "TiN_donor"], notch=TRUE)#, ylim=c(0,10))
+
+t(sapply(split(TiN[m, "TiN_donor"], donor2type[sample2donor[rownames(ySubclone)]]), quantile, na.rm=TRUE))
+
+
+sapply(split(ySubclone[,"hat"], TiN[match(rownames(ySubclone),as.character(TiN$tumor_wgs_aliquot_id)), "TiN_donor"]), quantile,na.rm=TRUE)
+#m <- match(rownames(yy),as.character(TiN$tumor_wgs_aliquot_id))
+t(sapply(split(TiN[m, "TiN_donor"], donor2type[sample2donor[rownames(ySubclone)]]), quantile, na.rm=TRUE))
+sapply(split(TiN[m, "TiN_donor"], donor2type[sample2donor[rownames(ySubclone)]]), median, na.rm=TRUE)
+
+yWgd <- do.call("rbind", y)
+
+plot(yWgd[,"hat"], TiN[match(rownames(yWgd),as.character(TiN$tumor_wgs_aliquot_id)), "TiN_donor"], col=tissueColors[donor2type[sample2donor[rownames(yWgd)]]], pch=19, log='x', xlab="Time [yr]", ylab="TiN")
+
+sapply(split(yWgd[,"hat"], TiN[match(rownames(yWgd),as.character(TiN$tumor_wgs_aliquot_id)), "TiN_donor"]), quantile,na.rm=TRUE)
+boxplot(yWgd[,"hat"]~ TiN[match(rownames(yWgd),as.character(TiN$tumor_wgs_aliquot_id)), "TiN_donor"], notch=TRUE)
+
