@@ -30,8 +30,8 @@ source("PCAWG-functions.R")
 MC_CORES=2
 
 #+ evalOff, echo=FALSE
-opts_chunk$set(eval=FALSE)
-load("2018-01-30-PCAWG-final.RData")
+#opts_chunk$set(eval=FALSE)
+#load("2018-01-30-PCAWG-final.RData")
 source("PCAWG-functions.R")
 
 
@@ -39,7 +39,7 @@ source("PCAWG-functions.R")
 #' ## Whitelist
 #' ### SNV and MNV
 #+ loadSNV
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/snv_mnv"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/snv_mnv"
 finalSnv <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -51,7 +51,7 @@ names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FA
 
 #' ### Copy number profiles
 #+ loadBB
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/cn"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/cn"
 finalBB <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -62,7 +62,7 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 
 #' ### Indel
 #+ loadIndel
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/indel"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/indel"
 finalIndel <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 	load(f)
@@ -74,7 +74,7 @@ names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=
 #+ loadClusters
 finalClusters <- list()
 finalPurity <- numeric()
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/clusters"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClusters[[f]] <- clusters
@@ -107,7 +107,7 @@ for(i in seq_along(finalDriversAnnotated)){
 #' ## Graylisted data
 #' ### SNV and MNV
 #+ loadSnvGray
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/snv_mnv"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/snv_mnv"
 finalSnvGray <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -120,7 +120,7 @@ finalSnv[names(finalSnvGray)] <- finalSnvGray
 
 #' ### Copy number profiles
 #+ loadBBGray
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/cn"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/cn"
 finalBBGray <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -133,7 +133,7 @@ finalBB[names(finalBBGray)] <- finalBBGray
 
 #' ### Indel
 #+ loadIndelGray
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/indel"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/indel"
 finalIndelGray <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 	load(f)
@@ -147,7 +147,7 @@ finalIndel[names(finalIndelGray)] <- finalIndelGray
 #+ loadClustersGray
 finalClustersGray <- list()
 finalPurityGray <- numeric()
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_011/graylist/clusters"
+p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClustersGray[[f]] <- clusters
@@ -513,7 +513,151 @@ sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutati
 sigTable <- aperm(sigTable, c(2,3,1))
 
 #' # Real-time WGD & subclones
-#' ## Prelim
+age <- clinicalData$donor_age_at_diagnosis
+names(age) <- clinicalData$icgc_donor_id
+
+#' ## Subclones
+#' ### Prelim
+#' Calculate effective genome size, i.e. time-averaged ploidy from mutation copy numbers
+#+ effGenome
+effGenome <- unlist(mclapply(finalSnv, function(vcf) {
+					w <- info(vcf)$CLS!="subclonal"
+					if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+						w <- w & isDeaminationNoUV(vcf)
+					else
+						w <- w & isDeamination(vcf)
+					2/avgWeights(vcf[na.omit(w)])
+				}, mc.cores=MC_CORES))
+names(effGenome) <- names(finalSnv)
+
+subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
+							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+								w <- isDeaminationNoUV(vcf)
+							else
+								w <- isDeamination(vcf)
+							p <- info(vcf)$pSub[w]; 
+							c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))})))
+
+d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
+s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
+
+nClones <- sapply(finalClusters, nrow)
+
+#' ### Mutation rates and age
+#' Analyse relation to age, exclude hypermutators and samples with tumour in normal 1%. 
+#+ timeSubcloneAge, fig.width=10, fig.height=10
+rr <- cc <- list()
+remove <- character()
+par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
+for(n in s){
+	i <- d==n
+	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
+	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+	yy <- rowSums(tt0)
+	a <- age[sample2donor[names(finalSnv)[i]]]
+	xx <- a
+	r <- yy/xx 
+	m <- median(r[TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])],na.rm=TRUE)
+	rr[[n]] <- r
+	try({
+				w <- (r-m)^2/m^2 <= 2^2 & TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])
+				remove <- c(remove, names(which(!w)))
+				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(3000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
+				#par(xpd=NA)
+				segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
+				points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
+				abline(0, m, lty=3)
+				#lines(c(x0,2*x0), c(0,1))
+				print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
+				f <- (summary(lm(yy[w] ~ xx[w])))
+				cc[[n]] <- f$coefficients
+			})
+}
+n <- names(rr)
+q <- sapply(rr, function(r){
+			m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)
+			w <- (r-m)^2/m^2 <= 2^2 & TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])
+			range(r[w], na.rm=TRUE)})
+plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
+segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
+points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
+
+#' Positive intercept?
+a <- simplify2array(cc[names(cc)!="Myeloid-AML"])
+all(a[1,1,]>0 | a[1,4,]>0.5)
+
+#' Positive slope?
+all(na.omit(a[2,1,] > 0 | a[2,4,] > 0.5))
+
+#' ### Timing
+#' Acceleration values to simulate
+accel <- c(1,2.5,5,7.5,10)
+names(accel) <- paste0(accel, "x")
+
+#' The actual timing
+#+ timeSubclones, warning=FALSE
+set.seed(42)
+timeSubclones <- sapply(s, function(l) {
+			i <- d==l
+			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
+			resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
+						tt <- matrix(rpois(length(tt0), lambda=tt0), ncol=ncol(tt0))
+						res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
+						colnames(res) <- paste0(accel, "x")
+						#res[res==0] <- NA
+						res}, simplify='array')
+			res <- sapply(accel, function(a)  tt0[,1]/a/rowSums(tt0/rep(c(a,1), each=nrow(tt0)))) * age[sample2donor[names(finalSnv)[i]]]
+			colnames(res) <- paste0(accel, "x")	
+			resCI <- apply(resB,1:2, quantile, c(0.025,0.975), na.rm=TRUE)
+			arr <- abind::abind(res, resCI, along=1)
+			rownames(arr)[1] <- "hat"
+			arr <- aperm(arr, c(2,1,3))
+			tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+			r <- which(rowSums(subcloneDeam[i,]) < 50 ) ## Exclude samples with less than 50 subs 
+			arr[r,,] <- NA
+			return(arr)
+		})
+
+#' Plot
+#+ realTimeSubclone, fig.width=6, fig.height=2.225
+u <- setdiff(names(finalSnv)[uniqueSamples], remove)
+par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
+qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
+a <- "5x"
+y <- sapply(timeSubclones, `[`, (quote(f(,)))[[2]], 1:3,a)
+y[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][,,"7.5x"]
+m <- qSubclone["50%",a,]#t[1,3,]
+m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
+m[sapply(y, function(x) sum(!is.na(x[,1]))) < 5] <- NA
+o <- order(m, na.last=NA)
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
+x <- seq_along(m[o])
+mg14::rotatedLabel(x, labels=names(sort(m)))
+for(i in seq_along(o))try({
+				n <- names(m)[o[i]]
+				f <- function(x) x/max(abs(x))
+				a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
+				bwd <- 0.8/2
+				j <- if(length(na.omit(y[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i else i
+				tpy <- 2
+				segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col=mg14::colTrans(tissueLines[n],tpy))
+				points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n],tpy), bg=mg14::colTrans(tissueColors[n],tpy), cex=0.66)
+				rect(i-bwd,qSubclone["25%",a,n],i+bwd,qSubclone["75%",a,n], border=tissueLines[n],  col=paste(tissueColors[n],"44", sep=""))
+				segments(i-bwd,qSubclone["50%",a,n],i+bwd,qSubclone["50%",a,n],col=tissueLines[n], lwd=2)
+				segments(i,qSubclone["75%",a,n],i,qSubclone["95%",a,n],col=tissueLines[n], lwd=1.5)
+				segments(i,qSubclone["5%",a,n],i,qSubclone["25%",a,n],col=tissueLines[n], lwd=1.5)
+				f <- function(x) x/max(abs(x))
+			})
+
+par(xpd=TRUE)
+s <- 12/8
+dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
+
+sapply(timeSubclones, nrow)
+
+
+#' ## WGD
+#' ### Functions
 wgdTime <- function(vcf, bb, clusters, purity){
 	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
 	if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
@@ -524,8 +668,6 @@ wgdTime <- function(vcf, bb, clusters, purity){
 	b <- GRanges(1, IRanges(1,max(end(v))), copy_number=4, major_cn=2, minor_cn=2, clonal_frequency=purity)
 	computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=10)
 }
-
-nClones <- sapply(finalClusters, nrow)
 
 #+ finalWgdParam
 finalWgdParam <- mclapply(names(finalSnv)[isWgd], function(ID){
@@ -564,10 +706,7 @@ correctAccelRand <- function(pi, ta=seq(0.66,1,0.01), a=seq(1,10,1)){
 	x <- sapply(ta, function(taa) sapply(a, function(aa) correctAccel(pi, taa, aa)), simplify='array')
 }
 
-accel <- c(1,2.5,5,7.5,10)
-names(accel) <- paste0(accel, "x")
-
-#' ## WGD
+#' ### Timing
 foo <- apply(finalWgdPi[,,], 2:3,  function(x) correctAccelRand(x, a=accel))
 finalWgdPiAdj <- array(foo, dim=c(2, length(accel), length(eval(formals(correctAccelRand)$ta)), dim(foo)[-1]))
 dimnames(finalWgdPiAdj)[[1]] <- c('t.WGD','t.subclonal')
@@ -577,9 +716,6 @@ dimnames(finalWgdPiAdj)[[5]] <- names(finalBB)[isWgd][!sapply(finalWgdParam, is.
 
 #finalWgdPiAdj <- sapply(1:ncol(finalWgdPi), function(i) correctAccelRand(finalWgdPi[,i], a=accel), simplify='array')
 #dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
-
-age <- clinicalData$donor_age_at_diagnosis
-names(age) <- clinicalData$icgc_donor_id
 
 n <- dimnames(finalWgdPiAdj)[[5]]
 finalWgdTime <- finalWgdPiAdj[,,,,n] * rep(age[sample2donor[n]], each=2)
@@ -606,7 +742,7 @@ timeWgd <- sapply(s, function(l) {
 
 #+ realTimeWgd, fig.height=3, fig.width=4
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-u <- names(finalSnv)[uniqueSamples]
+u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 a <- "5x"
 m <- qWgd['75%',a,]#t[1,3,]
@@ -750,126 +886,6 @@ for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueColors
 #dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
-#' ## Subclones
-#+ effGenome
-effGenome <- unlist(mclapply(finalSnv, function(vcf) {
-					w <- info(vcf)$CLS!="subclonal"
-					if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
-						w <- w & isDeaminationNoUV(vcf)
-					else
-						w <- w & isDeamination(vcf)
-					2/avgWeights(vcf[na.omit(w)])
-				}, mc.cores=MC_CORES))
-names(effGenome) <- names(finalSnv)
-
-subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
-							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
-								w <- isDeaminationNoUV(vcf)
-							else
-								w <- isDeamination(vcf)
-							p <- info(vcf)$pSub[w]; 
-							c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))})))
-
-d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
-s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
-
-#+ timeSubclones, warning=FALSE
-set.seed(42)
-timeSubclones <- sapply(s, function(l) {
-			i <- d==l
-			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
-			resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
-						tt <- matrix(rpois(length(tt0), lambda=tt0), ncol=ncol(tt0))
-						res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
-						colnames(res) <- paste0(accel, "x")
-						#res[res==0] <- NA
-						res}, simplify='array')
-			res <- sapply(accel, function(a)  tt0[,1]/a/rowSums(tt0/rep(c(a,1), each=nrow(tt0)))) * age[sample2donor[names(finalSnv)[i]]]
-			colnames(res) <- paste0(accel, "x")	
-			resCI <- apply(resB,1:2, quantile, c(0.025,0.975), na.rm=TRUE)
-			arr <- abind::abind(res, resCI, along=1)
-			rownames(arr)[1] <- "hat"
-			arr <- aperm(arr, c(2,1,3))
-			tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
-			mr <- rowSums(tt0)/age[sample2donor[names(finalSnv)[i]]] # mutation rate 
-			w <- TiN[sample2donor[names(mr)]] <= 0.01 & ! is.na(TiN[sample2donor[names(mr)]])
-			r <- which(!w | rowSums(subcloneDeam[i,]) < 50 | (mr-median(mr[w], na.rm=TRUE))^2/median(mr[w],na.rm=TRUE)^2 > 2^2 ) ## Exclude samples with less than 50 subs or > 2x median
-			arr[r,,] <- NA
-			return(arr)
-		})
-
-#+ timeSubcloneAge, fig.width=10, fig.height=10
-rr <- list()
-par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
-for(n in s){
-	i <- d==n
-	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
-	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
-	yy <- rowSums(tt0)
-	a <- age[sample2donor[names(finalSnv)[i]]]
-	xx <- a
-	r <- yy/xx 
-	m <- median(r[TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])],na.rm=TRUE)
-	rr[[n]] <- r
-	try({
-				w <- (r-m)^2/m^2 <= 2^2 & TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])
-				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(3000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
-				#par(xpd=NA)
-				segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
-				points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
-				abline(0, m, lty=3)
-				#lines(c(x0,2*x0), c(0,1))
-				print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
-				f <- (summary(lm(yy[w] ~ xx[w])))
-				print(f$coefficients)
-			})
-}
-n <- names(rr)
-q <- sapply(rr, function(r){
-			m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)
-			w <- (r-m)^2/m^2 <= 2^2 & TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])
-			range(r[w], na.rm=TRUE)})
-plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
-segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
-points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
-
-
-#' Plot
-#+ realTimeSubclone, fig.width=6, fig.height=2.625
-u <- names(finalSnv)[uniqueSamples]
-par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
-a <- "5x"
-y <- sapply(timeSubclones, `[`, (quote(f(,)))[[2]], 1:3,a)
-y[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][,,"7.5x"]
-m <- qSubclone["50%",a,]#t[1,3,]
-m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
-m[sapply(y, function(x) sum(!is.na(x[,1]))) < 5] <- NA
-o <- order(m, na.last=NA)
-plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,25))
-x <- seq_along(m[o])
-mg14::rotatedLabel(x, labels=names(sort(m)))
-for(i in seq_along(o))try({
-	n <- names(m)[o[i]]
-	f <- function(x) x/max(abs(x))
-	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
-	bwd <- 0.8/2
-	j <- if(length(na.omit(y[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i else i
-	tpy <- 2
-	segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col=mg14::colTrans(tissueLines[n],tpy))
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n],tpy), bg=mg14::colTrans(tissueColors[n],tpy), cex=0.66)
-	rect(i-bwd,qSubclone["25%",a,n],i+bwd,qSubclone["75%",a,n], border=tissueLines[n],  col=paste(tissueColors[n],"44", sep=""))
-	segments(i-bwd,qSubclone["50%",a,n],i+bwd,qSubclone["50%",a,n],col=tissueLines[n], lwd=2)
-	segments(i,qSubclone["75%",a,n],i,qSubclone["95%",a,n],col=tissueLines[n], lwd=1.5)
-	segments(i,qSubclone["5%",a,n],i,qSubclone["25%",a,n],col=tissueLines[n], lwd=1.5)
-	f <- function(x) x/max(abs(x))
-})
-
-par(xpd=TRUE)
-s <- 12/8
-dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/4*s, pointsize=8*s)
-
-sapply(timeSubclones, nrow)
 
 #+ realTimeSubcloneWgdScatter
 par( mar=c(4,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
