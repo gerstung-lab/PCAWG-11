@@ -760,4 +760,4 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]]) {
 
 t <- read.table("../ref/release_may2016.v1.1.TiN__donor.TiNsorted.20Jul2016.tsv", header=TRUE, sep="\t")
 TiN <- t$TiN_donor
-names(TiN) <- TiN$icgc_donor_id
+names(TiN) <- t$icgc_donor_id
