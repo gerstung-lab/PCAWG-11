@@ -30,8 +30,8 @@ source("PCAWG-functions.R")
 MC_CORES=2
 
 #+ evalOff, echo=FALSE
-#opts_chunk$set(eval=FALSE)
-#load("2018-01-30-PCAWG-final.RData")
+opts_chunk$set(eval=FALSE)
+load("2018-02-22-PCAWG-final.RData")
 source("PCAWG-functions.R")
 
 
@@ -204,9 +204,9 @@ finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenoty
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
 #' # Save output
-#+ saveOut
+#+ saveOut, eval=FALSE
 save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
-#save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
+save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
 #+ evalOn, eval=TRUE, echo=FALSE
 opts_chunk$set(eval=TRUE)
@@ -381,32 +381,6 @@ wgdPoss <- !isWgd & 2.5 - 1.5 * finalHom <= finalPloidy
 wgdStat <- factor(wgdPoss + 2*isWgd - wgdPoss*isWgd, labels=c("absent","possible","present"))
 table(wgdStat, wgdStar)
 
-#pdf("WGD-timing-009.pdf", 12,6.5)
-#j <- 1
-#for(ID in names(finalBB)[isWgd]){
-#	if(j%%100 == 0) print(j); j <- j+1
-##	for(f in dir("../final/annotated_007/snv_mnv", pattern=paste0(ID,".+bb_granges.RData"), full.names=TRUE)) load(f)
-##	t <- bbToTime(bb)
-#	par(mfrow=c(2,1), mar=c(3,3,2,1), mgp=c(2,.5,0), bty="L", cex=1, las=2)
-#	plotBB(finalBB[[ID]], ylim=c(0,8))
-#	title(main=paste0(ID,", ", donor2type[sample2donor[ID]], ", ploidy=",round(finalPloidy[ID],2), ", hom=",round(finalHom[ID],2)), font.main=1, line=0)
-#	par(mar=c(3,3,2,1))
-#	plotTiming(finalBB[[ID]])
-#	abline(h=fracGenomeWgdComp[ID,"time.wgd"], lty=3)
-#	title(main=paste0("Timeable=", round(fracGenomeWgdComp[ID,2]/chrOffset["MT"]*100), "%, WGD=",round(fracGenomeWgdComp[ID,1]/fracGenomeWgdComp[ID,2]*100), "%, sd.WGD=",round(fracGenomeWgdComp[ID,'sd.wgd'],2), "%, avg.CI=",round(fracGenomeWgdComp[ID,'avg.ci'],2),", verdict=",wgdStar[ID]), font.main=1, line=0)
-#}
-#dev.off()
-
-##' BB without VCF
-#otherBB <- sapply(setdiff(sub("\\..+","",dir(bbPath)), names(finalBB)), function(ID) loadConsensusCNA(ID, purity=purityPloidy[ID, 'purity']))
-#for(ID in names(otherBB))
-#	otherBB[[ID]]$total_cn <- otherBB[[ID]]$major_cn+ otherBB[[ID]]$minor_cn
-#
-#otherPloidy <- sapply(otherBB, averagePloidy)
-#otherHom <- sapply(otherBB, averageHom)
-#otherWgd <- .classWgd(otherPloidy, otherHom)
-#otherPoss <- !otherWgd & 2.5 - 1.5 * otherHom <= otherPloidy
-#otherStat <- factor(otherPoss + 2*otherWgd - otherPoss*otherWgd, levels=0:2,labels=c("absent","possible","present"))
 
 
 #' # Coamplification and WGD
@@ -432,17 +406,6 @@ tab <- data.frame(avgPloidy=finalPloidy, avgHom=finalHom, isWgd=isWgd, d, inform
 #tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
 write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), tab, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
 
-
-
-#fracGenomeWgdComp <- data.frame(fracGenomeWgdComp)
-#attach(fracGenomeWgdComp)
-#x <- mg14:::violinJitter()
-#i <- !is.na(nt.coamp/nt.amp) & avg.ci < 0.5 & chr.all > 1
-#
-#par(mfrow=c(1,3), bty="n", mgp=c(2,.5,0), mar=c(3,3,1,1)+.1, cex=1)
-#mg14:::violinJitterPlot((chr.wgd/chr.all)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(chr.all[i]/23), pch=16, ylim=c(0,100), ylab="Co-amplified chromosomes",  col.pty=rep("#00000088",2), plot.violins=FALSE)
-#mg14:::violinJitterPlot((n.wgd/n.all)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=2*sqrt(n.all[i]/1000), pch=16, ylim=c(0,100), ylab="Co-amplified segments",  col.pty=rep("#00000088",2), plot.violins=FALSE)
-#mg14:::violinJitterPlot((nt.wgd/nt.total)[i]*100, factor(WGD[i], labels=c("ND","WGD")), cex=1*sqrt(nt.total[i]/3e9), pch=16, ylim=c(0,100), ylab="Co-amplified nucleotides",  col.pty=rep("#00000088",2), plot.violins=FALSE)
 
 #' ## Timing examples
 
@@ -516,6 +479,13 @@ sigTable <- aperm(sigTable, c(2,3,1))
 age <- clinicalData$donor_age_at_diagnosis
 names(age) <- clinicalData$icgc_donor_id
 
+typeNa <- gsub("\t","",strsplit("Bone-Cart
+						Breast-LobularCa
+						Breast-DCIS
+						Lymph-NOS
+						Myeloid-MDS
+						Cervix-AdenoCa", "\n")[[1]])
+
 #' ## Subclones
 #' ### Prelim
 #' Calculate effective genome size, i.e. time-averaged ploidy from mutation copy numbers
@@ -551,7 +521,7 @@ remove <- character()
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 for(n in s){
 	i <- d==n
-	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
+	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3
 	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
 	yy <- rowSums(tt0)
 	a <- age[sample2donor[names(finalSnv)[i]]]
@@ -562,15 +532,15 @@ for(n in s){
 	try({
 				w <- (r-m)^2/m^2 <= 2^2 & TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])
 				remove <- c(remove, names(which(!w)))
-				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(3000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
+				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(1000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
 				#par(xpd=NA)
 				segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
 				points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
 				abline(0, m, lty=3)
 				#lines(c(x0,2*x0), c(0,1))
-				print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
+				#print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
 				f <- (summary(lm(yy[w] ~ xx[w])))
-				cc[[n]] <- f$coefficients
+				cc[[n]] <- cbind(f$coefficients, f$cov.unscaled * f$sigma^2)
 			})
 }
 n <- names(rr)
@@ -582,12 +552,37 @@ plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG r
 segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
 points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
 
+length(remove)
+
 #' Positive intercept?
-a <- simplify2array(cc[names(cc)!="Myeloid-AML"])
-all(a[1,1,]>0 | a[1,4,]>0.5)
+a <- simplify2array(cc[!names(cc) %in% c("Myeloid-AML","Bone-Epith")])
+all(a[1,1,]>0 | a[1,4,]>0.1)
 
 #' Positive slope?
 all(na.omit(a[2,1,] > 0 | a[2,4,] > 0.5))
+
+#+rateOffset, fig.width=3.5, fig.height=3.5
+plot(a[1,1,], a[2,1,], col=tissueColors[dimnames(a)[[3]]], pch=NA, xlab="Offset", ylab="SNVs/Gb/yr")
+segments(a[1,1,], a[2,1,] - a[2,2,],a[1,1,], a[2,1,]+a[2,2,], col=tissueLines[dimnames(a)[[3]]], pch=19)
+segments(a[1,1,]-a[1,2,], a[2,1,], a[1,1,]+a[1,2,], a[2,1,], col=tissueLines[dimnames(a)[[3]]], pch=19)
+points(a[1,1,], a[2,1,], pch=21, bg=tissueColors[dimnames(a)[[3]]], col=tissueLines[dimnames(a)[[3]]])
+abline(h=0, lty=3)
+abline(v=0, lty=3)
+
+#' Fraction of mutations due to linear accumulation
+#+fracLinear, fig.width=6, fig.height=3.5
+par(mar=c(6,3,1,1))
+ma <- sapply(split(age, donor2type[names(age)]), median, na.rm=TRUE)
+fm <- pmax(a[2,1,],0)*ma[dimnames(a)[[3]]]/(pmax(0,a[2,1,])*ma[dimnames(a)[[3]]] + pmax(0,a[1,1,]))
+o <- order(fm)
+fmq <- sapply(names(fm), function(n){
+			aa <- mvtnorm::rmvnorm(1000, mean=a[,1,n], sigma=a[,5:6,n] )
+			quantile(pmax(aa[,2],0)*ma[n]/(pmax(0,aa[,2])*ma[n] + pmax(0,aa[,1])), c(0.025, 0.975))
+		}) 
+barplot(fm[o], col=tissueColors[dimnames(a)[[3]]][o], border=tissueLines[dimnames(a)[[3]]][o], las=2) -> b
+segments(b, fm[o], b, fmq[2,o], col=tissueLines[dimnames(a)[[3]]][o])
+segments(b, fmq[1,o], b, fm[o], col=tissueBorder[dimnames(a)[[3]]][o])
+
 
 #' ### Timing
 #' Acceleration values to simulate
@@ -649,9 +644,9 @@ for(i in seq_along(o))try({
 				f <- function(x) x/max(abs(x))
 			})
 
-par(xpd=TRUE)
-s <- 12/8
-dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
+#par(xpd=TRUE)
+#s <- 12/8
+#dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
 
 sapply(timeSubclones, nrow)
 
@@ -720,12 +715,6 @@ dimnames(finalWgdPiAdj)[[5]] <- names(finalBB)[isWgd][!sapply(finalWgdParam, is.
 n <- dimnames(finalWgdPiAdj)[[5]]
 finalWgdTime <- finalWgdPiAdj[,,,,n] * rep(age[sample2donor[n]], each=2)
 
-typeNa <- gsub("\t","",strsplit("Bone-Cart
-				Breast-LobularCa
-				Breast-DCIS
-				Lymph-NOS
-				Myeloid-MDS
-				Cervix-AdenoCa", "\n")[[1]])
 
 d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))

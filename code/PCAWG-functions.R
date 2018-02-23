@@ -553,6 +553,7 @@ names(c) <- sub("CA$","Ca",t$`Abbreviation`)
 c <- c[c != ""  & !duplicated(names(c))]
 tissueColors <- c(table(donor2type))*NA
 tissueColors[names(c)] <- c
+tissueColors["Lymph-CLL"] <- "#F4A35D"
 
 tissueBorder <- c("white","black")[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
 names(tissueBorder) <- names(tissueColors)
