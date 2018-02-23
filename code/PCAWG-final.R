@@ -617,9 +617,9 @@ timeSubclones <- sapply(s, function(l) {
 #+ realTimeSubclone, fig.width=6, fig.height=2.225
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-qSubclone <- sapply(timeSubclones, function(x) apply(x[rownames(x)%in%u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
+qSubclone <- sapply(timeSubclones, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 a <- "5x"
-y <- sapply(timeSubclones, `[`, (quote(f(,)))[[2]], 1:3,a)
+y <- sapply(timeSubclones, function(x) x[,,a][rownames(x)%in%u, 1:3, drop=FALSE])
 y[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][,,"7.5x"]
 m <- qSubclone["50%",a,]#t[1,3,]
 m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
@@ -888,7 +888,7 @@ x["Ovary-AdenoCa"] <- qSubclone[w,"7.5x","Ovary-AdenoCa"]
 y <- qWgd[w,a,]
 y["Ovary-AdenoCa"] <- qWgd[w,"7.5x","Ovary-AdenoCa"]
 plot(c(rep(1, dim(qSubclone)[3]), rep(2, each=dim(qWgd)[3])), c(x,y), bg=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qWgd)[[3]])], pch=21, cex=1, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(y, na.rm=TRUE)))
-segments(rep(1, each=dim(qWgd)[3]), x[dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), y,col=tissueColors[dimnames(qWgd)[[3]]])
+segments(rep(1, each=dim(qWgd)[3]), x[dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), y,col=tissueLines[dimnames(qWgd)[[3]]],lty=tissueLty[dimnames(qWgd)[[3]]])
 o <- order(y, na.last=NA)
 y0 <- y[o]
 y1 <- mg14:::mindist(y[o], diff(par('usr')[3:4])/30)
