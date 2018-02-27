@@ -561,8 +561,13 @@ names(tissueBorder) <- names(tissueColors)
 tissueLines <- tissueColors
 tissueLines[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")] <- "black"
 
-tissueLty <- c(1,2)[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
+tissueLty <- c(1,1)[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
 names(tissueLty) <- names(tissueColors)
+tissueLty["Lung-SCC"] <- 5
+tissueLty["Lung-AdenoCa"] <- 4
+
+tissueCex <- tissueLty
+tissueCex[grep("Lung", names(tissueCex))] <- 0.8
 
 averageHom <- function(bb){
 	sum(width(bb) * (bb$minor_cn == 0) * bb$clonal_frequency, na.rm=TRUE) / sum(width(bb) * bb$clonal_frequency, na.rm=TRUE)
@@ -756,7 +761,7 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]]) {
 	g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
 	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
 	print(w)
-	par(p)
+	par(p[setdiff(names(p), c("cin","cra","csi","cxy","din","page"))])
 }
 
 t <- read.table("../ref/release_may2016.v1.1.TiN__donor.TiNsorted.20Jul2016.tsv", header=TRUE, sep="\t")
