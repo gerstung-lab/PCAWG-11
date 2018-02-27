@@ -509,7 +509,7 @@ subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 							c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))})))
 
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
-s <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
+typesSubclones <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
 
 nClones <- sapply(finalClusters, nrow)
 
@@ -519,7 +519,7 @@ nClones <- sapply(finalClusters, nrow)
 rr <- cc <- list()
 remove <- character()
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
-for(n in s){
+for(n in typesSubclones){
 	i <- d==n
 	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3 # 3Gb Haploid genome
 	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
@@ -540,7 +540,8 @@ for(n in s){
 				#lines(c(x0,2*x0), c(0,1))
 				#print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
 				f <- (summary(lm(yy[w] ~ xx[w])))
-				cc[[n]] <- cbind(f$coefficients, f$cov.unscaled * f$sigma^2)
+				v <- which(!is.na(xx[w]*yy[w]))
+				cc[[n]] <- cbind(f$coefficients, f$cov.unscaled * f$sigma^2, coef(nnls::nnls(cbind(1,xx[w][v]), yy[w][v])))
 			})
 }
 n <- names(rr)
@@ -562,9 +563,10 @@ m <- sapply(rr, function(r){m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & 
 s <- rowSums(tt0)#/m[as.character(donor2type[sample2donor[names(finalSnv)]])] 
 s[remove] <- NA
 t <- donor2type[sample2donor[names(finalSnv)]]
-plot(age[sample2donor[names(finalSnv)]],s, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=tissueCex[t]*1.2)
-for(nn in names(m))
-abline(a=0,b=m[nn],col=tissueLines[nn], lty=tissueLty[nn])
+x <- age[sample2donor[names(finalSnv)]]
+plot(x,s, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=tissueCex[t]*1.2, xlab="Age", ylab="SNVs/Gb")
+lines(sort(x, na.last=NA),predict(loess(s~x), newdata=sort(x, na.last=NA)))
+#for(nn in names(m)) abline(a=0,b=m[nn],col=tissueLines[nn], lty=tissueLty[nn])
 
 
 #' Positive intercept?
@@ -574,7 +576,7 @@ all(a[1,1,]>0 | a[1,4,]>0.1)
 #' Positive slope?
 all(na.omit(a[2,1,] > 0 | a[2,4,] > 0.5))
 
-#+rateOffset, fig.width=2.5, fig.height=2.5
+#+rateOffset, fig.width=2, fig.height=2
 plot(a[1,1,], a[2,1,], col=tissueColors[dimnames(a)[[3]]], pch=NA, xlab="Offset", ylab="SNVs/Gb/yr")
 segments(a[1,1,], a[2,1,] - a[2,2,],a[1,1,], a[2,1,]+a[2,2,], col=tissueLines[dimnames(a)[[3]]], pch=19)
 segments(a[1,1,]-a[1,2,], a[2,1,], a[1,1,]+a[1,2,], a[2,1,], col=tissueLines[dimnames(a)[[3]]], pch=19)
@@ -586,15 +588,19 @@ abline(v=0, lty=3)
 #+fracLinear, fig.width=4, fig.height=2
 par(mar=c(6,3,1,1))
 ma <- sapply(split(age, donor2type[names(age)]), median, na.rm=TRUE)
-fm <- pmax(a[2,1,],0)*ma[dimnames(a)[[3]]]/(pmax(0,a[2,1,])*ma[dimnames(a)[[3]]] + pmax(0,a[1,1,]))
+fm <- pmax(a[2,7,],0)*ma[dimnames(a)[[3]]]/(pmax(0,a[2,7,])*ma[dimnames(a)[[3]]] + pmax(0,a[1,7,]))*100
 o <- order(fm)
 fmq <- sapply(names(fm), function(n){
-			aa <- mvtnorm::rmvnorm(1000, mean=a[,1,n], sigma=a[,5:6,n] )
+			aa <- mvtnorm::rmvnorm(10000, mean=a[,1,n], sigma=a[,5:6,n] )
+			aa <- aa[aa[,1]>=0 & aa[,2]>=0,]
 			quantile(pmax(aa[,2],0)*ma[n]/(pmax(0,aa[,2])*ma[n] + pmax(0,aa[,1])), c(0.025, 0.975))
-		}) 
-barplot(fm[o], col=tissueColors[dimnames(a)[[3]]][o], border=tissueLines[dimnames(a)[[3]]][o], las=2) -> b
+		}) *100
+barplot(fm[o], col=tissueColors[dimnames(a)[[3]]][o], border=tissueLines[dimnames(a)[[3]]][o], las=2,names.arg=rep("",length(fm)) , ylab="Age-attributed mutations [%]") -> b
+mg14::rotatedLabel(b, labels=names(fm[o]))
 segments(b, fm[o], b, fmq[2,o], col=tissueLines[dimnames(a)[[3]]][o], lwd=2)
 segments(b, fmq[1,o], b, fm[o], col=tissueBorder[dimnames(a)[[3]]][o], lwd=2)
+abline(h=min(fmq[2,]))
+abline(h=max(fmq[1,]))
 
 
 #' ### Timing
@@ -605,7 +611,7 @@ names(accel) <- paste0(accel, "x")
 #' The actual timing
 #+ timeSubclones, warning=FALSE
 set.seed(42)
-timeSubclones <- sapply(s, function(l) {
+timeSubclones <- sapply(typesSubclones, function(l) {
 			i <- d==l
 			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
 			resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
