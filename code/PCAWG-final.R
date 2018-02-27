@@ -470,10 +470,6 @@ b <- sapply(a[-length(a)], function(x) (1:10)*x)
 axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
 #dev.off()
 
-#' ## Signatures
-#+ sigTable
-sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutations(vcf, reclassify="none"), tncToPyrimidine(vcf)), mc.cores=MC_CORES))
-sigTable <- aperm(sigTable, c(2,3,1))
 
 #' # Real-time WGD & subclones
 age <- clinicalData$donor_age_at_diagnosis
