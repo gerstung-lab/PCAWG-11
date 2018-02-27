@@ -456,7 +456,7 @@ table(decSub=q[m], decTime=r[m])
 
 #' Plot 
 #+ timeNsub, fig.height=3, fig.width=4
-pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
+#pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
 par(mar=c(3,4,1,1), bty="n", mgp=c(2,.5,0), las=1, tcl=-.25) 
 d <- as.character(donor2type[sample2donor[names(finalSnv)]])
 lineCol <- tissueColors
@@ -468,7 +468,7 @@ a <- axisTicks(par("usr")[3:4], log=TRUE)
 axis(side=2, at=a, labels=prettyNum(a))
 b <- sapply(a[-length(a)], function(x) (1:10)*x)
 axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
-dev.off()
+#dev.off()
 
 #' ## Signatures
 #+ sigTable
@@ -521,7 +521,7 @@ remove <- character()
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 for(n in s){
 	i <- d==n
-	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3
+	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3 # 3Gb Haploid genome
 	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
 	yy <- rowSums(tt0)
 	a <- age[sample2donor[names(finalSnv)[i]]]
@@ -547,12 +547,25 @@ n <- names(rr)
 q <- sapply(rr, function(r){
 			m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)
 			w <- (r-m)^2/m^2 <= 2^2 & TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])
-			range(r[w], na.rm=TRUE)})
+			quantile(r[w], na.rm=TRUE)})
 plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
-segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
+segments(seq_along(rr),q["0%",],seq_along(rr), q["100%",], col=tissueLines[n], lty=1)
 points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
 
 length(remove)
+
+#' Pan-can
+#+ timeSubcloneAgePancan, fig.width=2, fig.height=2
+tt0 <- subcloneDeam/cbind(finalPloidy, effGenome) / cbind(nClones-1, 1)/3 # 3Gb Haploid genome
+tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+m <- sapply(rr, function(r){m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)})
+s <- rowSums(tt0)#/m[as.character(donor2type[sample2donor[names(finalSnv)]])] 
+s[remove] <- NA
+t <- donor2type[sample2donor[names(finalSnv)]]
+plot(age[sample2donor[names(finalSnv)]],s, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=tissueCex[t]*1.2)
+for(nn in names(m))
+abline(a=0,b=m[nn],col=tissueLines[nn], lty=tissueLty[nn])
+
 
 #' Positive intercept?
 a <- simplify2array(cc[!names(cc) %in% c("Myeloid-AML","Bone-Epith")])
@@ -561,7 +574,7 @@ all(a[1,1,]>0 | a[1,4,]>0.1)
 #' Positive slope?
 all(na.omit(a[2,1,] > 0 | a[2,4,] > 0.5))
 
-#+rateOffset, fig.width=3.5, fig.height=3.5
+#+rateOffset, fig.width=2.5, fig.height=2.5
 plot(a[1,1,], a[2,1,], col=tissueColors[dimnames(a)[[3]]], pch=NA, xlab="Offset", ylab="SNVs/Gb/yr")
 segments(a[1,1,], a[2,1,] - a[2,2,],a[1,1,], a[2,1,]+a[2,2,], col=tissueLines[dimnames(a)[[3]]], pch=19)
 segments(a[1,1,]-a[1,2,], a[2,1,], a[1,1,]+a[1,2,], a[2,1,], col=tissueLines[dimnames(a)[[3]]], pch=19)
@@ -570,7 +583,7 @@ abline(h=0, lty=3)
 abline(v=0, lty=3)
 
 #' Fraction of mutations due to linear accumulation
-#+fracLinear, fig.width=6, fig.height=2
+#+fracLinear, fig.width=4, fig.height=2
 par(mar=c(6,3,1,1))
 ma <- sapply(split(age, donor2type[names(age)]), median, na.rm=TRUE)
 fm <- pmax(a[2,1,],0)*ma[dimnames(a)[[3]]]/(pmax(0,a[2,1,])*ma[dimnames(a)[[3]]] + pmax(0,a[1,1,]))
