@@ -4058,14 +4058,3 @@ qGuessWgd <- sapply(names(timeWgd), function(n){
 		})
 
 
-y <- Reduce("c",deamRate)
-y <- y[!names(y) %in% remove]
-x <- age[sample2donor[names(y)]]
-y <- y*x
-t <- donor2type[sample2donor[names(y)]]
-d <- data.frame(x,y,t)
-
-f <- lme4::lmer(y ~ (x-1|t) + t-1, data=d)
-r <- lme4::ranef(f)$t
-
-fmr <- pmax(r[,2],0)*ma[rownames(r)]/(pmax(r[,2],0)*ma[rownames(r)] + pmax(0,r[,1]+lme4::fixef(f)))*100

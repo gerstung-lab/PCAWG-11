@@ -607,6 +607,116 @@ segments(b, fmq[1,o], b, fm[o], col=tissueBorder[dimnames(a)[[3]]][o], lwd=2)
 abline(h=min(fmq[2,]))
 abline(h=max(fmq[1,]))
 
+#' ### Hierarchical Bayesian models of deamination rates
+#' Prepare data
+library(rstan)
+y <- Reduce("c",deamRate)
+y <- y[!names(y) %in% remove]
+x <- age[sample2donor[names(y)]]
+y <- y*x
+t <- donor2type[sample2donor[names(y)]]
+d <- data.frame(x,y,t)
+df <- d
+df <- df[rowSums(is.na(df))==0,]
+tt <- model.matrix(~droplevels(t)-1, data=df)
+
+data <- list(n = nrow(df),
+		p = ncol(tt),
+		y = df$y,
+		x = tt * df$x,
+		t = tt
+)
+
+read_chunk('./PCAWG-rates.stan', labels="PCAWG-rates.stan")
+
+#' Model definitino for stan
+#+ PCAWG-rates.stan, eval=FALSE
+
+#' Fit model
+#+ PCAWG-stan
+fit <- stan(
+		file = "PCAWG-rates.stan",  # Stan program
+		data = data,    # named list of data
+		chains = 1,             # number of Markov chains
+		warmup = 1000,          # number of warmup iterations per chain
+		iter = 2000,            # total number of iterations per chain
+		cores = 1,              # number of cores (using 2 just for the vignette)
+		refresh = 1000,          # show progress every 'refresh' iterations
+		open_progress=FALSE,
+		seed=42
+)
+
+#' Collect parameters
+s <- summary(fit, pars=c("alpha","beta"))$summary
+ab <- array(s, dim=c(33,2,10), dimnames=list(levels(droplevels(t)), c("a","b"), colnames(s)))
+
+#' Summary plot
+#deamAgeBayes, fig.width=2, fig.height=2
+plot(x,y, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=tissueCex[t]*2/3, lwd=0.25, xlab="Age", ylab="SNVs/Gb")
+for(i in 1:nrow(ab))
+	abline(ab[i,1,"50%"], ab[i,2,"50%"], col=tissueLines[levels(droplevels(t))[i]], lty=tissueLty[levels(droplevels(t))[i]])
+
+#' Rate and offset
+#+rateOffsetBayes, fig.width=2, fig.height=2
+plot(ab[,1,"50%"], ab[,2,"50%"], col=tissueColors[dimnames(ab)[[1]]], pch=NA, xlab="Offset", ylab="SNVs/Gb/yr", xlim=range(ab[,1,c("2.5%","97.5%")]), ylim=range(ab[,2,c("2.5%","97.5%")]))
+segments(ab[,1,"50%"], ab[,2,"2.5%"],ab[,1,"50%"], ab[,2,"97.5%"], col=tissueLines[dimnames(ab)[[1]]], pch=19)
+segments(ab[,1,"2.5%"], ab[,2,"50%"],ab[,1,"97.5%"], ab[,2,"50%"], col=tissueLines[dimnames(ab)[[1]]], pch=19)
+points(ab[,1,"50%"], ab[,2,"50%"], pch=21, bg=tissueColors[dimnames(ab)[[1]]], col=tissueLines[dimnames(ab)[[1]]])
+abline(h=0, lty=3)
+abline(v=0, lty=3)
+
+a <- extract(fit, pars="alpha")$alpha
+b <- extract(fit, pars="beta")$beta
+colnames(a) <- colnames(b) <- levels(droplevels(t))
+
+#' Overview
+#+ timeSubcloneAgeBayes, fig.width=10, fig.height=10
+par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
+d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
+for(n in typesSubclones){
+	i <- d==n
+	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3 # 3Gb Haploid genome
+	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+	yy <- rowSums(tt0)
+	xx <- age[sample2donor[names(finalSnv)[i]]]
+	r <- yy/xx 
+	m <- median(r[TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])],na.rm=TRUE)
+	try({
+				w <- !names(yy) %in% remove
+				plot(xx[w], yy[w], bg=tissueColors[n], col=tissueBorder[n], pch=21, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(1000,max(yy[w], na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
+				#points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
+				abline(0, m, lty=3)
+				x0 <- seq(0,100,1)
+				p <- apply(sapply(x0, function(x) a[,n] + b[,n]*x), 2, quantile, c(0.025,0.975), na.rm=TRUE)
+				polygon(c(x0,rev(x0)), c(p["2.5%",], rev(p["97.5%",])), border=tissueBorder[n], col=paste0(tissueColors[n],"44"))
+			})
+}
+
+#' Fraction of mutations due to linear accumulation
+q <- sapply(colnames(a), function(n){
+			w <- which(donor2type[sample2donor[names(y)]]==n & !is.na(y))
+			f <- sapply(w, function(j) x[j] * b[,n] / (a[,n] + x[j] * b[,n]))
+			quantile(rowMeans(f), c(0.025, 0.25, .5,.75,.975))
+		})*100
+
+qPanCan=quantile(rowMeans(do.call("cbind",sapply(colnames(a), function(n){
+									w <- which(donor2type[sample2donor[names(y)]]==n & !is.na(y))
+									f <- sapply(w, function(j) x[j] * b[,n] / (a[,n] + x[j] * b[,n]))
+								}))),
+		c(0.025, 0.25, .5,.75,.975))*100
+
+#' Plot
+#+fracLinearBayes, fig.width=4, fig.height=2
+par(mar=c(6,3,1,1))
+o <- order(q["50%",])
+barplot(q["50%",o], col=tissueColors[colnames(q)][o], border=tissueLines[colnames(q)][o], las=2,names.arg=rep("",length(q["50%",])) , ylab="Age-attributed mutations [%]", ylim=c(0,100)) -> b
+mg14::rotatedLabel(b, labels=names(q["50%",o]))
+segments(b, q["50%",][o], b, q["97.5%",o], col=tissueLines[colnames(q)][o], lwd=2)
+segments(b, q["2.5%",o], b, q["50%",][o], col=tissueBorder[colnames(q)][o], lwd=2)
+abline(h=min(q["97.5%",]), lty=3)
+abline(h=max(q["2.5%",]), lty=3)
+#abline(h=qPanCan["50%"], lty=4)
+
 
 #' ### Timing
 #' Acceleration values to simulate
@@ -896,14 +1006,14 @@ for(n in names(tWgdByType)){
 #' Age at diagnosis
 #+ mutAgeWgd, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
-deamRate <- list()
+deamRateWgd <- list()
 for(n in names(tWgdByType)){
 	a <- age[sample2donor[rownames(tWgdByType[[n]])]]
 	yy <- nDeam22[rownames(tWgdByType[[n]])]/(2-t0[rownames(tWgdByType[[n]])])
 	xx <- a
 	r <- yy/xx 
 	m <- median(r,na.rm=TRUE)
-	deamRate[[n]] <- r
+	deamRateWgd[[n]] <- r
 	try({
 				w <- (r-m)^2/m^2 <= 2^2 
 				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,max(yy, na.rm=TRUE)), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
@@ -917,14 +1027,14 @@ for(n in names(tWgdByType)){
 				#lines(c(x0,2*x0), c(0,1))
 			})
 }
-n <- names(deamRate)
-q <- sapply(deamRate, function(r){
+n <- names(deamRateWgd)
+q <- sapply(deamRateWgd, function(r){
 			m <- median(r,na.rm=TRUE)
 			w <- (r-m)^2/m^2 <= 2^2 
 			range(r[w], na.rm=TRUE)})
-plot(sapply(deamRate, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
-segments(seq_along(deamRate),q[1,],seq_along(deamRate), q[2,], col=tissueLines[n], lty=1)
-points(sapply(deamRate, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
+plot(sapply(deamRateWgd, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
+segments(seq_along(deamRateWgd),q[1,],seq_along(deamRateWgd), q[2,], col=tissueLines[n], lty=1)
+points(sapply(deamRateWgd, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
 
 #' Conceptual plot
 #+ concept, fig.height=2, fig.width=2
