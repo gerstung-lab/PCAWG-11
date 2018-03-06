@@ -310,8 +310,8 @@ v <- c(
 )
 v <- c( (v[1]+v[2])/3.33, v[2], (v[3]+v[4])/3, v[4] )
 par( fig=v, new=TRUE, mar=c(0,0,0,0) )
-barplot(t(gu[2:51,]), col=col, las=2,  names.arg=rep("",50))
-mg14::rotatedLabel(x=.Last.value,labels=rownames(gu)[2:51], cex=.5)
+b <- barplot(t(gu[2:51,]), col=col, las=2,  names.arg=rep("",50))
+mg14::rotatedLabel(x=b,labels=rownames(gu)[2:51], cex=.5)
 #dev.copy2pdf(file="finalDrivers.pdf", width=9, height=5, pointsize=8)
 
 #' ### Barpot drivers - proportions
