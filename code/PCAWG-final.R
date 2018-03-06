@@ -637,12 +637,12 @@ read_chunk('./PCAWG-rates.stan', labels="PCAWG-rates.stan")
 #+ PCAWG-stan
 fit <- stan(
 		file = "PCAWG-rates.stan",  # Stan program
-		data = data,    # named list of data
+		data = data,            # named list of data
 		chains = 1,             # number of Markov chains
 		warmup = 1000,          # number of warmup iterations per chain
 		iter = 2000,            # total number of iterations per chain
-		cores = 1,              # number of cores (using 2 just for the vignette)
-		refresh = 1000,          # show progress every 'refresh' iterations
+		cores = 1,              # number of cores 
+		refresh = 1000,         # show progress every 'refresh' iterations
 		open_progress=FALSE,
 		seed=42
 )
