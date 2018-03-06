@@ -627,9 +627,10 @@ data <- list(n = nrow(df),
 		t = tt
 )
 
+#+ PCAWG-rates.chunk, echo=FALSE
 read_chunk('./PCAWG-rates.stan', labels="PCAWG-rates.stan")
 
-#' Model definitino for stan
+#' Model definition for stan
 #+ PCAWG-rates.stan, eval=FALSE
 
 #' Fit model

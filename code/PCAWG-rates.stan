@@ -20,10 +20,8 @@ parameters {
 transformed parameters {
   vector[n] mu;
   vector[n] nu;
-  vector[p] ones;
-  for(i in 1:p) ones[i] = 1;
   mu = x * beta + t * alpha;
-  nu = (x * ones) * gamma + sigma;
+  nu = (x * beta) * gamma + sigma;
 }
 
 model {
