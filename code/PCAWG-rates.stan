@@ -21,7 +21,7 @@ transformed parameters {
   vector[n] mu;
   vector[n] nu;
   mu = x * beta + t * alpha;
-  nu = (x * beta) * gamma + sigma;
+  nu = sqrt(x * beta) * gamma + sigma;
 }
 
 model {

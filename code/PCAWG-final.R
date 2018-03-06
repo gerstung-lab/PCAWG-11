@@ -652,7 +652,7 @@ s <- summary(fit, pars=c("alpha","beta"))$summary
 ab <- array(s, dim=c(33,2,10), dimnames=list(levels(droplevels(t)), c("a","b"), colnames(s)))
 
 #' Summary plot
-#deamAgeBayes, fig.width=2, fig.height=2
+#+ deamAgeBayes, fig.width=2, fig.height=2
 plot(x,y, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=tissueCex[t]*2/3, lwd=0.25, xlab="Age", ylab="SNVs/Gb")
 for(i in 1:nrow(ab))
 	abline(ab[i,1,"50%"], ab[i,2,"50%"], col=tissueLines[levels(droplevels(t))[i]], lty=tissueLty[levels(droplevels(t))[i]])
