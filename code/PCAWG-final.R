@@ -14,7 +14,7 @@
 options(width=120)
 pdf.options(pointsize=8)
 knit_hooks$set(smallMar = function(before, options, envir) {
-			if (before) par(mar=c(3,3,1,1), bty="n", mgp=c(2,.5,0)) 
+			if (before) par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1) 
 		})
 opts_chunk$set(dev=c('my_png','pdf'), fig.ext=c('png','pdf'), fig.width=3, fig.height=3, smallMar=TRUE)
 my_png <-  function(file, width, height, pointsize=12, ...) {
@@ -25,7 +25,7 @@ my_png <-  function(file, width, height, pointsize=12, ...) {
 #' # Prelim
 #' ## Libraries
 library(VariantAnnotation)
-setwd("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/code")
+setwd("~/pcawg/code")
 source("PCAWG-functions.R")
 MC_CORES=2
 
@@ -512,9 +512,9 @@ nClones <- sapply(finalClusters, nrow)
 #' ### Mutation rates and age
 #' Analyse relation to age, exclude hypermutators and samples with tumour in normal 1%. 
 #+ timeSubcloneAge, fig.width=10, fig.height=10
-rr <- cc <- list()
+deamRate <- cc <- list()
 remove <- character()
-par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
+par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 for(n in typesSubclones){
 	i <- d==n
 	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3 # 3Gb Haploid genome
@@ -524,30 +524,33 @@ for(n in typesSubclones){
 	xx <- a
 	r <- yy/xx 
 	m <- median(r[TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])],na.rm=TRUE)
-	rr[[n]] <- r
+	deamRate[[n]] <- r
 	try({
 				w <- (r-m)^2/m^2 <= 2^2 & TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])
 				remove <- c(remove, names(which(!w)))
 				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(1000,max(yy, na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
 				#par(xpd=NA)
-				segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
+				#segments(x0=0,y0=0, xx, yy, col=tissueLines[n], lty=tissueLty[n])
 				points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
 				abline(0, m, lty=3)
 				#lines(c(x0,2*x0), c(0,1))
 				#print(paste(n,cor(xx[w],yy[w],use='c'), cor(xx[w],tt0[w,] %*% c(0.2,1), use='c'), sep=": "))
-				f <- (summary(lm(yy[w] ~ xx[w])))
+				l <- lm(yy~xx, data=data.frame(yy=yy[w],xx=xx[w], row.names=as.character(seq_along(yy[w]))))
+				f <- (summary(l))
+				p <- predict(l,newdata=data.frame(xx=seq(0,100,1)), se=TRUE)
+				polygon(c(seq(0,100,1),rev(seq(0,100,1))), c(p$fit - 2*p$se.fit, rev(p$fit+2*p$se.fit)), border=tissueBorder[n], col=paste0(tissueColors[n],"44"))
 				v <- which(!is.na(xx[w]*yy[w]))
 				cc[[n]] <- cbind(f$coefficients, f$cov.unscaled * f$sigma^2, coef(nnls::nnls(cbind(1,xx[w][v]), yy[w][v])))
 			})
 }
-n <- names(rr)
-q <- sapply(rr, function(r){
+n <- names(deamRate)
+q <- sapply(deamRate, function(r){
 			m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)
 			w <- (r-m)^2/m^2 <= 2^2 & TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])
 			quantile(r[w], na.rm=TRUE)})
-plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
-segments(seq_along(rr),q["0%",],seq_along(rr), q["100%",], col=tissueLines[n], lty=1)
-points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
+plot(sapply(deamRate, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
+segments(seq_along(deamRate),q["0%",],seq_along(deamRate), q["100%",], col=tissueLines[n], lty=1)
+points(sapply(deamRate, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
 
 length(remove)
 
@@ -555,22 +558,28 @@ length(remove)
 #+ timeSubcloneAgePancan, fig.width=2, fig.height=2
 tt0 <- subcloneDeam/cbind(finalPloidy, effGenome) / cbind(nClones-1, 1)/3 # 3Gb Haploid genome
 tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
-m <- sapply(rr, function(r){m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)})
+m <- sapply(deamRate, function(r){m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)})
 s <- rowSums(tt0)#/m[as.character(donor2type[sample2donor[names(finalSnv)]])] 
 s[remove] <- NA
 t <- donor2type[sample2donor[names(finalSnv)]]
 x <- age[sample2donor[names(finalSnv)]]
-plot(x,s, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=tissueCex[t]*1.2, xlab="Age", ylab="SNVs/Gb")
-lines(sort(x, na.last=NA),predict(loess(s~x), newdata=sort(x, na.last=NA)))
+plot(x,s, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=tissueCex[t]*2/3, lwd=0.25, xlab="Age", ylab="SNVs/Gb")
+p <- predict(loess(s~x), newdata=sort(x, na.last=NA), se=TRUE)
+r <- function(x) c(x, rev(x))
+polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#00000044", border=NA)
+lines(sort(x, na.last=NA),p$fit)
+#s <- 12/8; dev.copy2pdf(file="timeSubcloneAgePancan.pdf", width=2*s, height=2*s, pointsize=8*s)
+
+
 #for(nn in names(m)) abline(a=0,b=m[nn],col=tissueLines[nn], lty=tissueLty[nn])
 
 
 #' Positive intercept?
 a <- simplify2array(cc[!names(cc) %in% c("Myeloid-AML","Bone-Epith")])
-all(a[1,1,]>0 | a[1,4,]>0.1)
+all(a[1,1,] + 2*a[1,2,]>0 )
 
 #' Positive slope?
-all(na.omit(a[2,1,] > 0 | a[2,4,] > 0.5))
+all(na.omit(a[2,1,] + 2*a[2,2,]>0))
 
 #+rateOffset, fig.width=2, fig.height=2
 plot(a[1,1,], a[2,1,], col=tissueColors[dimnames(a)[[3]]], pch=NA, xlab="Offset", ylab="SNVs/Gb/yr")
@@ -790,7 +799,7 @@ yy <- do.call("rbind",y)
 yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
-#' Assessment of absolute mutation counts
+#' #### Assessment of absolute mutation counts
 nDeam22 <- sapply(finalWgdParam, function(x) if(!is.null(x$D)) nrow(x$D) else NA)
 names(nDeam22) <- names(finalSnv)[isWgd]
 w22 <- sapply(finalBB[isWgd], function(bb) {
@@ -800,6 +809,69 @@ nDeam22 <- nDeam22/w22*1e9
 
 t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  finalWgdPi["clonal.1","hat",])
 names(t0) <- dimnames(finalWgdPiAdj)[[5]]
+
+#+ nDeam22Time, fig.width=2, fig.height=2
+d <- nDeam22 *  t(sapply(finalWgdParam, function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
+rownames(d) <- names(finalSnv)[isWgd]
+t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  finalWgdPi["clonal.1","hat",])
+names(t0) <- dimnames(finalWgdPiAdj)[[5]]
+d[rownames(d) %in% remove] <- NA
+y <- d[names(t0),]/6
+x <- t0
+t <- donor2type[sample2donor[names(t0)]]
+
+plot(x,y[,2], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time", ylab="Early SNVs/Gb", log='')
+#points(x,y[,1], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5)
+p <- predict(loess(y[,2]~x, span=1), newdata=sort(x, na.last=NA), se=TRUE)
+r <- function(x) c(x, rev(x))
+polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#00000044", border=NA)
+lines(sort(x, na.last=NA),p$fit)
+
+plot(x,y[,1]+y[,2], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time", ylab="Total SNVs/Gb", log='')
+p <- predict(loess(rowSums(y)~x, span=1), newdata=sort(x, na.last=NA), se=TRUE)
+r <- function(x) c(x, rev(x))
+polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#00000044", border=NA)
+lines(sort(x, na.last=NA),p$fit)
+
+#s <- 12/8; dev.copy2pdf(file="nDeam22Time.pdf", width=2*s, height=2*s, pointsize=8*s)
+
+
+#' #### Acceleration adjustment relative to lowest quintile.
+#+ accelRelWgd, fig.height=2, fig.width=2
+accelRelWgd <- sapply(names(timeWgd), function(n) {
+			r <- deamRate[[n]]
+			x <- timeWgd[[n]]
+			r0 <- quantile(r[!names(r) %in% remove], 0.20, na.rm=TRUE)
+			a <- cut(pmin(pmax(1,(r/r0-0.9)/0.1),10), c(0,1.5,3.75,6.25,8.75,20), labels=c("1x","2.5x","5x","7.5x","10x"))
+			print(table(a))
+			names(a) <- names(r)
+			ta <- sapply(rownames(x), function(ss) x[ss, "hat",a[ss]])
+			ta
+		})
+par(mar=c(3,3,1,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
+x <- Reduce("c",accelRelWgd)
+y <- Reduce("c",sapply(timeWgd, function(x) x[,"hat","5x"]))
+
+t <- donor2type[sample2donor[names(x)]]
+plot(y+runif(length(y)),x+runif(length(y)), pch=21, bg=tissueColors[t], col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time (constant acceleration)", ylab="Time (sample-specific accel.)", log='')
+#s <- 12/8; dev.copy2pdf(file="accelRelWgd.pdf", width=2*s, height=2*s, pointsize=8*s)
+
+#' Quantiles
+#+ qAccelRelWgd, fig.height=2, fig.width=2
+par(mar=c(3,3,1,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
+u <- setdiff(names(finalSnv)[uniqueSamples], remove)
+qAccelRelWgd <- sapply(accelRelWgd, function(x){
+			quantile(x[names(x) %in% u], na.rm=TRUE)
+		})
+t <- colnames(qAccelRelWgd)
+plot(qWgd["50%","5x",], qAccelRelWgd["50%",], pch=NA,  xlab="Time [years], constant acceleration", ylab="Time [years], sample-specific accel.", xlim=c(0,30), ylim=c(0,30))
+abline(0,1, lty=3)
+segments(qWgd["25%","5x",], qAccelRelWgd["50%",],qWgd["75%","5x",], qAccelRelWgd["50%",], lty=tissueLty[t], col=tissueLines[t])
+segments(qWgd["50%","5x",], qAccelRelWgd["25%",],qWgd["50%","5x",], qAccelRelWgd["75%",], lty=tissueLty[t], col=tissueLines[t])
+points(qWgd["50%","5x",], qAccelRelWgd["50%",], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t], lwd=0.5)
+#s <- 12/8; dev.copy2pdf(file="qAccelRelWgd.pdf", width=2*s, height=2*s, pointsize=8*s)
+
+
 
 #' Mutations per year vs time
 #+ mutYearTime, fig.height=8, fig.width=8
@@ -824,14 +896,14 @@ for(n in names(y)){
 #' Age at diagnosis
 #+ mutAgeWgd, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
-rr <- list()
+deamRate <- list()
 for(n in names(y)){
 	a <- age[sample2donor[rownames(y[[n]])]]
 	yy <- nDeam22[rownames(y[[n]])]/(2-t0[rownames(y[[n]])])
 	xx <- a
 	r <- yy/xx 
 	m <- median(r,na.rm=TRUE)
-	rr[[n]] <- r
+	deamRate[[n]] <- r
 	try({
 				w <- (r-m)^2/m^2 <= 2^2 
 				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=NA, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,max(yy, na.rm=TRUE)), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
@@ -845,14 +917,14 @@ for(n in names(y)){
 				#lines(c(x0,2*x0), c(0,1))
 			})
 }
-n <- names(rr)
-q <- sapply(rr, function(r){
+n <- names(deamRate)
+q <- sapply(deamRate, function(r){
 			m <- median(r,na.rm=TRUE)
 			w <- (r-m)^2/m^2 <= 2^2 
 			range(r[w], na.rm=TRUE)})
-plot(sapply(rr, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
-segments(seq_along(rr),q[1,],seq_along(rr), q[2,], col=tissueLines[n], lty=1)
-points(sapply(rr, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
+plot(sapply(deamRate, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
+segments(seq_along(deamRate),q[1,],seq_along(deamRate), q[2,], col=tissueLines[n], lty=1)
+points(sapply(deamRate, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
 
 #' Conceptual plot
 #+ concept, fig.height=2, fig.width=2
@@ -886,6 +958,7 @@ points(c(tmin,median(tf)*x0), c(0,0), pch=c(1,19))
 mtext(side=1, at=x0, text="Diagnosis", line=2)
 text(x=0, y=t, labels="WGD", pos=4, adj=c(0,1))
 #lines(d$x,d$y/max(d$y)*50)
+s <- 12/8; dev.copy2pdf(file="concept.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
 
@@ -896,13 +969,12 @@ c <- sapply(names(y), function(n) {
 barplot(c, col=tissueColors[names(c)])
 
 #+ realTimeWgdAccel, fig.height=2, fig.width=2
-par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.5, bty="L")
+par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.25, bty="L")
 plot(accel, qWgd["50%",,1], type='l', lty=0, ylim=c(0,30), xlab= "5meC rate acceleration", ylab="Median occurrence [years]", yaxs="i", xaxt="n")
 axis(side=1, at=accel)
 for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueLines[dimnames(qWgd)[[3]][j]], 
 			lty=ifelse(nWgd[dimnames(qWgd)[[3]][j]]<=4, 3, tissueLty[dimnames(qWgd)[[3]][j]]))
-#s <- 12/8
-#dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
+#s <- 12/8; dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
 
@@ -919,7 +991,7 @@ x["Ovary-AdenoCa"] <- qSubclone[w,"7.5x","Ovary-AdenoCa"]
 y <- qWgd[w,a,]
 y["Ovary-AdenoCa"] <- qWgd[w,"7.5x","Ovary-AdenoCa"]
 plot(c(rep(1, dim(qSubclone)[3]), rep(2, each=dim(qWgd)[3])), c(x,y), bg=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qWgd)[[3]])], pch=21, cex=1, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(y, na.rm=TRUE)))
-segments(rep(1, each=dim(qWgd)[3]), x[dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), y,col=tissueLines[dimnames(qWgd)[[3]]],lty=tissueLty[dimnames(qWgd)[[3]]])
+segments(rep(1, each=dim(qWgd)[3]), x[dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), y,col=tissueLines[dimnames(qWgd)[[3]]], lty= ifelse(nWgd <= 5, 3, tissueLty[dimnames(qWgd)[[3]]]))
 o <- order(y, na.last=NA)
 y0 <- y[o]
 y1 <- mg14:::mindist(y[o], diff(par('usr')[3:4])/30)

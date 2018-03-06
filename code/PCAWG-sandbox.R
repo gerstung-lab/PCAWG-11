@@ -3987,3 +3987,85 @@ boxplot(yWgd[,"hat"]~ TiN[match(rownames(yWgd),as.character(TiN$tumor_wgs_aliquo
 
 allClusters <- sapply(names(finalSnv), function(ID) consensusClustersToOld(loadConsensusClusters((ID))), simplify=FALSE)
 
+se <- mg14:::asum(e$finalGenotypesP[,2,,], c(1))
+
+c <- sapply(finalClusters, function(x) 1-x[1,"n_ssms"]/sum(x[,"n_ssms"]))
+
+plot(s[4,]/colSums(s), c[whiteList])
+
+plot(s[4,]/colSums(s), se[4,]/colSums(se))
+
+plot(se[4,]/colSums(se), c[whiteList])
+
+
+optim(c(1,1), function(x) sum((cbind(1,yy[w]) %*% x - xx[w])^2))
+
+#' ## Signatures
+#+ sigTable
+sigTable <- simplify2array(mclapply(finalSnv, function(vcf) table(classifyMutations(vcf, reclassify="none"), tncToPyrimidine(vcf)), mc.cores=MC_CORES))
+sigTable <- aperm(sigTable, c(2,3,1))
+
+d <- nDeam22 *  t(sapply(finalWgdParam, function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
+rownames(d) <- names(finalSnv)[isWgd]
+t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  finalWgdPi["clonal.1","hat",])
+names(t0) <- dimnames(finalWgdPiAdj)[[5]]
+d[rownames(d) %in% remove] <- NA
+y <- d[names(t0),]/6
+x <- t0
+t <- donor2type[sample2donor[names(t0)]]
+plot(x,y[,2], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*2*sqrt(y[,1]/100), lwd=0.5, xlab="Time", ylab="Early SNVs/Gb", log='')
+p <- predict(loess(y~x, span=2), newdata=sort(x, na.last=NA), se=TRUE)
+r <- function(x) c(x, rev(x))
+polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#00000044", border=NA)
+lines(sort(x, na.last=NA),p$fit)
+
+plot(x,y[,2], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time", ylab="Early SNVs/Gb", log='')
+points(x,y[,1], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5)
+
+
+plot(x,y[,1]+y[,2], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time", ylab="Total SNVs/Gb", log='')
+p <- predict(loess(rowSums(y)~x, span=2/3), newdata=sort(x, na.last=NA), se=TRUE)
+r <- function(x) c(x, rev(x))
+polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#00000044", border=NA)
+lines(sort(x, na.last=NA),p$fit)
+
+#' Indels, ie MSI in remove?
+t <- names(finalSnv)[which(TiN[sample2donor[names(finalSnv)]]> 0.01 | is.na(TiN[sample2donor[names(finalSnv)]]))]
+h <- setdiff(remove, t)
+i <- mg14:::asum(finalGenotypes[,"indels",,,], 1:3)
+
+boxplot(i + 0.5 ~ I(names(i) %in% h), log='y')
+
+#' Guesstimate acceleration
+fmm <- 0.5* fm + 0.25*fmq[2,]+0.25*fmq[1,]
+guessAccel <- (100/rbind(hat=fm, fmq) - 0.833)/0.167 #cut(fmm, c(0,0.25,0.5,0.75,1)*100, labels=paste0(rev(accel[-1]),"x"), include.lowest=TRUE)
+#names(guessAccel) <- names(fm)
+#table(guessAccel)
+
+o <- order(fm)
+barplot(pmin(200,guessAccel["hat",o]), col=tissueColors[colnames(guessAccel)][o], border=tissueLines[colnames(guessAccel)][o], las=2,names.arg=rep("",length(fm)) , ylab="Acceleration", log="y", ylim=c(1,200)) -> b
+mg14::rotatedLabel(b, labels=names(fm[o]))
+segments(b, pmin(200,guessAccel["hat",o]), b, guessAccel["2.5%",o], col=tissueLines[colnames(guessAccel)][o], lwd=2)
+segments(b, guessAccel["97.5%",o], b, pmin(200,guessAccel["hat",o]), col=tissueBorder[colnames(guessAccel)][o], lwd=2)
+
+setAccel <- cut(pmin(10,guessAccel["hat",]+1e-6), accel, include.lowest=TRUE, labels=paste0(accel[-1],"x"))
+names(setAccel) <- colnames(guessAccel)
+
+u <- setdiff(names(finalSnv)[uniqueSamples], remove)
+qGuessWgd <- sapply(names(timeWgd), function(n){
+			x <- timeWgd[[n]][,"hat",as.character(setAccel[n])]
+			quantile(x[names(x) %in% u], na.rm=TRUE)
+		})
+
+
+y <- Reduce("c",deamRate)
+y <- y[!names(y) %in% remove]
+x <- age[sample2donor[names(y)]]
+y <- y*x
+t <- donor2type[sample2donor[names(y)]]
+d <- data.frame(x,y,t)
+
+f <- lme4::lmer(y ~ (x-1|t) + t-1, data=d)
+r <- lme4::ranef(f)$t
+
+fmr <- pmax(r[,2],0)*ma[rownames(r)]/(pmax(r[,2],0)*ma[rownames(r)] + pmax(0,r[,1]+lme4::fixef(f)))*100
