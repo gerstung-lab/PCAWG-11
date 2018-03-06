@@ -643,11 +643,11 @@ u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 qSubclone <- sapply(timeSubclones, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 a <- "5x"
-y <- sapply(timeSubclones, function(x) x[,,a][setdiff(rownames(x),remove), 1:3, drop=FALSE])
-y[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][rownames(y[["Ovary-AdenoCa"]]),,"7.5x"]
+tSubclonesByType <- sapply(timeSubclones, function(x) x[,,a][setdiff(rownames(x),remove), 1:3, drop=FALSE])
+tSubclonesByType[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][rownames(tSubclonesByType[["Ovary-AdenoCa"]]),,"7.5x"]
 m <- qSubclone["50%",a,]#t[1,3,]
 m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
-m[sapply(y, function(x) sum(!is.na(x[,1]))) < 5] <- NA
+m[sapply(tSubclonesByType, function(x) sum(!is.na(x[,1]))) < 5] <- NA
 o <- order(m, na.last=NA)
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
 x <- seq_along(m[o])
@@ -657,10 +657,10 @@ for(i in seq_along(o))try({
 				f <- function(x) x/max(abs(x))
 				a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
 				bwd <- 0.8/2
-				j <- if(length(na.omit(y[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i else i
+				j <- if(length(na.omit(tSubclonesByType[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(tSubclonesByType[[o[i]]][,"hat"]))$y)/4 + i else i
 				tpy <- 2
-				segments(j, na.omit(y[[o[i]]][,"97.5%"]), j, na.omit(y[[o[i]]][,"2.5%"]), col=mg14::colTrans(tissueLines[n],tpy))
-				points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
+				segments(j, na.omit(tSubclonesByType[[o[i]]][,"97.5%"]), j, na.omit(tSubclonesByType[[o[i]]][,"2.5%"]), col=mg14::colTrans(tissueLines[n],tpy))
+				points(j, na.omit(tSubclonesByType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
 						cex=tissueCex[n]*2/3, lwd=1)
 				rect(i-bwd,qSubclone["25%",a,n],i+bwd,qSubclone["75%",a,n], border=tissueLines[n],  col=paste(tissueColors[n],"44", sep=""))
 				segments(i-bwd,qSubclone["50%",a,n],i+bwd,qSubclone["50%",a,n],col=tissueLines[n], lwd=2)
@@ -676,7 +676,7 @@ for(i in seq_along(o))try({
 sapply(timeSubclones, nrow)
 
 #' Numbers per decade
-yy <- do.call("rbind",y)
+yy <- do.call("rbind",tSubclonesByType)
 yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
@@ -769,18 +769,18 @@ m <- qWgd['75%',a,]#t[1,3,]
 m["Ovary-AdenoCa"] <- qWgd["75%","7.5x","Ovary-AdenoCa"]
 o <- order(m, na.last=NA)
 x <- seq_along(m[o])
-y <- sapply(timeWgd, function(yy) yy[setdiff(rownames(yy), remove),1:3,a])
-y[["Ovary-AdenoCa"]] <- timeWgd[["Ovary-AdenoCa"]][setdiff(rownames(timeWgd[["Ovary-AdenoCa"]]), remove),,"7.5x"]
-plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(do.call('rbind',y)[,1], na.rm=TRUE)+5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
+tWgdByType <- sapply(timeWgd, function(yy) yy[setdiff(rownames(yy), remove),1:3,a])
+tWgdByType[["Ovary-AdenoCa"]] <- timeWgd[["Ovary-AdenoCa"]][setdiff(rownames(timeWgd[["Ovary-AdenoCa"]]), remove),,"7.5x"]
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(do.call('rbind',tWgdByType)[,1], na.rm=TRUE)+5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	n <- names(m)[o[i]]
 	f <- function(x) x/max(abs(x))
 	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
-	j <- f(mg14::violinJitter(na.omit(y[[o[i]]][,"hat"]))$y)/4 + i
+	j <- f(mg14::violinJitter(na.omit(tWgdByType[[o[i]]][,"hat"]))$y)/4 + i
 	tpy <- 2
-	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy))
-	points(j, na.omit(y[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
+	segments(j, na.omit(tWgdByType[[o[i]]][,"up"]), j, na.omit(tWgdByType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy))
+	points(j, na.omit(tWgdByType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
 			cex=tissueCex[n]*2/3, lwd=1)
 	bwd <- 0.8/2
 	rect(i-bwd,qWgd[1,a,n],i+bwd,qWgd[3,a,n], border=tissueLines[n],  col=paste0(tissueColors[n],"44"))
@@ -795,7 +795,7 @@ par(xpd=TRUE)
 #dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
 
 #' Numbers per decade
-yy <- do.call("rbind",y)
+yy <- do.call("rbind",tWgdByType)
 yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
@@ -876,10 +876,10 @@ points(qWgd["50%","5x",], qAccelRelWgd["50%",], bg=tissueColors[t], pch=21,  col
 #' Mutations per year vs time
 #+ mutYearTime, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-for(n in names(y)){
-	a <- age[sample2donor[rownames(y[[n]])]]
-	yy <- nDeam22[rownames(y[[n]])]/a
-	xx <- 1-t0[rownames(y[[n]])]#y[[n]][,"hat"]/a
+for(n in names(tWgdByType)){
+	a <- age[sample2donor[rownames(tWgdByType[[n]])]]
+	yy <- nDeam22[rownames(tWgdByType[[n]])]/a
+	xx <- 1-t0[rownames(tWgdByType[[n]])]#y[[n]][,"hat"]/a
 	try({
 				l <- lm(yy ~ xx)
 				x0 <- -l$coef[2]/l$coef[1]
@@ -897,9 +897,9 @@ for(n in names(y)){
 #+ mutAgeWgd, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 deamRate <- list()
-for(n in names(y)){
-	a <- age[sample2donor[rownames(y[[n]])]]
-	yy <- nDeam22[rownames(y[[n]])]/(2-t0[rownames(y[[n]])])
+for(n in names(tWgdByType)){
+	a <- age[sample2donor[rownames(tWgdByType[[n]])]]
+	yy <- nDeam22[rownames(tWgdByType[[n]])]/(2-t0[rownames(tWgdByType[[n]])])
 	xx <- a
 	r <- yy/xx 
 	m <- median(r,na.rm=TRUE)
@@ -958,15 +958,10 @@ points(c(tmin,median(tf)*x0), c(0,0), pch=c(1,19))
 mtext(side=1, at=x0, text="Diagnosis", line=2)
 text(x=0, y=t, labels="WGD", pos=4, adj=c(0,1))
 #lines(d$x,d$y/max(d$y)*50)
-s <- 12/8; dev.copy2pdf(file="concept.pdf", width=2*s, height=2*s, pointsize=8*s)
+#s <- 12/8; dev.copy2pdf(file="concept.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
 
-c <- sapply(names(y), function(n) {
-			a <- age[sample2donor[rownames(y[[n]])]]
-			t <- try(cor(nDeam22[rownames(y[[n]])]/a,y[[n]][,"hat"]/a , method='s', use='c'))
-			if(class(t)=="try-error") NA else t})
-barplot(c, col=tissueColors[names(c)])
 
 #+ realTimeWgdAccel, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.25, bty="L")
