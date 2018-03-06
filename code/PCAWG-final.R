@@ -319,8 +319,8 @@ mg14::rotatedLabel(x=b,labels=rownames(gu)[2:51], cex=.5)
 par(fig=c(0,1,0,1),mar=c(3,4,1,1)+.1, mgp=c(3,.5,0))
 w <- rowSums(pu) > 0
 n <- 50
-barplot(t(pu /rowSums(pu))[,w], width=c(rep(2,n+1), rep(0.2,sum(w)-n-1)), space=c(0,2,rep(0.1,n), rep(0,sum(w)-n-2)), col=col, border=NA, ylab="Fraction of mutations", names.arg=rep("",sum(w)))
-mg14::rotatedLabel(x=.Last.value[1:(n+1)],labels=c("Genome-wide", rownames(pu)[2:(n+1)]), cex=.5)
+b <- barplot(t(pu /rowSums(pu))[,w], width=c(rep(2,n+1), rep(0.2,sum(w)-n-1)), space=c(0,2,rep(0.1,n), rep(0,sum(w)-n-2)), col=col, border=NA, ylab="Fraction of mutations", names.arg=rep("",sum(w)))
+mg14::rotatedLabel(x=b[1:(n+1)],labels=c("Genome-wide", rownames(pu)[2:(n+1)]), cex=.5)
 
 #s <- 12/8
 #dev.copy2pdf(file="finalDriversProp.pdf", width=9*s, height=3*s, pointsize=8*s)
