@@ -694,7 +694,7 @@ for(n in typesSubclones){
 
 #' Fraction of mutations due to linear accumulation
 q <- sapply(colnames(a), function(n){
-			w <- which(donor2type[sample2donor[names(y)]]==n & !is.na(y))
+			w <- which(t==n & !is.na(y))
 			f <- sapply(w, function(j) x[j] * b[,n] / (a[,n] + x[j] * b[,n]))
 			quantile(rowMeans(f), c(0.025, 0.25, .5,.75,.975))
 		})*100
