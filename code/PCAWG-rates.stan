@@ -14,20 +14,20 @@ parameters {
   real<lower=0> chi;
   vector<lower=0>[p] alpha;
   vector<lower=0>[p] beta;
-  real<lower=0> gamma;
+  vector<lower=0>[p] gamma;
+  vector<lower=0>[n] mu; 
 }
 
 transformed parameters {
-  vector[n] mu;
   vector[n] nu;
-  vector[p] ones;
-  for(i in 1:p) ones[i] = 1;
-  mu = x * beta + t * alpha;
-  nu = sqrt(x * ones * gamma^2 + sigma^2);
+  vector[n] lambda;
+  nu = x * beta;
+  lambda = mu + t * alpha;
 }
 
 model {
  beta ~ gamma(tau, upsilon);
  alpha ~ gamma(phi, chi);
- y ~ normal(mu, nu); 
+ mu ~ gamma(nu * gamma, gamma);
+ y ~ normal(lambda, sigma); 
 }
