@@ -470,6 +470,112 @@ b <- sapply(a[-length(a)], function(x) (1:10)*x)
 axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
 #dev.off()
 
+#' ## Overview histograms
+#' Some functions
+aggregatePerChromosome <- function(bb, isWgd=FALSE){
+	.aggregateSegments <- function(m){
+		#m <- mcols(bb)
+		t <- weighted.mean(m$time, m$n.snv_mnv, na.rm=TRUE)
+		n <- sum(m$n.snv_mnv, na.rm=TRUE)
+		sd <- sd(m$time, na.rm=TRUE)
+		ci <- weighted.mean(m$time.up-m$time.lo, m$n.snv_mnv, na.rm=TRUE)
+		w <- sum(m$width[!is.na(m$time)], na.rm=TRUE)
+		c(time=t, n=n, sd=sd, ci=ci,w=w)
+	}
+#	if(!isWgd){
+		s <- split(as.data.frame(bb)[,c("time","time.up","time.lo","n.snv_mnv","width")], seqnames(bb))
+		r <- t(sapply(s, .aggregateSegments))
+		r <- r[c(1:22,"X"),]
+#	}else{
+		w <- .aggregateSegments(as.data.frame(bb))
+		r <- rbind(r,WGD=w)
+#	}
+	return(r)
+}
+
+allChrAgg <- simplify2array(mclapply(finalBB, aggregatePerChromosome, mc.cores=2))
+
+
+t <- allChrAgg[1:23,"time",!isWgd]
+t[allChrAgg[1:23,"w",!isWgd] < diff(chrOffset)[1:23]*.33] <- NA
+
+s <- split(as.data.frame(t(t)), droplevels(donor2type[sample2donor[names(finalSnv)]])[!isWgd])
+n <- 10
+
+
+at <- function(x, n){
+	if(sum(!is.na(x))<3) return(rep(sum(!is.na(x))/n,n))
+	bw=if(sum(!is.na(x))< 6) 0.5 else "nrd0"
+	d <- density(x, n=n, from=1/n/2, to=1-1/n/2, bw=bw, na.rm=TRUE)
+	d$y/sum(d$y)*d$n
+}
+
+allChrCancerHist <- sapply(s, apply, 2, at, n=n, simplify="array")
+u <- split(data.frame(WGD=allChrAgg["WGD","time",isWgd]), droplevels(donor2type[sample2donor[names(finalSnv)]])[isWgd])
+wgdCancerHist <- sapply(u, function(x) if(nrow(x)>0){at(x$WGD,n=n)}else{rep(0,n)}, simplify="array")
+allChrCancerHist <- abind::abind(allChrCancerHist, All=sapply(sapply(s, as.matrix), at, n=n, simplify="array")/23*5, WGD=wgdCancerHist, along=2)
+
+#' ### Per tumour type
+#+ histTiming, fig.height=6, fig.width=6
+prgn <- RColorBrewer::brewer.pal(11,"PRGn")
+set1 <- RColorBrewer::brewer.pal(9,"Set1")
+col <- colorRampPalette(set1[c(4,9,3)])(n)
+
+p <- 0
+v <- table(droplevels(donor2type[sample2donor[names(finalSnv)]]))
+h <- (allChrCancerHist + p)  / rep(v + p, each=prod(dim(allChrCancerHist)[1:2]))
+h <- aperm(h, c(2,3,1))
+
+a <- colMeans(h[c("All","WGD"),,] * c(23/5,1)) %*% 1:n / asum(h* c(23/5,1), c(1,3))
+o <- order(-a)
+h <- h[,o,]
+w <- v[o]>=15 & apply(h, 2, max) > 0.05*8/n
+h <- h[,w,]
+
+m <- 0.02
+layout(matrix(1:prod(dim(h)[1:2]+1), ncol=dim(h)[1]+1, byrow=TRUE), height=c(rev(apply(h, 2, max))+m, 0.15), width=c(5, rep(1,dim(h)[1])))
+par(mar=c(0.05,0.1,0,0.1), xpd=NA)
+for(j in dim(h)[2]:0+1) for(i in 0:dim(h)[1]+1) {
+		#if(all(h[i,j,]==0)) 
+		if(i==1 & j !=1) {plot(NA,NA,xlab="",ylab="", xaxt="n",yaxt="n",xlim=c(0,1),ylim=c(0,1), bty="n")
+			text(1,0,dimnames(h)[[2]][j-1],pos=2)
+			next
+		}
+		if(j ==1 ){
+			plot(NA,NA,xlab="",ylab="", xaxt="n",yaxt="n",xlim=c(0,1),ylim=c(0,1), bty="n")
+			if(i==1) next
+			text(0.5,1,dimnames(h)[[1]][i-1],pos=1)
+			next
+		}
+		r <- c(0,max(h[,j-1,]+m))
+		par(bty=if(i==2)"L" else "n")
+		barplot(h[i-1,j-1,], ylim=r, width=1/n,space=0, col=rev(col), xaxt="n", yaxt="n", xlab="",ylab="", border=NA,xpd=TRUE, yaxs="i", xaxs="i", xlim=c(-0.5/n,1+0.5/n))
+		axis(side=1, at=c(-0.5/n,1+0.5/n), labels=c("",""), tcl=-.1)
+		if(i>1)
+			#abline(v=0, col='grey')
+		if(i==2){
+			#abline(h=0, col='grey', lty=1)
+			axis(side=2, at=c(0,0.05*8/n), labels=c("",""), tcl=-.1)
+		}
+	}
+#dev.copy2pdf(file="histTiming.pdf",width=6, height=6, pointsize=8)
+
+
+vv <- v[dimnames(h)[[2]]]
+vv <- vv/sum(vv)
+
+hh <- matrix(matrix(aperm(h, c(1,3,2)), ncol=length(vv)) %*% vv, nrow=nrow(h))
+rownames(hh) <- rownames(h)
+
+#' ### Pan-Can histograms
+#+ histTimingPanCan, fig.height=2. fig.width=2
+par(mar=c(3,3,1,1), mgp=c(2,.5,0), tcl=-0.5, bty="L", xpd=NA)
+barplot(hh["WGD",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r', border=NA)
+axis(side=1)
+barplot(hh["All",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r')
+axis(side=1)
+#dev.copy2pdf(file="histTimingPanCan.pdf",width=2, height=2, pointsize=8)
+
 
 #' # Real-time WGD & subclones
 age <- clinicalData$donor_age_at_diagnosis
