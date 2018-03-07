@@ -568,7 +568,7 @@ hh <- matrix(matrix(aperm(h, c(1,3,2)), ncol=length(vv)) %*% vv, nrow=nrow(h))
 rownames(hh) <- rownames(h)
 
 #' ### Pan-Can histograms
-#+ histTimingPanCan, fig.height=2. fig.width=2
+#+ histTimingPanCan, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,.5,0), tcl=-0.5, bty="L", xpd=NA)
 barplot(hh["WGD",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r', border=NA)
 axis(side=1)
