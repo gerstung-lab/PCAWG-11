@@ -14,7 +14,7 @@ parameters {
   real<lower=0> chi;
   vector<lower=0>[p] alpha;
   vector<lower=0>[p] beta;
-  vector<lower=0>[p] gamma;
+  vector<lower=0>[p] deltad;
   vector<lower=0>[n] mu; 
 }
 
@@ -28,6 +28,6 @@ transformed parameters {
 model {
  beta ~ gamma(tau, upsilon);
  alpha ~ gamma(phi, chi);
- mu ~ gamma(nu * gamma, gamma);
+ mu ~ gamma(nu * delta, delta);
  y ~ normal(lambda, sigma); 
 }
