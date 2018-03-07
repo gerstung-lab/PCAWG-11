@@ -14,7 +14,7 @@ parameters {
   real<lower=0> chi;
   vector<lower=0>[p] alpha;
   vector<lower=0>[p] beta;
-  vector<lower=0>[p] deltad;
+  vector<lower=0>[p] delta;
   vector<lower=0>[n] mu; 
 }
 
