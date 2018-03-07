@@ -21,13 +21,13 @@ parameters {
 transformed parameters {
   vector[n] nu;
   vector[n] lambda;
-  nu = x * beta;
+  nu = x * beta * delta;
   lambda = mu + t * alpha;
 }
 
 model {
  beta ~ gamma(tau, upsilon);
  alpha ~ gamma(phi, chi);
- mu ~ gamma(nu * delta, delta);
+ mu ~ gamma(nu, delta);
  y ~ normal(lambda, sigma); 
 }
