@@ -846,6 +846,7 @@ names(accel) <- paste0(accel, "x")
 #' The actual timing
 #+ timeSubclones, warning=FALSE
 set.seed(42)
+d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 timeSubclones <- sapply(typesSubclones, function(l) {
 			i <- d==l
 			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
