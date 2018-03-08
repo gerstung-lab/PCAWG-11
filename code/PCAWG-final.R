@@ -1031,6 +1031,7 @@ par(xpd=TRUE)
 #dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
 
 #' Plot extremely early samples
+#+ earlyWgdExamples, fig.width=4, fig.height=4
 t <- do.call("rbind", tWgdByType)
 o <- order(t[,"hat"], na.last=NA)
 for(n in rownames(t)[tail(o, 10)])
