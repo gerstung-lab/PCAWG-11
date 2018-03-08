@@ -572,7 +572,7 @@ rownames(hh) <- rownames(h)
 par(mar=c(3,3,1,1), mgp=c(2,.5,0), tcl=-0.5, bty="L", xpd=NA)
 barplot(hh["WGD",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r', border=NA)
 axis(side=1)
-barplot(hh["All",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r')
+barplot(hh["All",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r', border=NA)
 axis(side=1)
 #dev.copy2pdf(file="histTimingPanCan.pdf",width=2, height=2, pointsize=8)
 
@@ -754,7 +754,7 @@ fit <- stan(
 )
 
 #' Collect parameters
-s <- summary(fit, pars=c("alpha","beta"))$summary
+s <- summary(fit, pars=c("offset","slope"))$summary
 ab <- array(s, dim=c(33,2,10), dimnames=list(levels(droplevels(t)), c("a","b"), colnames(s)))
 
 #' Summary plot
@@ -772,25 +772,21 @@ points(ab[,1,"50%"], ab[,2,"50%"], pch=21, bg=tissueColors[dimnames(ab)[[1]]], c
 abline(h=0, lty=3)
 abline(v=0, lty=3)
 
-a <- extract(fit, pars="alpha")$alpha
-b <- extract(fit, pars="beta")$beta
+a <- extract(fit, pars="offset")$offset
+b <- extract(fit, pars="slope")$slope
 colnames(a) <- colnames(b) <- levels(droplevels(t))
 
 #' Overview
 #+ timeSubcloneAgeBayes, fig.width=10, fig.height=10
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
-d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
-for(n in typesSubclones){
+d <- droplevels(t)
+for(n in levels(d)){
 	i <- d==n
-	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3 # 3Gb Haploid genome
-	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
-	yy <- rowSums(tt0)
-	xx <- age[sample2donor[names(finalSnv)[i]]]
-	r <- yy/xx 
-	m <- median(r[TiN[names(xx)] <= 0.01 & ! is.na(TiN[names(xx)])],na.rm=TRUE)
+	yy <- y[i]
+	xx <- x[i]
+	m <- median(yy/xx, na.rm=TRUE)
 	try({
-				w <- !names(yy) %in% remove
-				plot(xx[w], yy[w], bg=tissueColors[n], col=tissueBorder[n], pch=21, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(1000,max(yy[w], na.rm=TRUE))), xlim=c(0,max(age, na.rm=TRUE)),  cex.main=1)
+				plot(xx, yy, bg=tissueColors[n], col=tissueBorder[n], pch=21, log='', xlab="Age at diagnosis", ylab="SNVs/Gb", main=n, ylim=c(0,pmin(1000,max(yy, na.rm=TRUE))), xlim=c(0,max(x, na.rm=TRUE)),  cex.main=1)
 				#points(xx, yy, bg=tissueColors[n], col=ifelse(w,tissueBorder[n], tissueColors[n]), pch=ifelse(w,21,4))
 				abline(0, m, lty=3)
 				x0 <- seq(0,100,1)
@@ -807,7 +803,7 @@ q <- sapply(colnames(a), function(n){
 		})*100
 
 qPanCan=quantile(rowMeans(do.call("cbind",sapply(colnames(a), function(n){
-									w <- which(donor2type[sample2donor[names(y)]]==n & !is.na(y))
+									w <- which(d==n & !is.na(y))
 									f <- sapply(w, function(j) x[j] * b[,n] / (a[,n] + x[j] * b[,n]))
 								}))),
 		c(0.025, 0.25, .5,.75,.975))*100
@@ -824,6 +820,23 @@ abline(h=min(q["97.5%",]), lty=3)
 abline(h=max(q["2.5%",]), lty=3)
 #abline(h=qPanCan["50%"], lty=4)
 
+
+#' Qualitative behaviour, simulating  0-15yrs with 5x acceleration
+set.seed(42)
+x <- df$x
+a <-  runif(length(x), pmax(0.5, 1-15/x), 1) #
+r <- rgamma(length(x), 10, 10)
+y <- rpois(length(x), (a + (1-a)*5) * r * x * 6 * 0.2)/6
+y[x < 40] <- NA
+
+#+fracLinearSim, fig.width=2, fig.height=2
+plot(x,y, ylim=c(0,max(y, na.rm=TRUE)), xlab="Age", ylab="SNVs/Gb", pch=21, bg="grey", lwd=0.5)
+f <- lm(y~x)
+summary(f)
+c <- coef(f)
+abline(c)
+
+mean(c[1] / (c[1]+ x*c[2]), na.rm=TRUE)
 
 #' ### Timing
 #' Acceleration values to simulate
@@ -854,16 +867,19 @@ timeSubclones <- sapply(typesSubclones, function(l) {
 			return(arr)
 		})
 
+guessAccel <- sapply(timeSubclones, function(x) "5x")
+guessAccel["Ovary-AdenoCa"] <- "7.5x"
+guessAccel[grep('CNS', names(guessAccel))] <- "2.5x"
+
 #' Plot
 #+ realTimeSubclone, fig.width=6, fig.height=2.225
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 qSubclone <- sapply(timeSubclones, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 a <- "5x"
-tSubclonesByType <- sapply(timeSubclones, function(x) x[,,a][setdiff(rownames(x),remove), 1:3, drop=FALSE])
-tSubclonesByType[["Ovary-AdenoCa"]] <- timeSubclones[["Ovary-AdenoCa"]][rownames(tSubclonesByType[["Ovary-AdenoCa"]]),,"7.5x"]
-m <- qSubclone["50%",a,]#t[1,3,]
-m["Ovary-AdenoCa"] <- qSubclone["50%","7.5x","Ovary-AdenoCa"]
+tSubclonesByType <- sapply(names(timeSubclones), function(n) {x <- timeSubclones[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
+m <- diag(qSubclone["50%",guessAccel[dimnames(qSubclone)[[3]]],])#t[1,3,]
+names(m) <- dimnames(qSubclone)[[3]]
 m[sapply(tSubclonesByType, function(x) sum(!is.na(x[,1]))) < 5] <- NA
 o <- order(m, na.last=NA)
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
@@ -872,7 +888,7 @@ mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o))try({
 				n <- names(m)[o[i]]
 				f <- function(x) x/max(abs(x))
-				a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
+				a <- guessAccel[n]
 				bwd <- 0.8/2
 				j <- if(length(na.omit(tSubclonesByType[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(tSubclonesByType[[o[i]]][,"hat"]))$y)/4 + i else i
 				tpy <- 2
@@ -944,12 +960,18 @@ correctAccel <- function(pi, ta, a){
 }
 
 correctAccelRand <- function(pi, ta=seq(0.8,1,0.01), a=seq(1,10,1)){
-	x <- sapply(ta, function(taa) sapply(a, function(aa) correctAccel(pi, taa, aa)), simplify='array')
+	sapply(ta, function(taa) sapply(a, function(aa) correctAccel(pi, taa, aa)), simplify='array')
 }
 
 #' ### Timing
-foo <- apply(finalWgdPi[,,], 2:3,  function(x) correctAccelRand(x, a=accel))
-finalWgdPiAdj <- array(foo, dim=c(2, length(accel), length(eval(formals(correctAccelRand)$ta)), dim(foo)[-1]))
+foo <- sapply(1:dim(finalWgdPi)[3], function(j) sapply(1:dim(finalWgdPi)[2], function(i){
+						ag <- age[sample2donor[names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)][j]]]
+						tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75)
+						if(is.na(tmin)) tmin <- 0.8
+						correctAccelRand(finalWgdPi[,i,j], a=accel, ta=seq(tmin,1,l=20))
+					}, simplify='array'), simplify='array')
+		
+finalWgdPiAdj <- foo
 dimnames(finalWgdPiAdj)[[1]] <- c('t.WGD','t.subclonal')
 dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
 dimnames(finalWgdPiAdj)[[4]] <- dimnames(finalWgdPi)[[2]]
@@ -960,7 +982,6 @@ dimnames(finalWgdPiAdj)[[5]] <- names(finalBB)[isWgd][!sapply(finalWgdParam, is.
 
 n <- dimnames(finalWgdPiAdj)[[5]]
 finalWgdTime <- finalWgdPiAdj[,,,,n] * rep(age[sample2donor[n]], each=2)
-
 
 d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
@@ -980,20 +1001,17 @@ par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
 nWgd <- sapply(timeWgd, function(x) sum(x[rownames(x) %in% u,"hat","1x"]!=0, na.rm=TRUE))
-
-a <- "5x"
-m <- qWgd['75%',a,]#t[1,3,]
-m["Ovary-AdenoCa"] <- qWgd["75%","7.5x","Ovary-AdenoCa"]
+tWgdByType <- sapply(names(timeWgd), function(n) {x <- timeWgd[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
+m <- diag(qWgd["75%",guessAccel[dimnames(qWgd)[[3]]],])#t[1,3,]
+names(m) <- dimnames(qWgd)[[3]]
 o <- order(m, na.last=NA)
 x <- seq_along(m[o])
-tWgdByType <- sapply(timeWgd, function(yy) yy[setdiff(rownames(yy), remove),1:3,a])
-tWgdByType[["Ovary-AdenoCa"]] <- timeWgd[["Ovary-AdenoCa"]][setdiff(rownames(timeWgd[["Ovary-AdenoCa"]]), remove),,"7.5x"]
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(do.call('rbind',tWgdByType)[,1], na.rm=TRUE)+5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	n <- names(m)[o[i]]
 	f <- function(x) x/max(abs(x))
-	a <- if(n== "Ovary-AdenoCa") "7.5x" else "5x" 
+	a <- guessAccel[n]
 	j <- f(mg14::violinJitter(na.omit(tWgdByType[[o[i]]][,"hat"]))$y)/4 + i
 	tpy <- 2
 	segments(j, na.omit(tWgdByType[[o[i]]][,"up"]), j, na.omit(tWgdByType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy))
@@ -1010,6 +1028,12 @@ for(i in seq_along(o)){
 par(xpd=TRUE)
 #s <- 12/8
 #dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
+
+#' Plot extremely early samples
+t <- do.call("rbind", tWgdByType)
+o <- order(t[,"hat"], na.last=NA)
+for(n in rownames(t)[tail(o, 10)])
+	plotSample(n, title=paste0(sub("-.+","",n),", ", donor2type[sample2donor[n]], ", ",round(t[n,"hat"]),"yr"))
 
 #' Numbers per decade
 yy <- do.call("rbind",tWgdByType)
@@ -1198,10 +1222,12 @@ plot(qSubclone["50%",a,dimnames(qWgd)[[3]]], qWgd["50%",a,], col=tissueColors[di
 #+ realTimeSubcloneWgd, fig.width=2.5, fig.height=3.5
 par( mar=c(3,3,3,10), mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="n", xpd=FALSE, las=1)
 w <- "50%"
-x <- qSubclone[w,a,]
-x["Ovary-AdenoCa"] <- qSubclone[w,"7.5x","Ovary-AdenoCa"]
-y <- qWgd[w,a,]
-y["Ovary-AdenoCa"] <- qWgd[w,"7.5x","Ovary-AdenoCa"]
+
+x <- diag(qSubclone[w,guessAccel[dimnames(qSubclone)[[3]]],])#t[1,3,]
+names(x) <- dimnames(qSubclone)[[3]]
+y <- diag(qWgd[w,guessAccel[dimnames(qWgd)[[3]]],])#t[1,3,]
+names(y) <- dimnames(qWgd)[[3]]
+
 plot(c(rep(1, dim(qSubclone)[3]), rep(2, each=dim(qWgd)[3])), c(x,y), bg=tissueColors[c(dimnames(qSubclone)[[3]], dimnames(qWgd)[[3]])], pch=21, cex=1, xaxt="n", ylab="Years before diagnosis", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(y, na.rm=TRUE)))
 segments(rep(1, each=dim(qWgd)[3]), x[dimnames(qWgd)[[3]]], rep(2, each=dim(qWgd)[3]), y,col=tissueLines[dimnames(qWgd)[[3]]], lty= ifelse(nWgd <= 5, 3, tissueLty[dimnames(qWgd)[[3]]]))
 o <- order(y, na.last=NA)
