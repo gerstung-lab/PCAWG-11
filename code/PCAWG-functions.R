@@ -738,7 +738,7 @@ reduceBB <- function(bb){
 	return(s)
 }
 
-plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]]) {
+plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w) {
 	p <- par()
 	stackTime <- function(bb, t=seq(0,1,0.01)){
 		u <- unique(bb)
@@ -753,14 +753,14 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]]) {
 	layout(matrix(1:3, ncol=1), height=c(4,1.2,3.5))
 	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
 	plotVcf(vcf, bb, finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33)
-	mtext(line=-1, side=3, names(w), las=1)
+	mtext(line=-1, side=3, title, las=1)
 	plotBB(bb, ylim=c(0,5), legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE)
 	par(mar=c(3,3,0.5,0.5))
 	plotTiming(bb, legend=FALSE, col.grid=NA)
 	s <- stackTime(bb)
 	g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
 	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
-	print(w)
+	#print(w)
 	par(p[setdiff(names(p), c("cin","cra","csi","cxy","din","page"))])
 }
 
