@@ -39,7 +39,7 @@ source("PCAWG-functions.R")
 #' ## Whitelist
 #' ### SNV and MNV
 #+ loadSNV
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/snv_mnv"
+p <- "../final/annotated_012/snv_mnv"
 finalSnv <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -51,7 +51,7 @@ names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FA
 
 #' ### Copy number profiles
 #+ loadBB
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/cn"
+p <- "../final/annotated_012/cn"
 finalBB <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -62,7 +62,7 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 
 #' ### Indel
 #+ loadIndel
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/indel"
+p <- "../final/annotated_012/indel"
 finalIndel <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 	load(f)
@@ -74,7 +74,7 @@ names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=
 #+ loadClusters
 finalClusters <- list()
 finalPurity <- numeric()
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/clusters"
+p <- "../final/annotated_012/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClusters[[f]] <- clusters
@@ -107,7 +107,7 @@ for(i in seq_along(finalDriversAnnotated)){
 #' ## Graylisted data
 #' ### SNV and MNV
 #+ loadSnvGray
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/snv_mnv"
+p <- "../final/annotated_012/graylist/snv_mnv"
 finalSnvGray <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
@@ -120,7 +120,7 @@ finalSnv[names(finalSnvGray)] <- finalSnvGray
 
 #' ### Copy number profiles
 #+ loadBBGray
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/cn"
+p <- "../final/annotated_012/graylist/cn"
 finalBBGray <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -133,7 +133,7 @@ finalBB[names(finalBBGray)] <- finalBBGray
 
 #' ### Indel
 #+ loadIndelGray
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/indel"
+p <- "../final/annotated_012/graylist/indel"
 finalIndelGray <- list()
 for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
 	load(f)
@@ -147,7 +147,7 @@ finalIndel[names(finalIndelGray)] <- finalIndelGray
 #+ loadClustersGray
 finalClustersGray <- list()
 finalPurityGray <- numeric()
-p <- "/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/final/annotated_012/graylist/clusters"
+p <- "../final/annotated_012/graylist/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClustersGray[[f]] <- clusters
@@ -917,7 +917,7 @@ table(cut(yy, seq(0,60,10)))
 #' ## WGD
 #' ### Functions
 wgdTime <- function(vcf, bb, clusters, purity){
-	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2& sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
+	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2 & sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
 	if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
 		w <- intersect(w, which(isDeaminationNoUV(vcf)))
 	v <- vcf[w]
@@ -932,7 +932,9 @@ finalWgdParam <- mclapply(names(finalSnv)[isWgd], function(ID){
 			wgdTime(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
 		},  mc.cores=MC_CORES)
 
-finalWgdPi <- sapply(finalWgdParam[!sapply(finalWgdParam, is.null)], function(x) {
+void <- sapply(finalWgdParam, is.null)
+
+finalWgdPi <- sapply(finalWgdParam[!void], function(x) {
 			pi <- x$P[[1]][,"P.m.sX"] * x$P[[1]][,"pi.s"]
 			pi.up <- (x$P[[1]][,"P.m.sX.up"] * x$P[[1]][,"pi.s"])[1:2]
 			pi.lo <- (x$P[[1]][,"P.m.sX.lo"] * x$P[[1]][,"pi.s"])[1:2] 
@@ -967,7 +969,7 @@ correctAccelRand <- function(pi, ta=seq(0.8,1,0.01), a=seq(1,10,1)){
 #' ### Timing
 foo <- sapply(1:dim(finalWgdPi)[3], function(j) sapply(1:dim(finalWgdPi)[2], function(i){
 						ag <- age[sample2donor[names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)][j]]]
-						tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75)
+						tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75 mutation time)
 						if(is.na(tmin)) tmin <- 0.8
 						correctAccelRand(finalWgdPi[,i,j], a=accel, ta=seq(tmin,1,l=20))
 					}, simplify='array'), simplify='array')
@@ -976,7 +978,7 @@ finalWgdPiAdj <- foo
 dimnames(finalWgdPiAdj)[[1]] <- c('t.WGD','t.subclonal')
 dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
 dimnames(finalWgdPiAdj)[[4]] <- dimnames(finalWgdPi)[[2]]
-dimnames(finalWgdPiAdj)[[5]] <- names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)]
+dimnames(finalWgdPiAdj)[[5]] <- names(finalBB)[isWgd][!void]
 
 #finalWgdPiAdj <- sapply(1:ncol(finalWgdPi), function(i) correctAccelRand(finalWgdPi[,i], a=accel), simplify='array')
 #dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
@@ -1034,7 +1036,7 @@ par(xpd=TRUE)
 #+ earlyWgdExamples, fig.width=4, fig.height=4
 t <- do.call("rbind", tWgdByType)
 o <- order(t[,"hat"], na.last=NA)
-for(n in rownames(t)[tail(o, 10)])
+for(n in rownames(t)[tail(o, 20)])
 	plotSample(n, title=paste0(sub("-.+","",n),", ", donor2type[sample2donor[n]], ", ",round(t[n,"hat"]),"yr"))
 
 #' Numbers per decade

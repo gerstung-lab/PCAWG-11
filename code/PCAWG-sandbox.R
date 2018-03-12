@@ -3919,4 +3919,96 @@ qGuessWgd <- sapply(names(timeWgd), function(n){
 			quantile(x[names(x) %in% u], na.rm=TRUE)
 		})
 
+p <- function() par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1) 
 
+grep("BRAF", )
+
+g <- mg14:::asum(finalGenotypes,c(2,4))
+t <- donor2type[sample2donor[dimnames(finalGenotypes)[[5]]]]
+
+o <- order(rowSums(g[,"clonal [early]",]), decreasing=TRUE)[-1]
+
+n <- colSums(g[-504,"clonal [early]",])
+
+c <- sapply(o[1:50], function(i){
+			f <- glm(allChrAgg["WGD","time", whiteList] ~ g[i,"clonal [early]",] + t + n, family="binomial")
+			coef(summary(f))[2,]
+})
+
+colnames(c) <- gsub("(gc19_pc.)|(::gencode)|(::ENSG.+)","",rownames(g))[o[1:50]]
+
+par(mar=c(5,3,1,1))
+barplot(c[1,1:50], las=2) -> b
+segments(b,y0=c[1,1:50]-c[2,1:50],y1=c[1,1:50]+c[2,1:50])
+
+p <- model.matrix(~droplevels(t)) %*% coef(f)[-2]
+softmax <- function(x) 1/(1+exp(-x))
+x <- car::logit(allChrAgg["WGD","time", whiteList]) - p
+boxplot(softmax(x) ~ g[355,"clonal [early]",], notch=TRUE)
+
+n <- colSums(g[-504,"clonal [early]",])
+
+t <- table(n, isWgd[whiteList])
+barplot(t[,1]/rowSums(t))
+
+wgdTime2 <- function(vcf, bb, clusters, purity){
+	# Find segments compatible with WGD
+	min.dist <- 0.05
+	m <- findMainCluster(bb)
+	l <- pmin(bb$time.lo, bb$time - min.dist)
+	u <- pmax(bb$time.up, bb$time + min.dist)
+	o <- which(l <= m & u >= m)
+	
+	# Find deaminations in compatible segments
+	w <- which(info(vcf)$MajCN==2 & sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf) & vcf %over% bb[o])
+	if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+		w <- intersect(w, which(isDeaminationNoUV(vcf)))
+	v <- vcf[w]
+	if(nrow(v)<=100) return(NULL)
+	seqnames(rowRanges(v)) <- factor(3-info(v)$MinCN, levels=seqlevels(v))
+	b <- GRanges(1:3, IRanges(rep(1,3),rep(max(end(v)),3)), copy_number=4:2, major_cn=2, minor_cn=2:0, clonal_frequency=as.numeric(purity))
+	l <- computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=10)
+	b$n.snv_mnv <- l$n <- table(factor(info(v)$MinCN, levels=2:0))
+	l$time <- bbToTime(b, l$P)
+	return(l)
+}
+
+#+ finalWgdParam
+finalWgdParam2 <- mclapply(names(finalSnv)[isWgd], function(ID){
+			wgdTime2(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
+		},  mc.cores=MC_CORES)
+
+
+
+void <- sapply(finalWgdParam2, is.null)
+
+time <- sapply(finalWgdParam2[!void], function(x) as.matrix(x$time[,c("time","time.up","time.lo")]), simplify='array')
+
+par(mfrow=c(3,3))
+for(i in 1:3) for(j in 1:3){
+		plot(time[i,"time",], time[j,"time",], xlim=c(0,1), ylim=c(0,1))
+		segments(time[i,"time",], time[j,"time.lo",],time[i,"time",], time[j,"time.up",], col='#00000044')
+		segments(time[i,"time.lo",], time[j,"time",],time[i,"time.up",], time[j,"time",], col='#00000044')
+		abline(0,1, col='red')
+	}
+
+table(time[1,"time.lo",] <= time[2,"time",]  & time[1,"time.up",] >= time[2,"time",], time[2,"time.lo",] <= time[1,"time",]  & time[2,"time.up",] >= time[1,"time",])  
+
+finalWgdPi2 <- sapply(finalWgdParam2[!void], function(x) sapply(1:3, function(i){
+			pi <- x$P[[i]][,"P.m.sX"] * x$P[[i]][,"pi.s"]
+			pi.up <- (x$P[[i]][,"P.m.sX.up"] * x$P[[i]][,"pi.s"])[1:2]
+			pi.lo <- (x$P[[i]][,"P.m.sX.lo"] * x$P[[i]][,"pi.s"])[1:2] 
+			pi.clonal <- pi[1:2]
+			pi.subclonal <- mean(pi[!x$P[[i]][,"clonalFlag"]]) # or sum for linear progression
+			if(length(pi.subclonal)==0 | is.na(pi.subclonal) | is.infinite(pi.subclonal)) pi.subclonal <- 0 
+			r <- rbind(cbind(hat=pi.clonal, lo=pi.lo, up=pi.up), pi.subclonal)
+			r[1,2:3] <- r[1,3:2]
+			r
+		}, simplify='array'), simplify='array')
+dimnames(finalWgdPi2)[[1]] <- c("clonal.1","clonal.2","sub")
+
+finalWgdPi <- mg14:::asum(finalWgdPi2,3, na.rm=TRUE) / rep(mg14:::asum(!is.na(finalWgdPi2[1,1,,]),1, na.rm=TRUE), each=9)
+finalWgdPi[,"lo",] <- apply(finalWgdPi2[,"lo",,], c(1,3), min, na.rm=TRUE)
+finalWgdPi[,"up",] <- apply(finalWgdPi2[,"up",,], c(1,3), max, na.rm=TRUE)
+
+boxplot(t[,1] ~ droplevels(timingClass[match(rownames(t), names(finalSnv))]), las=2)
