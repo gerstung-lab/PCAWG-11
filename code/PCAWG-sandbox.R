@@ -4007,6 +4007,15 @@ finalWgdPi2 <- sapply(finalWgdParam2[!void], function(x) sapply(1:3, function(i)
 		}, simplify='array'), simplify='array')
 dimnames(finalWgdPi2)[[1]] <- c("clonal.1","clonal.2","sub")
 
+finalWgdT <- sapply(finalWgdParam2[!void], function(x) {
+			T.clonal <- as.matrix(x$time[,2:4])
+			T.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)
+			G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN))
+			G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub)
+			list(T.clonal, T.subclonal, G.clonal, G.subclonal)
+		}, simplify='array')
+dimnames(finalWgdPi2)[[1]] <- c("clonal.1","clonal.2","sub")
+
 finalWgdPi <- mg14:::asum(finalWgdPi2,3, na.rm=TRUE) / rep(mg14:::asum(!is.na(finalWgdPi2[1,1,,]),1, na.rm=TRUE), each=9)
 finalWgdPi[,"lo",] <- apply(finalWgdPi2[,"lo",,], c(1,3), min, na.rm=TRUE)
 finalWgdPi[,"up",] <- apply(finalWgdPi2[,"up",,], c(1,3), max, na.rm=TRUE)
