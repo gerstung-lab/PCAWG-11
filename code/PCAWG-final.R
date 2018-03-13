@@ -1002,7 +1002,7 @@ timeWgd <- sapply(s, function(l) {
 #+ realTimeWgd, fig.height=3, fig.width=4
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
-qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.25,0.5,0.75), na.rm=TRUE), simplify='array')
+qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 nWgd <- sapply(timeWgd, function(x) sum(x[rownames(x) %in% u,"hat","1x"]!=0, na.rm=TRUE))
 tWgdByType <- sapply(names(timeWgd), function(n) {x <- timeWgd[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
 m <- diag(qWgd["75%",guessAccel[dimnames(qWgd)[[3]]],])#t[1,3,]
@@ -1016,17 +1016,15 @@ for(i in seq_along(o)){
 	f <- function(x) x/max(abs(x))
 	a <- guessAccel[n]
 	j <- f(mg14::violinJitter(na.omit(tWgdByType[[o[i]]][,"hat"]))$y)/4 + i
-	tpy <- 2
-	segments(j, na.omit(tWgdByType[[o[i]]][,"up"]), j, na.omit(tWgdByType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy))
+	tpy <- if(grepl("Skin|Lung", n)) 4 else 2
+	#segments(j, na.omit(tWgdByType[[o[i]]][,"up"]), j, na.omit(tWgdByType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy), lty=tissueLty[n])
 	points(j, na.omit(tWgdByType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
 			cex=tissueCex[n]*2/3, lwd=1)
 	bwd <- 0.8/2
-	rect(i-bwd,qWgd[1,a,n],i+bwd,qWgd[3,a,n], border=tissueLines[n],  col=paste0(tissueColors[n],"44"))
-	segments(i-bwd,qWgd[2,a,n],i+bwd,qWgd[2,a,n],col=tissueLines[n], lwd=2)
-	#d <- density(na.omit(y[[o[i]]][,"hat"]))
-	#polygon(c(d$y/max(d$y)/2.5+i, rev(-d$y/max(d$y)/2.5+i)),c(d$x, rev(d$x)), border=tissueLines[names(m)[o[i]]],  col=mg14::colTrans(tissueColors[names(m)[o[i]]],3))
-#	segments(j, na.omit(y[[o[i]]][,"up"]), j, na.omit(y[[o[i]]][,"lo"]), col=tissueColors[names(m)[o[i]]], lwd=2)
-#	points(j, na.omit(y[[o[i]]][,"hat"]), pch=16, col="white", cex=0.5)
+	rect(i-bwd,qWgd["25%",a,n],i+bwd,qWgd["75%",a,n], border=tissueLines[n],  col=paste0(tissueColors[n],"44"))
+	segments(i-bwd,qWgd["50%",a,n],i+bwd,qWgd["50%",a,n],col=tissueLines[n], lwd=2)
+	segments(i,qWgd["75%",a,n],i,qWgd["95%",a,n],col=tissueLines[n], lwd=1.5)
+	segments(i,qWgd["5%",a,n],i,qWgd["25%",a,n],col=tissueLines[n], lwd=1.5)
 }
 par(xpd=TRUE)
 #s <- 12/8

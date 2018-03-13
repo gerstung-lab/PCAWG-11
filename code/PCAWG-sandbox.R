@@ -4007,14 +4007,93 @@ finalWgdPi2 <- sapply(finalWgdParam2[!void], function(x) sapply(1:3, function(i)
 		}, simplify='array'), simplify='array')
 dimnames(finalWgdPi2)[[1]] <- c("clonal.1","clonal.2","sub")
 
-finalWgdT <- sapply(finalWgdParam2[!void], function(x) {
-			T.clonal <- as.matrix(x$time[,2:4])
-			T.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)
-			G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN))
-			G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub)
-			list(T.clonal, T.subclonal, G.clonal, G.subclonal)
-		}, simplify='array')
-dimnames(finalWgdPi2)[[1]] <- c("clonal.1","clonal.2","sub")
+
+correctAccel <- function(pi, ta, a){
+	t0 <- 2*pi[2]/(2*pi[2]+pi[1]) ##  no acc
+	t1 <- t0 + (1-t0) *(a-1)/a*ta #acc before dup
+	t2 <- t0 * (ta + a*(1-ta)) ## after
+	tWgdClonal <- pmin(t1, t2) # as fraction of clonal
+	aEffClonal <- ta + (1-ta)*a # effective rate, avg over clonal
+	gEffClonal <- 2*tWgdClonal + 4*(1-tWgdClonal) # effective genome size
+	piClonal <- sum(pi[1:2])
+	piSub <- sum(pi[-2:-1])
+	tSub <- piSub / 4 / a
+	tClonal <- piClonal / gEffClonal/ aEffClonal
+	tClonal <- tClonal / (tClonal + tSub)
+	return(c(tWgd=tWgdClonal * tClonal, tClonal=tClonal))
+}
+
+correctAccelRand <- function(pi, ta=seq(0.8,1,0.01), a=seq(1,10,1)){
+	sapply(ta, function(taa) sapply(a, function(aa) correctAccel(pi, taa, aa)), simplify='array')
+}
+
+names(finalWgdParam2) <- names(finalBB)[isWgd]
+
+#' ### Timing
+foo <- sapply(1:dim(finalWgdPi)[3], function(j) sapply(1:dim(finalWgdPi)[2], function(i){
+						ag <- age[sample2donor[names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)][j]]]
+						tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75 mutation time)
+						if(is.na(tmin)) tmin <- 0.8
+						correctAccelRand(finalWgdPi[,i,j], a=accel, ta=seq(tmin,1,l=20))
+					}, simplify='array'), simplify='array')
+
+finalWgdT <- simplify2array(mclapply(names(finalWgdParam2[!void]), function(n) {
+			x <- finalWgdParam2[!void][[n]]
+			
+			T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal
+			f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D) # Fraction subclonal (observed)
+			G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN)) # Effective ploidy clonal, adjusted for timing
+			G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub) # Final ploidy
+			if(is.nan(G.subclonal)) G.subclonal <- mean(x$D$MajCN + x$D$MinCN)
+			
+			ag <- age[sample2donor[names(finalBB)[isWgd][!void][j]]]
+			tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75 mutation time)
+			if(is.na(tmin)) tmin <- 0.8
+			ta=seq(tmin,1,l=20)
+			
+			.correctAccel <- function(T.clonal, f.subclonal, G.clonal, G.subclonal, ta, a){ # Helper function to correct accel a at clonal time ta
+				t1 <- T.clonal + (1-T.clonal) *(a-1)/a*ta #acc before dup
+				t2 <- T.clonal * (ta + a*(1-ta)) ## after
+				T.clonal.adj <- pmin(t1, t2) # as fraction of clonal
+				a.clonal <- ta + (1-ta)*a # effective rate, avg over clonal
+				T.subclonal.abs <- f.subclonal / G.subclonal / a
+				T.clonal.abs <- (1-f.subclonal) / G.clonal/ a.clonal
+				T.clonal.abs <- T.clonal.abs / (T.clonal.abs + T.subclonal.abs) # as fraction of all mutations
+				return(c(T.WGD=T.clonal.adj * T.clonal.abs, T.MRCA=T.clonal.abs))
+			}
+			
+			.correctAccelRand <- function(T.clonal, f.subclonal, G.clonal, G.subclonal, ta=seq(0.8,1,0.01), a=seq(1,10,1)){ # Helper to calculate range of accel a and times
+				sapply(ta, function(taa) sapply(a, function(aa) .correctAccel(T.clonal, f.subclonal, G.clonal, G.subclonal, taa, aa)), simplify='array')
+			}
+			
+			res <- apply(T.clonal, 1:2, .correctAccelRand, f.subclonal, G.clonal, G.subclonal, a=accel, ta=seq(tmin,1,l=20))
+			dim(res) <- c(2, length(accel), length(ta), dim(res)[-1])
+			return(res)
+
+		}, mc.cores=MC_CORES))
+dimnames(finalWgdT)[1:2] <- list(c("T.WGD","T.MRCA"), names(accel))
+dimnames(finalWgdT)[[5]] <- colnames(finalWgdParam2[[1]]$time)[2:4] 
+dimnames(finalWgdT)[[4]] <- levels(finalBB[[1]]$type)[c(3,1,2)]
+dimnames(finalWgdT)[[6]] <- names(finalWgdParam2[!void])
+
+n <- dimnames(finalWgdT)[[6]]
+d <- droplevels(donor2type[sample2donor[n]])
+s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
+timeWgd <- sapply(s, function(l) {
+			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
+			a <- (1-finalWgdT["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdT)[c(2,3,4,5)]))
+			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
+			rownames(m) <- n[i]
+			colnames(m) <- c("hat","lo","up")
+			m <- apply(m, c(1,2,4), mean, na.rm=TRUE)
+			lo <- sapply(1:100, function(foo){
+						j <- sample(1:20)
+					})
+			m[,"lo",] <- t(apply(a, c(1,5), quantile, c(0.025), na.rm=TRUE))
+			m[,"up",] <- t(apply(a, c(1,5), quantile, c(0.975), na.rm=TRUE))
+			m
+		}, simplify=FALSE)
+
 
 finalWgdPi <- mg14:::asum(finalWgdPi2,3, na.rm=TRUE) / rep(mg14:::asum(!is.na(finalWgdPi2[1,1,,]),1, na.rm=TRUE), each=9)
 finalWgdPi[,"lo",] <- apply(finalWgdPi2[,"lo",,], c(1,3), min, na.rm=TRUE)
