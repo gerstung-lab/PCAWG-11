@@ -4037,62 +4037,7 @@ foo <- sapply(1:dim(finalWgdPi)[3], function(j) sapply(1:dim(finalWgdPi)[2], fun
 						correctAccelRand(finalWgdPi[,i,j], a=accel, ta=seq(tmin,1,l=20))
 					}, simplify='array'), simplify='array')
 
-finalWgdT <- simplify2array(mclapply(names(finalWgdParam2[!void]), function(n) {
-			x <- finalWgdParam2[!void][[n]]
-			
-			T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal
-			f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D) # Fraction subclonal (observed)
-			G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN)) # Effective ploidy clonal, adjusted for timing
-			G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub) # Final ploidy
-			if(is.nan(G.subclonal)) G.subclonal <- mean(x$D$MajCN + x$D$MinCN)
-			
-			ag <- age[sample2donor[names(finalBB)[isWgd][!void][j]]]
-			tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75 mutation time)
-			if(is.na(tmin)) tmin <- 0.8
-			ta=seq(tmin,1,l=20)
-			
-			.correctAccel <- function(T.clonal, f.subclonal, G.clonal, G.subclonal, ta, a){ # Helper function to correct accel a at clonal time ta
-				t1 <- T.clonal + (1-T.clonal) *(a-1)/a*ta #acc before dup
-				t2 <- T.clonal * (ta + a*(1-ta)) ## after
-				T.clonal.adj <- pmin(t1, t2) # as fraction of clonal
-				a.clonal <- ta + (1-ta)*a # effective rate, avg over clonal
-				T.subclonal.abs <- f.subclonal / G.subclonal / a
-				T.clonal.abs <- (1-f.subclonal) / G.clonal/ a.clonal
-				T.clonal.abs <- T.clonal.abs / (T.clonal.abs + T.subclonal.abs) # as fraction of all mutations
-				return(c(T.WGD=T.clonal.adj * T.clonal.abs, T.MRCA=T.clonal.abs))
-			}
-			
-			.correctAccelRand <- function(T.clonal, f.subclonal, G.clonal, G.subclonal, ta=seq(0.8,1,0.01), a=seq(1,10,1)){ # Helper to calculate range of accel a and times
-				sapply(ta, function(taa) sapply(a, function(aa) .correctAccel(T.clonal, f.subclonal, G.clonal, G.subclonal, taa, aa)), simplify='array')
-			}
-			
-			res <- apply(T.clonal, 1:2, .correctAccelRand, f.subclonal, G.clonal, G.subclonal, a=accel, ta=seq(tmin,1,l=20))
-			dim(res) <- c(2, length(accel), length(ta), dim(res)[-1])
-			return(res)
 
-		}, mc.cores=MC_CORES))
-dimnames(finalWgdT)[1:2] <- list(c("T.WGD","T.MRCA"), names(accel))
-dimnames(finalWgdT)[[5]] <- colnames(finalWgdParam2[[1]]$time)[2:4] 
-dimnames(finalWgdT)[[4]] <- levels(finalBB[[1]]$type)[c(3,1,2)]
-dimnames(finalWgdT)[[6]] <- names(finalWgdParam2[!void])
-
-n <- dimnames(finalWgdT)[[6]]
-d <- droplevels(donor2type[sample2donor[n]])
-s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
-timeWgd <- sapply(s, function(l) {
-			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
-			a <- (1-finalWgdT["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdT)[c(2,3,4,5)]))
-			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
-			rownames(m) <- n[i]
-			colnames(m) <- c("hat","lo","up")
-			m <- apply(m, c(1,2,4), mean, na.rm=TRUE)
-			lo <- sapply(1:100, function(foo){
-						j <- sample(1:20)
-					})
-			m[,"lo",] <- t(apply(a, c(1,5), quantile, c(0.025), na.rm=TRUE))
-			m[,"up",] <- t(apply(a, c(1,5), quantile, c(0.975), na.rm=TRUE))
-			m
-		}, simplify=FALSE)
 
 
 finalWgdPi <- mg14:::asum(finalWgdPi2,3, na.rm=TRUE) / rep(mg14:::asum(!is.na(finalWgdPi2[1,1,,]),1, na.rm=TRUE), each=9)
@@ -4100,3 +4045,22 @@ finalWgdPi[,"lo",] <- apply(finalWgdPi2[,"lo",,], c(1,3), min, na.rm=TRUE)
 finalWgdPi[,"up",] <- apply(finalWgdPi2[,"up",,], c(1,3), max, na.rm=TRUE)
 
 boxplot(t[,1] ~ droplevels(timingClass[match(rownames(t), names(finalSnv))]), las=2)
+
+#' Age distribution
+plot(NA,NA, xlim=c(0,100), ylim=c(0,0.1), xlab="Time [yr]", ylab="Frequency")
+for(i in seq_along(tWgdByType)){
+	n <- names(tWgdByType)[i]
+	y <- tWgdByType[[n]][,"hat"]
+	y <- na.omit(age[sample2donor[names(y)]] - y)
+	if(length(y)>10)
+		lines(density(y, bw="SJ", from=0, to=100), col=tissueLines[n], lty=tissueLty[n])
+}
+
+plot(NA,NA, xlim=c(0,100), ylim=c(0,0.1), xlab="Time [yr]", ylab="Frequency")
+for(i in seq_along(tWgdByType)){
+	n <- names(tWgdByType)[i]
+	y <- na.omit(age[sample2donor[names(tWgdByType[[i]][,"hat"])]])
+	if(length(y)>10)
+		lines(density(y, bw="SJ", from=0, to=100), col=tissueLines[n], lty=tissueLty[n])
+}
+

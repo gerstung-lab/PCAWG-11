@@ -13,8 +13,9 @@
 #+ Preliminaries, echo=FALSE
 options(width=120)
 pdf.options(pointsize=8)
+.par <- function() par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1) 
 knit_hooks$set(smallMar = function(before, options, envir) {
-			if (before) par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1) 
+			if (before) .par()
 		})
 opts_chunk$set(dev=c('my_png','pdf'), fig.ext=c('png','pdf'), fig.width=3, fig.height=3, smallMar=TRUE)
 my_png <-  function(file, width, height, pointsize=12, ...) {
@@ -916,88 +917,107 @@ table(cut(yy, seq(0,60,10)))
 
 #' ## WGD
 #' ### Functions
+#' Calculate relative timing estimates based on deaminatinons
 wgdTime <- function(vcf, bb, clusters, purity){
-	w <- which(info(vcf)$MajCN==2 & info(vcf)$MinCN==2 & sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf))
+	# 1. Find segments compatible with WGD
+	min.dist <- 0.05
+	m <- findMainCluster(bb)
+	l <- pmin(bb$time.lo, bb$time - min.dist)
+	u <- pmax(bb$time.up, bb$time + min.dist)
+	o <- which(l <= m & u >= m)
+	
+	# 2. Find deaminations in compatible segments
+	w <- which(info(vcf)$MajCN==2 & sapply(info(vcf)$CNID, length)==1 & isDeamination(vcf) & vcf %over% bb[o])
 	if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
 		w <- intersect(w, which(isDeaminationNoUV(vcf)))
 	v <- vcf[w]
-	if(nrow(v)<=100) return(NULL)
-	seqnames(rowRanges(v)) <- factor(rep(1, nrow(v)), levels=seqlevels(v))
-	b <- GRanges(1, IRanges(1,max(end(v))), copy_number=4, major_cn=2, minor_cn=2, clonal_frequency=purity)
-	computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=10)
-}
-
-#+ finalWgdParam
-finalWgdParam <- mclapply(names(finalSnv)[isWgd], function(ID){
-			wgdTime(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
-		},  mc.cores=MC_CORES)
-
-void <- sapply(finalWgdParam, is.null)
-
-finalWgdPi <- sapply(finalWgdParam[!void], function(x) {
-			pi <- x$P[[1]][,"P.m.sX"] * x$P[[1]][,"pi.s"]
-			pi.up <- (x$P[[1]][,"P.m.sX.up"] * x$P[[1]][,"pi.s"])[1:2]
-			pi.lo <- (x$P[[1]][,"P.m.sX.lo"] * x$P[[1]][,"pi.s"])[1:2] 
-			pi.clonal <- pi[1:2]
-			pi.subclonal <- mean(pi[!x$P[[1]][,"clonalFlag"]]) # or sum for linear progression
-			if(length(pi.subclonal)==0 | is.na(pi.subclonal) | is.infinite(pi.subclonal)) pi.subclonal <- 0 
-			r <- rbind(cbind(hat=pi.clonal, lo=pi.lo, up=pi.up), pi.subclonal)
-			r[1,2:3] <- r[1,3:2]
-			r
-		}, simplify='array')
-dimnames(finalWgdPi)[[1]] <- c("clonal.1","clonal.2","sub")
-
-correctAccel <- function(pi, ta, a){
-	t0 <- 2*pi[2]/(2*pi[2]+pi[1]) ##  no acc
-	t1 <- t0 + (1-t0) *(a-1)/a*ta #acc before dup
-	t2 <- t0 * (ta + a*(1-ta)) ## after
-	tWgdClonal <- pmin(t1, t2) # as fraction of clonal
-	aEffClonal <- ta + (1-ta)*a # effective rate, avg over clonal
-	gEffClonal <- 2*tWgdClonal + 4*(1-tWgdClonal) # effective genome size
-	piClonal <- sum(pi[1:2])
-	piSub <- sum(pi[-2:-1])
-	tSub <- piSub / 4 / a
-	tClonal <- piClonal / gEffClonal/ aEffClonal
-	tClonal <- tClonal / (tClonal + tSub)
-	return(c(tWgd=tWgdClonal * tClonal, tClonal=tClonal))
-}
-
-correctAccelRand <- function(pi, ta=seq(0.8,1,0.01), a=seq(1,10,1)){
-	sapply(ta, function(taa) sapply(a, function(aa) correctAccel(pi, taa, aa)), simplify='array')
+	if(nrow(v)<=100) return(NULL) # At least 100 SNVs
+	seqnames(rowRanges(v)) <- factor(3-info(v)$MinCN, levels=seqlevels(v))
+	
+	# 3. Merged CN segments
+	b <- GRanges(1:3, IRanges(rep(1,3),rep(max(end(v)),3)), copy_number=4:2, major_cn=2, minor_cn=2:0, clonal_frequency=as.numeric(purity))
+	
+	# 4. Calculate times
+	l <- computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=10)
+	b$n.snv_mnv <- l$n <- table(factor(info(v)$MinCN, levels=2:0))
+	l$time <- bbToTime(b, l$P)
+	return(l)
 }
 
 #' ### Timing
-foo <- sapply(1:dim(finalWgdPi)[3], function(j) sapply(1:dim(finalWgdPi)[2], function(i){
-						ag <- age[sample2donor[names(finalBB)[isWgd][!sapply(finalWgdParam, is.null)][j]]]
-						tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75 mutation time)
-						if(is.na(tmin)) tmin <- 0.8
-						correctAccelRand(finalWgdPi[,i,j], a=accel, ta=seq(tmin,1,l=20))
-					}, simplify='array'), simplify='array')
-		
-finalWgdPiAdj <- foo
-dimnames(finalWgdPiAdj)[[1]] <- c('t.WGD','t.subclonal')
-dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
-dimnames(finalWgdPiAdj)[[4]] <- dimnames(finalWgdPi)[[2]]
-dimnames(finalWgdPiAdj)[[5]] <- names(finalBB)[isWgd][!void]
+#' Takes ~8h
+#+ finalWgdParam, eval=FALSE
+finalWgdParam2 <- mclapply(names(finalSnv)[isWgd], function(ID){
+			wgdTime(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
+		},  mc.cores=MC_CORES)
 
-#finalWgdPiAdj <- sapply(1:ncol(finalWgdPi), function(i) correctAccelRand(finalWgdPi[,i], a=accel), simplify='array')
-#dimnames(finalWgdPiAdj)[[2]] <- paste0(accel, "x")
+#+ finalWgdParamLoad, echo=FALSE
+finalWgdParam2 <- readRDS("2018-03-13-finalWgdParam2.rds")
 
-n <- dimnames(finalWgdPiAdj)[[5]]
-finalWgdTime <- finalWgdPiAdj[,,,,n] * rep(age[sample2donor[n]], each=2)
+#' Samples with insufficient data
+void <- sapply(finalWgdParam2, is.null)
 
+#' Some checks
+t <- sapply(finalWgdParam2[!void], function(x) {r <- as.matrix(x$time[,2:4]); rownames(r) <- x$time[,1];r}, simplify='array')
+pairs(t(t[,"time",]))
+
+#' Calculate acceleration adjusted times
+finalWgdT <- simplify2array(mclapply(names(finalWgdParam2[!void]), function(n) {
+					x <- finalWgdParam2[!void][[n]]
+					
+					T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal
+					f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D) # Fraction subclonal (observed)
+					G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN)) # Effective ploidy clonal, adjusted for timing
+					G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub) # Final ploidy
+					if(is.nan(G.subclonal)) G.subclonal <- mean(x$D$MajCN + x$D$MinCN)
+					
+					ag <- age[sample2donor[names(finalBB)[isWgd][!void][j]]]
+					tmin <- max(0.5, 1-15/ag) # 15yrs or 50%, whatever smaller (median ~ 0.75 mutation time)
+					if(is.na(tmin)) tmin <- 0.8
+					ta=seq(tmin,1,l=20)
+					
+					.correctAccel <- function(T.clonal, f.subclonal, G.clonal, G.subclonal, ta, a){ # Helper function to correct accel a at clonal time ta
+						t1 <- T.clonal + (1-T.clonal) *(a-1)/a*ta #acc before dup
+						t2 <- T.clonal * (ta + a*(1-ta)) ## after
+						T.clonal.adj <- pmin(t1, t2) # as fraction of clonal
+						a.clonal <- ta + (1-ta)*a # effective rate, avg over clonal
+						T.subclonal.abs <- f.subclonal / G.subclonal / a
+						T.clonal.abs <- (1-f.subclonal) / G.clonal/ a.clonal
+						T.clonal.abs <- T.clonal.abs / (T.clonal.abs + T.subclonal.abs) # as fraction of all mutations
+						return(c(T.WGD=T.clonal.adj * T.clonal.abs, T.MRCA=T.clonal.abs))
+					}
+					
+					.correctAccelRand <- function(T.clonal, f.subclonal, G.clonal, G.subclonal, ta=seq(0.8,1,0.01), a=seq(1,10,1)){ # Helper to calculate range of accel a and times
+						sapply(ta, function(taa) sapply(a, function(aa) .correctAccel(T.clonal, f.subclonal, G.clonal, G.subclonal, taa, aa)), simplify='array')
+					}
+					
+					res <- apply(T.clonal, 1:2, .correctAccelRand, f.subclonal, G.clonal, G.subclonal, a=accel, ta=seq(tmin,1,l=20))
+					dim(res) <- c(2, length(accel), length(ta), dim(res)[-1])
+					return(res)
+					
+				}, mc.cores=MC_CORES))
+dimnames(finalWgdT)[1:2] <- list(c("T.WGD","T.MRCA"), names(accel))
+dimnames(finalWgdT)[[5]] <- colnames(finalWgdParam2[[1]]$time)[2:4] 
+dimnames(finalWgdT)[[4]] <- levels(finalBB[[1]]$type)[c(3,1,2)]
+dimnames(finalWgdT)[[6]] <- names(finalWgdParam2[!void])
+
+n <- dimnames(finalWgdT)[[6]]
 d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
+
+#' Calculate real time by scaling with age at diagnosis
 timeWgd <- sapply(s, function(l) {
 			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
-			a <- (1-finalWgdPiAdj[1,,,,n][,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdPiAdj)[2:4]))
+			a <- (1-finalWgdT["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdT)[c(2,3,4,5)]))
 			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
 			rownames(m) <- n[i]
+			colnames(m) <- c("hat","lo","up")
+			m <- apply(m, c(1,2,4), mean, na.rm=TRUE)
+			m[,"lo",] <- t(apply(a, c(1,5), quantile, c(0.025), na.rm=TRUE))
+			m[,"up",] <- t(apply(a, c(1,5), quantile, c(0.975), na.rm=TRUE))
 			m
-			#quantile(m, c(.025,.25,.5,.75,.975), na.rm=TRUE)
-			#rowMeans(m)
-			#apply(m, 1, median)
 		}, simplify=FALSE)
+
 
 #+ realTimeWgd, fig.height=3, fig.width=4
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
@@ -1042,29 +1062,48 @@ yy <- do.call("rbind",tWgdByType)
 yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
+#' WGD time v age at diagnosis
+#+ wgdAge, fig.width=8, fig.height=8
+par(mfrow=c(5,5))
+for(i in seq_along(tWgdByType)){
+	n <- names(tWgdByType)[i]
+	y <- tWgdByType[[n]][,"hat"]
+	x <- age[sample2donor[names(y)]]
+	plot(x,x-y, pch=21, bg=tissueColors[n], col=tissueBorder[n], xlim=c(0, max(x, na.rm=TRUE)), ylim=c(0, max(x, na.rm=TRUE)), xlab="Age [yr]", ylab="WGD [yr]", cex=tissueCex[n]*1.5)
+#	d <- density(na.omit(x), bw="SJ", from=0)
+#	lines(d$x,d$y*100,col=tissueLines[n], lty=tissueLty[n])
+#	d <- density(na.omit(x-y), bw="SJ", from=0)
+#	lines(d$y*100, d$x,col=tissueLines[n], lty=tissueLty[n])
+	rug(x, col=tissueLines[n],)
+	rug(x-y, side=2, col=tissueLines[n])
+	title(main=n, line=0, font.main=1, cex.main=1)
+	abline(0,1, lty=3)
+}
+
 #' #### Assessment of absolute mutation counts
-nDeam22 <- sapply(finalWgdParam, function(x) if(!is.null(x$D)) nrow(x$D) else NA)
+#' Number of deaminatinos in 2:2 regions
+nDeam22 <- sapply(finalWgdParam2, function(x) if(!is.null(x$n)) x$n[1] else NA)
 names(nDeam22) <- names(finalSnv)[isWgd]
 w22 <- sapply(finalBB[isWgd], function(bb) {
 			w <- bb$major_cn==2 & bb$minor_cn==2 & !duplicated(bb)
 			sum(as.numeric(width(bb)[w]), na.rm=TRUE)})
 nDeam22 <- nDeam22/w22*1e9
 
-t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  finalWgdPi["clonal.1","hat",])
-names(t0) <- dimnames(finalWgdPiAdj)[[5]]
-
-#+ nDeam22Time, fig.width=2, fig.height=2
-d <- nDeam22 *  t(sapply(finalWgdParam, function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
+#' Fraction of deam on 1 and 2 copies
+d <- nDeam22 *  t(sapply(finalWgdParam2, function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
 rownames(d) <- names(finalSnv)[isWgd]
-t0 <- 2*finalWgdPi["clonal.2","hat",]/( 2*finalWgdPi["clonal.2","hat",] +  finalWgdPi["clonal.1","hat",])
-names(t0) <- dimnames(finalWgdPiAdj)[[5]]
 d[rownames(d) %in% remove] <- NA
+
+#' Unadjusted time (inc. of subclonal mutations)
+t0 <- colMeans(finalWgdT["T.WGD","1x",1,,"time",],na.rm=TRUE) 
+names(t0) <- dimnames(finalWgdT)[[6]]
+
+#' Plot time v early and total number of mutations 
+#+ nDeam22Time, fig.width=2, fig.height=2
 y <- d[names(t0),]/6
 x <- t0
 t <- donor2type[sample2donor[names(t0)]]
-
 plot(x,y[,2], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time", ylab="Early SNVs/Gb", log='')
-#points(x,y[,1], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5)
 p <- predict(loess(y[,2]~x, span=1), newdata=sort(x, na.last=NA), se=TRUE)
 r <- function(x) c(x, rev(x))
 polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#00000044", border=NA)
