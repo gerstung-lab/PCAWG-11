@@ -1006,15 +1006,21 @@ d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
 
 #' Calculate real time by scaling with age at diagnosis
+f <- Vectorize(triangle:::rtriangle)
 timeWgd <- sapply(s, function(l) {
+			set.seed(42)
 			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
 			a <- (1-finalWgdT["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdT)[c(2,3,4,5)]))
 			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
 			rownames(m) <- n[i]
 			colnames(m) <- c("hat","lo","up")
 			m <- apply(m, c(1,2,4), mean, na.rm=TRUE)
-			m[,"lo",] <- t(apply(a, c(1,5), quantile, c(0.025), na.rm=TRUE))
-			m[,"up",] <- t(apply(a, c(1,5), quantile, c(0.975), na.rm=TRUE))
+			m0 <- apply(a, c(1,2,4,5), mean, na.rm=TRUE)
+			r <- prod(dim(m0)[c(1,4)])
+			ts <- sapply(1:1000, function(foo) {ax <- sample(1:20,1); matrix(f(1,a=m0[,ax,"time.up",]/1.05, b=m0[,ax,"time.lo",]*1.05, c=m0[,ax,"time",]), nrow=dim(m0)[1])}, simplify='array')
+			me <- apply(ts, 1:2, quantile, c(0.1, 0.9), na.rm=TRUE) # 80% CIs
+			m[,"lo",] <- t(me[1,3,])
+			m[,"up",] <- t(me[2,3,])
 			m
 		}, simplify=FALSE)
 
@@ -1035,9 +1041,9 @@ for(i in seq_along(o)){
 	n <- names(m)[o[i]]
 	f <- function(x) x/max(abs(x))
 	a <- guessAccel[n]
-	j <- f(mg14::violinJitter(na.omit(tWgdByType[[o[i]]][,"hat"]))$y)/4 + i
+	j <- f(mg14::violinJitter(na.omit(tWgdByType[[o[i]]][,"hat"]))$y)/4 + i #rank(na.omit(tWgdByType[[o[i]]][,"hat"]))/2/length(na.omit(tWgdByType[[o[i]]][,"hat"]))-0.25+i #
 	tpy <- if(grepl("Skin|Lung", n)) 4 else 2
-	#segments(j, na.omit(tWgdByType[[o[i]]][,"up"]), j, na.omit(tWgdByType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy), lty=tissueLty[n])
+	segments(j, na.omit(tWgdByType[[o[i]]][,"up"]), j, na.omit(tWgdByType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy), lty=tissueLty[n])
 	points(j, na.omit(tWgdByType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
 			cex=tissueCex[n]*2/3, lwd=1)
 	bwd <- 0.8/2
@@ -1064,12 +1070,14 @@ table(cut(yy, seq(0,60,10)))
 
 #' WGD time v age at diagnosis
 #+ wgdAge, fig.width=8, fig.height=8
-par(mfrow=c(5,5))
+par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
 for(i in seq_along(tWgdByType)){
 	n <- names(tWgdByType)[i]
 	y <- tWgdByType[[n]][,"hat"]
 	x <- age[sample2donor[names(y)]]
-	plot(x,x-y, pch=21, bg=tissueColors[n], col=tissueBorder[n], xlim=c(0, max(x, na.rm=TRUE)), ylim=c(0, max(x, na.rm=TRUE)), xlab="Age [yr]", ylab="WGD [yr]", cex=tissueCex[n]*1.5)
+	plot(x,x-y, pch=NA, bg=tissueColors[n], col=tissueBorder[n], xlab="Age [yr]", ylab="WGD [yr]", cex=tissueCex[n], xlim=c(0,90), ylim=c(0,90))
+	segments(x, y0=x-tWgdByType[[n]][,"up"],y1=x-tWgdByType[[n]][,"lo"],col=tissueLines[n])
+	points(x,x-y, pch=21, bg=tissueColors[n], col=tissueBorder[n], cex=tissueCex[n])
 #	d <- density(na.omit(x), bw="SJ", from=0)
 #	lines(d$x,d$y*100,col=tissueLines[n], lty=tissueLty[n])
 #	d <- density(na.omit(x-y), bw="SJ", from=0)

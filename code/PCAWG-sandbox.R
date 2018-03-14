@@ -4064,3 +4064,27 @@ for(i in seq_along(tWgdByType)){
 		lines(density(y, bw="SJ", from=0, to=100), col=tissueLines[n], lty=tissueLty[n])
 }
 
+
+n <- dimnames(finalWgdT)[[6]]
+d <- droplevels(donor2type[sample2donor[n]])
+s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
+
+
+f <- Vectorize(triangle:::rtriangle)
+timeWgd <- sapply(s, function(l) {
+			set.seed(42)
+			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
+			a <- (1-finalWgdT["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdT)[c(2,3,4,5)]))
+			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
+			rownames(m) <- n[i]
+			colnames(m) <- c("hat","lo","up")
+			m <- apply(m, c(1,2,4), mean, na.rm=TRUE)
+			m0 <- apply(a, c(1,2,4,5), mean, na.rm=TRUE)
+			r <- prod(dim(m0)[c(1,4)])
+			ts <- sapply(1:1000, function(foo) {ax <- sample(1:20,1); matrix(f(1,a=m0[,ax,"time.up",]/1.05, b=m0[,ax,"time.lo",]*1.05, c=m0[,ax,"time",]), nrow=dim(m0)[1])}, simplify='array')
+			me <- apply(ts, 1:2, quantile, c(0.1, 0.9), na.rm=TRUE) 		
+			m[,"lo",] <- t(me[1,3,])
+			m[,"up",] <- t(me[2,3,])
+			m
+		}, simplify=FALSE)
+
