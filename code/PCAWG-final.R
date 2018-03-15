@@ -894,7 +894,7 @@ for(i in seq_along(o))try({
 				bwd <- 0.8/2
 				j <- if(length(na.omit(tSubclonesByType[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(tSubclonesByType[[o[i]]][,"hat"]))$y)/4 + i else i
 				tpy <- 2
-				segments(j, na.omit(tSubclonesByType[[o[i]]][,"97.5%"]), j, na.omit(tSubclonesByType[[o[i]]][,"2.5%"]), col=mg14::colTrans(tissueLines[n],tpy))
+				segments(j, na.omit(tSubclonesByType[[o[i]]][,"90%"]), j, na.omit(tSubclonesByType[[o[i]]][,"10%"]), col=mg14::colTrans(tissueLines[n],tpy))
 				points(j, na.omit(tSubclonesByType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
 						cex=tissueCex[n]*2/3, lwd=1)
 				rect(i-bwd,qSubclone["25%",a,n],i+bwd,qSubclone["75%",a,n], border=tissueLines[n],  col=paste(tissueColors[n],"44", sep=""))
