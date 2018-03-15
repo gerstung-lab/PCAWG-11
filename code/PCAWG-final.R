@@ -859,7 +859,7 @@ timeSubclones <- sapply(typesSubclones, function(l) {
 						res}, simplify='array')
 			res <- sapply(accel, function(a)  tt0[,1]/a/rowSums(tt0/rep(c(a,1), each=nrow(tt0)))) * age[sample2donor[names(finalSnv)[i]]]
 			colnames(res) <- paste0(accel, "x")	
-			resCI <- apply(resB,1:2, quantile, c(0.025,0.975), na.rm=TRUE)
+			resCI <- apply(resB,1:2, quantile, c(0.1,0.9), na.rm=TRUE)
 			arr <- abind::abind(res, resCI, along=1)
 			rownames(arr)[1] <- "hat"
 			arr <- aperm(arr, c(2,1,3))
