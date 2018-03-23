@@ -651,15 +651,25 @@ for(n in typesSubclones){
 			})
 }
 n <- names(deamRate)
-q <- sapply(deamRate, function(r){
+qDeamRate <- sapply(deamRate, function(r){
 			m <- median(r[TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])],na.rm=TRUE)
 			w <- (r-m)^2/m^2 <= 2^2 & TiN[sample2donor[names(r)]] <= 0.01 & ! is.na(TiN[sample2donor[names(r)]])
 			quantile(r[w], na.rm=TRUE)})
-plot(sapply(deamRate, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(q)), cex.main=1, xaxt='n', xlab="Tumour type")
-segments(seq_along(deamRate),q["0%",],seq_along(deamRate), q["100%",], col=tissueLines[n], lty=1)
+plot(sapply(deamRate, median, na.rm=TRUE), pch=NA , ylab="SNVs/Gb/yr", main="CpG>TpG rate", ylim=c(0, max(qDeamRate)), cex.main=1, xaxt='n', xlab="Tumour type")
+segments(seq_along(deamRate),qDeamRate["0%",],seq_along(deamRate), qDeamRate["100%",], col=tissueLines[n], lty=1)
 points(sapply(deamRate, median, na.rm=TRUE), pch=21, col=tissueBorder[n], bg=tissueColors[n])
 
 length(remove)
+
+#' Rates as barplot
+#+deamRateBar, fig.width=4, fig.height=2
+par(mar=c(6,3,1,1))
+o <- order(qDeamRate["50%",])
+barplot(qDeamRate["50%",][o], col=tissueColors[colnames(qDeamRate)][o], border=tissueLines[colnames(qDeamRate)][o], las=2,names.arg=rep("",ncol(qDeamRate)) , ylab="CpG>TpG rate [SNVs/Gb/yr]", ylim=c(0, max(qDeamRate))) -> b
+mg14::rotatedLabel(b, labels=colnames(qDeamRate)[o])
+segments(b, qDeamRate["50%",][o], b, qDeamRate["100%",][o], col=tissueLines[colnames(qDeamRate)][o], lwd=2)
+segments(b, qDeamRate["0%",][o], b, qDeamRate["50%",][o], col=tissueBorder[colnames(qDeamRate)][o], lwd=2)
+
 
 #' Pan-can
 #+ timeSubcloneAgePancan, fig.width=2, fig.height=2
@@ -966,7 +976,7 @@ finalWgdT <- simplify2array(mclapply(names(finalWgdParam2[!void]), function(n) {
 					x <- finalWgdParam2[!void][[n]]
 					
 					T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal
-					f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D) # Fraction subclonal (observed)
+					f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)/(max(1,nClones[n]-1)) # Fraction subclonal (observed)
 					G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN)) # Effective ploidy clonal, adjusted for timing
 					G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub) # Final ploidy
 					if(is.nan(G.subclonal)) G.subclonal <- mean(x$D$MajCN + x$D$MinCN)
