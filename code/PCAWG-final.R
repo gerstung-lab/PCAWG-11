@@ -578,6 +578,83 @@ axis(side=1)
 #dev.copy2pdf(file="histTimingPanCan.pdf",width=2, height=2, pointsize=8)
 
 
+#' ## Higher-order gains
+#' Load preprocessed data, aggregated by chromsome
+load("two_gain_times.RData")
+doubleGains <- as.data.frame(T.i.F)
+t <- aggregate()
+m <- paste(doubleGains$sample, doubleGains$cnMaj, doubleGains$cnMin, doubleGains$chromosome, sep="_")
+s <- split(doubleGains[,c("sample","tumor_type","T1_raw","T2_raw","n_mutations")], m)
+doubleGainsAggregated <- Reduce("rbind",sapply(s, function(x) {
+					data.frame(sample=x$sample[1], tumor_type=x$tumor_type[1], T1_raw=weighted.mean(x$T1_raw, x$n_mutations),T2_raw=weighted.mean(x$T2_raw, x$n_mutations), n_mutations=sum(x$n_mutations))
+				}, simplify=FALSE))
+
+#' Plot Pan-Can
+#+ multiGain, fig.height=2, fig.width=2
+x <- doubleGainsAggregated$T1_raw/pmax(1, doubleGainsAggregated$T2_raw)
+y <- doubleGainsAggregated$T2_raw/pmax(1, doubleGainsAggregated$T2_raw)
+o <- order(doubleGainsAggregated$n_mutations, decreasing=TRUE)
+plot(x[o], 
+		y[o], 
+		bg=tissueColors[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[o]]]])], pch=21,
+		col=tissueBorder[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[o]]]])],
+		xlab="Time [mutations], first gain",
+		ylab="Time [mutations], second gain",
+		cex=sqrt(doubleGainsAggregated$n_mutations[o]/500)+0.1,
+		lwd=0.5)
+t <- table(doubleGainsAggregated$sample)
+
+#' Plot by timing class
+#+ multiGainClass, fig.height=3, fig.width=3
+names(timingClass) <- names(finalSnv)
+par(mfrow=c(2,2))
+for(l in grep("uninformative",levels(timingClass), invert=TRUE, value=TRUE)){
+	w <- which(timingClass[doubleGains$sample]==l)
+	o <- intersect(order(doubleGainsAggregated$n_mutations, decreasing=TRUE),w)
+	plot(x[o], 
+			y[o], 
+			bg=tissueColors[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[o]]]])], pch=21,
+			col=tissueBorder[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[o]]]])],
+			xlab="Time [mutations], first gain",
+			ylab="Time [mutations], second gain",
+			cex=sqrt(doubleGainsAggregated$n_mutations[o]/500)+0.1)
+	title(main=l, line=0, font.main=1)
+}
+
+#' Individual samples
+#+ multiGainSamples, fig.height=4, fig.width=4
+par(mfrow=c(5,5))
+for(i in as.numeric(names(t)[t>5])[1:25]){
+	w <- which(doubleGainsAggregated$sample==i)
+	plot(x[w],y[w], 
+			col=tissueBorder[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[w]]]])], 
+			bg=tissueColors[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[w]]]])], 
+			type='p', xlim=c(0,1), ylim=c(0,1), 
+			xlab="time 1",
+			ylab="time 2",
+			pch=21,
+			cex=sqrt(doubleGainsAggregated$n_mutations[w]/500+0.1))
+	
+}
+
+#' Relative latency
+#+ multiGainLatency, fig.height=1.5, fig.width=1.5
+w <- y < 1 & x > 0
+r <- ((y-x)/(1-x))
+h <- hist(r[w], breaks=seq(0,1,0.025), plot=FALSE)
+e <- d <- density(r[w], from=-1, to=2, bw="SJ")
+i <- which(d$x < 0)
+d$y[max(i) + seq_along(i)] <-  d$y[max(i) + seq_along(i)] + d$y[rev(i)]
+i <- which(d$x > 1)
+d$y[min(i) -  seq_along(i)] <-  d$y[min(i) -  seq_along(i)] + d$y[i]
+i <- which(d$x >0 & d$x < 1)
+d <- list(x=d$x[i], y=d$y[i])
+plot(h$mids,h$counts/sum(h$counts),  pch=19, col='grey',ylim=c(0,max(h$counts/sum(h$counts))), xlab="Latency of second gain", ylab="Relative frequency", type='h')
+#lines(d, xlim=c(0,1), type='l')
+
+plot(d$x,cumsum(d$y * diff(d$x)[1]), xlim=c(0,1), type='l', ylim=c(0,1), xlab="Relative time of second gain", ylab="CDF")
+
+
 #' # Real-time WGD & subclones
 age <- clinicalData$donor_age_at_diagnosis
 names(age) <- clinicalData$icgc_donor_id
@@ -1265,10 +1342,10 @@ text(x=0, y=t, labels="WGD", pos=4, adj=c(0,1))
 
 #+ realTimeWgdAccel, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.25, bty="L")
-plot(accel, qWgd["50%",,1], type='l', lty=0, ylim=c(0,30), xlab= "5meC rate acceleration", ylab="Median occurrence [years]", yaxs="i", xaxt="n")
+plot(accel, qWgd["50%",,1], type='l', lty=0, ylim=c(0,30), xlab= "CpG>TpG rate acceleration", ylab="Median occurrence [years]", yaxs="i", xaxt="n")
 axis(side=1, at=accel)
 for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueLines[dimnames(qWgd)[[3]][j]], 
-			lty=ifelse(nWgd[dimnames(qWgd)[[3]][j]]<=4, 3, tissueLty[dimnames(qWgd)[[3]][j]]))
+			lty=ifelse(nWgd[dimnames(qWgd)[[3]][j]]<=9, 3, tissueLty[dimnames(qWgd)[[3]][j]]))
 #s <- 12/8; dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 

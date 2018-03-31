@@ -3304,39 +3304,6 @@ plot(ah, finalHom)
 
 write.table(data.frame(sample=names(finalBB), avgHom=finalHom, avgPloidy=finalPloidy, WGD=isWgd),"WGD-final.txt", col.names=TRUE, sep="\t", quote=FALSE, row.names=FALSE)
 
-#' # Gains +2
-
-load("two_gain_times.RData")
-doubleGains <- as.data.frame(T.i.F)
-t <- aggregate()
-m <- paste(doubleGains$sample, doubleGains$cnMaj, doubleGains$cnMin, doubleGains$chromosome, sep="_")
-s <- split(doubleGains[,c("sample","tumor_type","T1_raw","T2_raw","n_mutations")], m)
-doubleGainsAggregated <- Reduce("rbind",sapply(s, function(x) {
-			data.frame(sample=x$sample[1], tumor_type=x$tumor_type[1], T1_raw=weighted.mean(x$T1_raw, x$n_mutations),T2_raw=weighted.mean(x$T2_raw, x$n_mutations), n_mutations=sum(x$n_mutations))
-		}, simplify=FALSE))
-
-par(bty="L", mar=c(3,3,0.5,0.5)+.5, mgp=c(2,0.5,0), tcl=-0.1)
-x <- doubleGainsAggregated$T1_raw/pmax(1, doubleGainsAggregated$T2_raw)
-y <- doubleGainsAggregated$T2_raw/pmax(1, doubleGainsAggregated$T2_raw)
-o <- order(doubleGainsAggregated$n_mutations, decreasing=TRUE)
-plot(x[o], 
-		y[o], 
-		col=tissueColors[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[o]]]])], pch=19,
-		xlab="Time [mutations], first gain",
-		ylab="Time [mutations], second gain",
-		cex=sqrt(doubleGainsAggregated$n_mutations[o]/500))
-t <- table(doubleGainsAggregated$sample)
-
-par(mfrow=c(5,5))
-for(i in as.numeric(names(t)[t>5])[1:25]){
-	w <- which(doubleGainsAggregated$sample==i)
-	plot(x[w],y[w], col=tissueColors[as.character(donor2type[sample2donor[names(finalSnv)[doubleGainsAggregated$sample[w]]]])], type='p', xlim=c(0,1), ylim=c(0,1), 
-			xlab="T1",
-			ylab="T2",
-			pch=19,
-			cex=sqrt(doubleGainsAggregated$n_mutations[w]/500))
-	
-}
 
 
 #' Barplot of all drivers
