@@ -688,6 +688,42 @@ ci <- sapply(c(0.025, 0.975), qbeta, 0.025, shape1=tt[4,o]+1, shape2=tt[3,o]+1)
 barplot(p, col=colTime, border=NA, las=2, ylab="Proportion >2 allelic copies", names=sub("ormative","",sub("near-diploid", "ND", names(colTime))), ylim=c(0,0.4)) -> b
 segments(b, ci[,1], b, ci[,2])
 
+#' Simulate higher order gains to cross-check
+n <- 100
+c <- 40
+purity=0.7
+bb <- GRanges(seqnames=1, IRanges(1,1e8), major_cn=3, minor_cn=1, clonal_frequency=purity, n.snv_mnv=n)
+bb$total_cn <- bb$major_cn+bb$minor_cn
+t3 <- 0.8
+t2 <- 0.8 # Simultaneous second amplification
+d <- data.frame(cluster=1, n_ssms=1, proportion=purity)
+cnStates <- defineMcnStates(bb,clusters=d, purity=purity)
+pi <- matrix(c(4,2,1,0,1,0,0,0,1), byrow=TRUE, ncol=3) %*% c(1-t2,t2-t3,t3)
+pi <- pi/sum(pi)
+cnStates[[1]][,"P.m.sX"] <- pi
+rho=0.01
+cnStates[[1]][,"power.m.s"] <- 1-pbetabinom(2, size=c, prob=cnStates[[1]][,"f"], rho=rho )
+
+bb$timing_param <- cnStates
+s <- simplify2array(mclapply(1:50, function(foo){
+					set.seed(foo)
+					v <- simulateMutations(bb, n=40)
+					bb0 <- bb
+					bb0$timing_param <- NULL
+					L <- computeMutCn(v, bb0, clusters=d, purity=purity, rho=rho, n.boot=0)
+					L$P[[1]]
+				}, mc.cores=MC_CORES))
+
+#+ simMultiGain, fig.height=2.5, fig.width=1.5
+boxplot(t(s[2:3,"T.m.sX",]), at=3:2, xlab="Simulated time point", names=c("t2","t3"))
+points(3:2,c(t2-t3, t3), col='red', pch=19)
+
+#+ simMultiGainLatency, fig.height=1, fig.width=1.5
+l <- s[2,"T.m.sX",]/(1-s[3,"T.m.sX",])
+x <- seq(0,1,0.05)
+plot(x[-1]+x[2]/2, as.numeric(prop.table(table(cut(l[l<1], x)))), xlab="Latency", ylab="frequency", type='h')
+axis(side=1)
+
 #' # Real-time WGD & subclones
 age <- clinicalData$donor_age_at_diagnosis
 names(age) <- clinicalData$icgc_donor_id
