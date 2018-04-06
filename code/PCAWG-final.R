@@ -553,9 +553,9 @@ for(j in dim(h)[2]:0+1) for(i in 0:dim(h)[1]+1) {
 		barplot(h[i-1,j-1,], ylim=r, width=1/n,space=0, col=rev(col), xaxt="n", yaxt="n", xlab="",ylab="", border=NA,xpd=TRUE, yaxs="i", xaxs="i", xlim=c(-0.5/n,1+0.5/n))
 		axis(side=1, at=c(-0.5/n,1+0.5/n), labels=c("",""), tcl=-.1)
 		if(i>1)
-			#abline(v=0, col='grey')
+			abline(v=0, col='lightgrey', lty=3)
 		if(i==2){
-			#abline(h=0, col='grey', lty=1)
+			abline(h=0.05*8/n, col='lightgrey', lty=1)
 			axis(side=2, at=c(0,0.05*8/n), labels=c("",""), tcl=-.1)
 		}
 	}
@@ -637,7 +637,7 @@ for(i in as.numeric(names(t)[t>5])[1:25]){
 }
 
 #' Relative latency
-#+ multiGainLatency, fig.height=1.5, fig.width=1.5
+#+ multiGainLatency, fig.height=1, fig.width=1.5
 w <- y < 1 & x > 0
 r <- ((y-x)/(1-x))
 h <- hist(r[w], breaks=seq(0,1,0.025), plot=FALSE)
@@ -653,6 +653,40 @@ plot(h$mids,h$counts/sum(h$counts),  pch=19, col='grey',ylim=c(0,max(h$counts/su
 
 plot(d$x,cumsum(d$y * diff(d$x)[1]), xlim=c(0,1), type='l', ylim=c(0,1), xlab="Relative time of second gain", ylab="CDF")
 
+#' By timing class
+#+ multiGainLatencyClass, fig.height=1, fig.width=1.5
+c <- cut(r[w], 20)
+t <- table(timingClass[doubleGainsAggregated$sample[w]],c)
+barplot(t[c(4,5,6,3,2,1),]/sum(t), border=NA, col=c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00"), width=1/24, space=0.2, names.arg=rep("",20, bty="L", yaxs="s"))
+.par()
+axis(side=1, line=0.2)
+
+colTime <- c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00")
+names(colTime) <- levels(timingClass)[c(4,5,6,3,2,1)]
+
+#' Copy number increments
+cn <- do.call("rbind", sapply(names(finalBB), function(n){
+					bb <- finalBB[[n]]
+					data.frame(sample=n, chr=seqnames(bb), width=width(bb), M=bb$major_cn, m=bb$minor_cn)}, simplify=FALSE))
+
+
+#+ distSegCopies, fig.width=2.5, fi.height=2.5
+t <- table(pmin(cn$M,3) ,  pmax(3,round(log10(cn$width),1)), timingClass[cn$sample])
+x <- as.numeric(colnames(t))
+plot(NA,NA, type='p', col=colTime[1], pch=16, ylim=c(0,0.8), xlim=range(10^x), xlab="Length of segment", ylab="Proportion >2 allelic copies", log='x')
+for(n in dimnames(t)[[3]]) {
+	y <- as.numeric(t[4,,n]/colSums(t[3:4,,n]))
+	lines(10^x,y, type='p', col=paste0(colTime[n],"44"), pch=16, cex=1)#sqrt(colSums(t[3:4,,i]/1000)))
+	lines(10^x, predict(loess(y ~x)), col=colTime[n], lwd=2)
+}
+
+#+ fracDoubleGains, fig.width=1.5, fig.height=1
+tt <- mg14:::asum(t[,x>=7,],2)
+o <- names(colTime)
+p <- tt[4,o]/colSums(tt[3:4,o])
+ci <- sapply(c(0.025, 0.975), qbeta, 0.025, shape1=tt[4,o]+1, shape2=tt[3,o]+1)
+barplot(p, col=colTime, border=NA, las=2, ylab="Proportion >2 allelic copies", names=sub("ormative","",sub("near-diploid", "ND", names(colTime))), ylim=c(0,0.4)) -> b
+segments(b, ci[,1], b, ci[,2])
 
 #' # Real-time WGD & subclones
 age <- clinicalData$donor_age_at_diagnosis
