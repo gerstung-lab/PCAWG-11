@@ -582,7 +582,6 @@ axis(side=1)
 #' Load preprocessed data, aggregated by chromsome
 load("two_gain_times.RData")
 doubleGains <- as.data.frame(T.i.F)
-t <- aggregate()
 m <- paste(doubleGains$sample, doubleGains$cnMaj, doubleGains$cnMin, doubleGains$chromosome, sep="_")
 s <- split(doubleGains[,c("sample","tumor_type","T1_raw","T2_raw","n_mutations")], m)
 doubleGainsAggregated <- Reduce("rbind",sapply(s, function(x) {
