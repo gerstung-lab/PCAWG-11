@@ -444,10 +444,10 @@ plotSample(w[3])
 #' ## Relationship with mutation rates
 #' Calculate number of substitutions and deciles per tumour type
 n <- nSub <- sapply(finalSnv, nrow)
-n[tab$timeCoamp==0] <- NA
+n[timingInfo$timeCoamp==0] <- NA
 q <- unlist(sapply(split(n, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1) quantile(x, seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
 m <- match(names(finalSnv),unlist(split(names(finalSnv), donor2type[sample2donor[names(finalSnv)]])))
-t <- tab$timeCoamp
+t <- timingInfo$timeCoamp
 table(decSub=q[m], time=cut(t, seq(0,1,0.1)))
 
 #' Also calculate deciles of timing per tumour type
