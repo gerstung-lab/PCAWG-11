@@ -2,3 +2,6 @@ code/log/
 .project
 *.log
 *.err
+.DS_store
+data
+ref
