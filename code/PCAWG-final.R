@@ -403,9 +403,9 @@ pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
 #dev.off()
 
 colnames(d) <- c("ntCoamp","ntAmp","timeCoamp","segCoamp","segAmp","chrCoamp","chrAmp", "sdTimeCoamp","avgCiSeg","sdAllSeg")
-tab <- data.frame(avgPloidy=finalPloidy, avgHom=finalHom, isWgd=isWgd, d, informative=i, timingClass=timingClass)
+timingInfo <- data.frame(avgPloidy=finalPloidy, avgHom=finalHom, isWgd=isWgd, d, informative=i, timingClass=timingClass)
 #tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
-write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), tab, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
+write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), timingInfo, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
 
 
 #' ## Timing examples
@@ -1004,7 +1004,7 @@ names(accel) <- paste0(accel, "x")
 #+ timeSubclones, warning=FALSE
 set.seed(42)
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
-timeSubclones <- sapply(typesSubclones, function(l) {
+subclonesTimeAbs <- sapply(typesSubclones, function(l) {
 			i <- d==l
 			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
 			resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
@@ -1025,7 +1025,7 @@ timeSubclones <- sapply(typesSubclones, function(l) {
 			return(arr)
 		})
 
-guessAccel <- sapply(timeSubclones, function(x) "5x")
+guessAccel <- sapply(subclonesTimeAbs, function(x) "5x")
 guessAccel["Ovary-AdenoCa"] <- "7.5x"
 guessAccel[grep('CNS', names(guessAccel))] <- "2.5x"
 
@@ -1033,12 +1033,12 @@ guessAccel[grep('CNS', names(guessAccel))] <- "2.5x"
 #+ realTimeSubclone, fig.width=6, fig.height=2.225
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-qSubclone <- sapply(timeSubclones, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
+qSubclone <- sapply(subclonesTimeAbs, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 a <- "5x"
-tSubclonesByType <- sapply(names(timeSubclones), function(n) {x <- timeSubclones[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
+subclonesTimeAbsType <- sapply(names(subclonesTimeAbs), function(n) {x <- subclonesTimeAbs[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
 m <- diag(qSubclone["50%",guessAccel[dimnames(qSubclone)[[3]]],])#t[1,3,]
 names(m) <- dimnames(qSubclone)[[3]]
-m[sapply(tSubclonesByType, function(x) sum(!is.na(x[,1]))) < 5] <- NA
+m[sapply(subclonesTimeAbsType, function(x) sum(!is.na(x[,1]))) < 5] <- NA
 o <- order(m, na.last=NA)
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
 x <- seq_along(m[o])
@@ -1048,10 +1048,10 @@ for(i in seq_along(o))try({
 				f <- function(x) x/max(abs(x))
 				a <- guessAccel[n]
 				bwd <- 0.8/2
-				j <- if(length(na.omit(tSubclonesByType[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(tSubclonesByType[[o[i]]][,"hat"]))$y)/4 + i else i
+				j <- if(length(na.omit(subclonesTimeAbsType[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(subclonesTimeAbsType[[o[i]]][,"hat"]))$y)/4 + i else i
 				tpy <- 2
-				segments(j, na.omit(tSubclonesByType[[o[i]]][,"90%"]), j, na.omit(tSubclonesByType[[o[i]]][,"10%"]), col=mg14::colTrans(tissueLines[n],tpy))
-				points(j, na.omit(tSubclonesByType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
+				segments(j, na.omit(subclonesTimeAbsType[[o[i]]][,"90%"]), j, na.omit(subclonesTimeAbsType[[o[i]]][,"10%"]), col=mg14::colTrans(tissueLines[n],tpy))
+				points(j, na.omit(subclonesTimeAbsType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
 						cex=tissueCex[n]*2/3, lwd=1)
 				rect(i-bwd,qSubclone["25%",a,n],i+bwd,qSubclone["75%",a,n], border=tissueLines[n],  col=paste(tissueColors[n],"44", sep=""))
 				segments(i-bwd,qSubclone["50%",a,n],i+bwd,qSubclone["50%",a,n],col=tissueLines[n], lwd=2)
@@ -1064,17 +1064,17 @@ for(i in seq_along(o))try({
 #s <- 12/8
 #dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
 
-sapply(timeSubclones, nrow)
+sapply(subclonesTimeAbs, nrow)
 
 #' Numbers per decade
-yy <- do.call("rbind",tSubclonesByType)
+yy <- do.call("rbind",subclonesTimeAbsType)
 yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
 #' ## WGD
 #' ### Functions
 #' Calculate relative timing estimates based on deaminatinons
-wgdTime <- function(vcf, bb, clusters, purity){
+computeWgdParamDeam <- function(vcf, bb, clusters, purity){
 	# 1. Find segments compatible with WGD
 	min.dist <- 0.05
 	m <- findMainCluster(bb)
@@ -1103,23 +1103,23 @@ wgdTime <- function(vcf, bb, clusters, purity){
 #' ### Timing
 #' Takes ~8h
 #+ finalWgdParam, eval=FALSE
-finalWgdParam2 <- mclapply(names(finalSnv)[isWgd], function(ID){
-			wgdTime(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
+wgdParamDeam <- mclapply(names(finalSnv)[isWgd], function(ID){
+			computeWgdParamDeam(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
 		},  mc.cores=MC_CORES)
 
 #+ finalWgdParamLoad, echo=FALSE
-finalWgdParam2 <- readRDS("2018-03-13-finalWgdParam2.rds")
+wgdParamDeam <- readRDS("2018-03-13-finalWgdParam2.rds")
 
 #' Samples with insufficient data
-void <- sapply(finalWgdParam2, is.null)
+void <- sapply(wgdParamDeam, is.null)
 
 #' Some checks
-t <- sapply(finalWgdParam2[!void], function(x) {r <- as.matrix(x$time[,2:4]); rownames(r) <- x$time[,1];r}, simplify='array')
+t <- sapply(wgdParamDeam[!void], function(x) {r <- as.matrix(x$time[,2:4]); rownames(r) <- x$time[,1];r}, simplify='array')
 pairs(t(t[,"time",]))
 
 #' Calculate acceleration adjusted times
-finalWgdT <- simplify2array(mclapply(names(finalWgdParam2[!void]), function(n) {
-					x <- finalWgdParam2[!void][[n]]
+wgdTimeDeamAcc <- simplify2array(mclapply(names(wgdParamDeam[!void]), function(n) {
+					x <- wgdParamDeam[!void][[n]]
 					
 					T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal
 					f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)/(max(1,nClones[n]-1)) # Fraction subclonal (observed)
@@ -1152,21 +1152,21 @@ finalWgdT <- simplify2array(mclapply(names(finalWgdParam2[!void]), function(n) {
 					return(res)
 					
 				}, mc.cores=MC_CORES))
-dimnames(finalWgdT)[1:2] <- list(c("T.WGD","T.MRCA"), names(accel))
-dimnames(finalWgdT)[[5]] <- colnames(finalWgdParam2[[1]]$time)[2:4] 
-dimnames(finalWgdT)[[4]] <- levels(finalBB[[1]]$type)[c(3,1,2)]
-dimnames(finalWgdT)[[6]] <- names(finalWgdParam2[!void])
+dimnames(wgdTimeDeamAcc)[1:2] <- list(c("T.WGD","T.MRCA"), names(accel))
+dimnames(wgdTimeDeamAcc)[[5]] <- colnames(wgdParamDeam[[1]]$time)[2:4] 
+dimnames(wgdTimeDeamAcc)[[4]] <- levels(finalBB[[1]]$type)[c(3,1,2)]
+dimnames(wgdTimeDeamAcc)[[6]] <- names(wgdParamDeam[!void])
 
-n <- dimnames(finalWgdT)[[6]]
+n <- dimnames(wgdTimeDeamAcc)[[6]]
 d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
 
 #' Calculate real time by scaling with age at diagnosis
 f <- Vectorize(triangle:::rtriangle)
-timeWgd <- sapply(s, function(l) {
+wgdTimeAbs <- sapply(s, function(l) {
 			set.seed(42)
 			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
-			a <- (1-finalWgdT["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(finalWgdT)[c(2,3,4,5)]))
+			a <- (1-wgdTimeDeamAcc["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(wgdTimeDeamAcc)[c(2,3,4,5)]))
 			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
 			rownames(m) <- n[i]
 			colnames(m) <- c("hat","lo","up")
@@ -1184,23 +1184,23 @@ timeWgd <- sapply(s, function(l) {
 #+ realTimeWgd, fig.height=3, fig.width=4
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
-qWgd <- sapply(timeWgd, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
-nWgd <- sapply(timeWgd, function(x) sum(x[rownames(x) %in% u,"hat","1x"]!=0, na.rm=TRUE))
-tWgdByType <- sapply(names(timeWgd), function(n) {x <- timeWgd[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
+qWgd <- sapply(wgdTimeAbs, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
+nWgd <- sapply(wgdTimeAbs, function(x) sum(x[rownames(x) %in% u,"hat","1x"]!=0, na.rm=TRUE))
+wgdTimeAbsType <- sapply(names(wgdTimeAbs), function(n) {x <- wgdTimeAbs[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
 m <- diag(qWgd["75%",guessAccel[dimnames(qWgd)[[3]]],])#t[1,3,]
 names(m) <- dimnames(qWgd)[[3]]
 o <- order(m, na.last=NA)
 x <- seq_along(m[o])
-plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(do.call('rbind',tWgdByType)[,1], na.rm=TRUE)+5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(do.call('rbind',wgdTimeAbsType)[,1], na.rm=TRUE)+5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	n <- names(m)[o[i]]
 	f <- function(x) x/max(abs(x))
 	a <- guessAccel[n]
-	j <- f(mg14::violinJitter(na.omit(tWgdByType[[o[i]]][,"hat"]))$y)/4 + i #rank(na.omit(tWgdByType[[o[i]]][,"hat"]))/2/length(na.omit(tWgdByType[[o[i]]][,"hat"]))-0.25+i #
+	j <- f(mg14::violinJitter(na.omit(wgdTimeAbsType[[o[i]]][,"hat"]))$y)/4 + i #rank(na.omit(tWgdByType[[o[i]]][,"hat"]))/2/length(na.omit(tWgdByType[[o[i]]][,"hat"]))-0.25+i #
 	tpy <- if(grepl("Skin|Lung", n)) 4 else 2
-	segments(j, na.omit(tWgdByType[[o[i]]][,"up"]), j, na.omit(tWgdByType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy), lty=tissueLty[n])
-	points(j, na.omit(tWgdByType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
+	segments(j, na.omit(wgdTimeAbsType[[o[i]]][,"up"]), j, na.omit(wgdTimeAbsType[[o[i]]][,"lo"]), col=mg14::colTrans(tissueLines[n],tpy), lty=tissueLty[n])
+	points(j, na.omit(wgdTimeAbsType[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
 			cex=tissueCex[n]*2/3, lwd=1)
 	bwd <- 0.8/2
 	rect(i-bwd,qWgd["25%",a,n],i+bwd,qWgd["75%",a,n], border=tissueLines[n],  col=paste0(tissueColors[n],"44"))
@@ -1214,25 +1214,25 @@ par(xpd=TRUE)
 
 #' Plot extremely early samples
 #+ earlyWgdExamples, fig.width=4, fig.height=4
-t <- do.call("rbind", tWgdByType)
+t <- do.call("rbind", wgdTimeAbsType)
 o <- order(t[,"hat"], na.last=NA)
 for(n in rownames(t)[tail(o, 20)])
 	plotSample(n, title=paste0(sub("-.+","",n),", ", donor2type[sample2donor[n]], ", ",round(t[n,"hat"]),"yr"))
 
 #' Numbers per decade
-yy <- do.call("rbind",tWgdByType)
+yy <- do.call("rbind",wgdTimeAbsType)
 yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
 #' WGD time v age at diagnosis
 #+ wgdAge, fig.width=8, fig.height=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
-for(i in seq_along(tWgdByType)){
-	n <- names(tWgdByType)[i]
-	y <- tWgdByType[[n]][,"hat"]
+for(i in seq_along(wgdTimeAbsType)){
+	n <- names(wgdTimeAbsType)[i]
+	y <- wgdTimeAbsType[[n]][,"hat"]
 	x <- age[sample2donor[names(y)]]
 	plot(x,x-y, pch=NA, bg=tissueColors[n], col=tissueBorder[n], xlab="Age [yr]", ylab="WGD [yr]", cex=tissueCex[n], xlim=c(0,90), ylim=c(0,90))
-	segments(x, y0=x-tWgdByType[[n]][,"up"],y1=x-tWgdByType[[n]][,"lo"],col=tissueLines[n])
+	segments(x, y0=x-wgdTimeAbsType[[n]][,"up"],y1=x-wgdTimeAbsType[[n]][,"lo"],col=tissueLines[n])
 	points(x,x-y, pch=21, bg=tissueColors[n], col=tissueBorder[n], cex=tissueCex[n])
 #	d <- density(na.omit(x), bw="SJ", from=0)
 #	lines(d$x,d$y*100,col=tissueLines[n], lty=tissueLty[n])
@@ -1244,9 +1244,38 @@ for(i in seq_along(tWgdByType)){
 	abline(0,1, lty=3)
 }
 
+#' #### Deaminations v all mutations
+#' Scatter
+#+ wgdDeamAll, fig.width=2, fig.height=2
+t <- sapply(wgdParamDeam[!void], function(x) x$time$time)
+plot(timingInfo[colnames(t),'timeCoamp'], 
+		colMeans(t), 
+		cex=sqrt(nSub[colnames(t)]/10000), 
+		pch=21,bg=tissueColors[donor2type[sample2donor[colnames(t)]]], 
+		col=tissueBorder[donor2type[sample2donor[colnames(t)]]],
+		xlab="time [all mutations]",
+		ylab="time [CpG>TpG]")
+abline(0,1, lty=3)
+
+#' Box
+#+ wgdDeamAllBox, fig.width=6, fig.height=3
+par(mar=c(6,4,1,1), xaxs='i')
+boxplot(timingInfo[colnames(t),'timeCoamp'] - colMeans(t) ~ droplevels(donor2type[sample2donor[colnames(t)]]), 
+		col=tissueColors[levels(droplevels(donor2type[sample2donor[colnames(t)]]))],
+		na.rm=TRUE, las=2,
+		lty=1,
+		staplewex=0,
+		pch=16,
+		cex=0.8,
+		ylab='time [all] - time [CpG>TpG]',
+		names=NA
+)
+mg14::rotatedLabel(labels=levels(droplevels(donor2type[sample2donor[colnames(t)]])))
+abline(h=0, lty=3)
+
 #' #### Assessment of absolute mutation counts
 #' Number of deaminatinos in 2:2 regions
-nDeam22 <- sapply(finalWgdParam2, function(x) if(!is.null(x$n)) x$n[1] else NA)
+nDeam22 <- sapply(wgdParamDeam, function(x) if(!is.null(x$n)) x$n[1] else NA)
 names(nDeam22) <- names(finalSnv)[isWgd]
 w22 <- sapply(finalBB[isWgd], function(bb) {
 			w <- bb$major_cn==2 & bb$minor_cn==2 & !duplicated(bb)
@@ -1254,13 +1283,13 @@ w22 <- sapply(finalBB[isWgd], function(bb) {
 nDeam22 <- nDeam22/w22*1e9
 
 #' Fraction of deam on 1 and 2 copies
-d <- nDeam22 *  t(sapply(finalWgdParam2, function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
+d <- nDeam22 *  t(sapply(wgdParamDeam, function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
 rownames(d) <- names(finalSnv)[isWgd]
 d[rownames(d) %in% remove] <- NA
 
 #' Unadjusted time (inc. of subclonal mutations)
-t0 <- colMeans(finalWgdT["T.WGD","1x",1,,"time",],na.rm=TRUE) 
-names(t0) <- dimnames(finalWgdT)[[6]]
+t0 <- colMeans(wgdTimeDeamAcc["T.WGD","1x",1,,"time",],na.rm=TRUE) 
+names(t0) <- dimnames(wgdTimeDeamAcc)[[6]]
 
 #' Plot time v early and total number of mutations 
 #+ nDeam22Time, fig.width=2, fig.height=2
@@ -1284,9 +1313,9 @@ lines(sort(x, na.last=NA),p$fit)
 
 #' #### Acceleration adjustment relative to lowest quintile.
 #+ accelRelWgd, fig.height=2, fig.width=2
-accelRelWgd <- sapply(names(timeWgd), function(n) {
+accelRelWgd <- sapply(names(wgdTimeAbs), function(n) {
 			r <- deamRate[[n]]
-			x <- timeWgd[[n]]
+			x <- wgdTimeAbs[[n]]
 			r0 <- quantile(r[!names(r) %in% remove], 0.20, na.rm=TRUE)
 			a <- cut(pmin(pmax(1,(r/r0-0.9)/0.1),10), c(0,1.5,3.75,6.25,8.75,20), labels=c("1x","2.5x","5x","7.5x","10x"))
 			print(table(a))
@@ -1296,7 +1325,7 @@ accelRelWgd <- sapply(names(timeWgd), function(n) {
 		})
 par(mar=c(3,3,1,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
 x <- Reduce("c",accelRelWgd)
-y <- Reduce("c",sapply(timeWgd, function(x) x[,"hat","5x"]))
+y <- Reduce("c",sapply(wgdTimeAbs, function(x) x[,"hat","5x"]))
 
 t <- donor2type[sample2donor[names(x)]]
 plot(y+runif(length(y)),x+runif(length(y)), pch=21, bg=tissueColors[t], col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time (constant acceleration)", ylab="Time (sample-specific accel.)", log='')
@@ -1322,10 +1351,10 @@ points(qWgd["50%","5x",], qAccelRelWgd["50%",], bg=tissueColors[t], pch=21,  col
 #' Mutations per year vs time
 #+ mutYearTime, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
-for(n in names(tWgdByType)){
-	a <- age[sample2donor[rownames(tWgdByType[[n]])]]
-	yy <- nDeam22[rownames(tWgdByType[[n]])]/a
-	xx <- 1-t0[rownames(tWgdByType[[n]])]#y[[n]][,"hat"]/a
+for(n in names(wgdTimeAbsType)){
+	a <- age[sample2donor[rownames(wgdTimeAbsType[[n]])]]
+	yy <- nDeam22[rownames(wgdTimeAbsType[[n]])]/a
+	xx <- 1-t0[rownames(wgdTimeAbsType[[n]])]#y[[n]][,"hat"]/a
 	try({
 				l <- lm(yy ~ xx)
 				x0 <- -l$coef[2]/l$coef[1]
@@ -1343,9 +1372,9 @@ for(n in names(tWgdByType)){
 #+ mutAgeWgd, fig.height=8, fig.width=8
 par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 deamRateWgd <- list()
-for(n in names(tWgdByType)){
-	a <- age[sample2donor[rownames(tWgdByType[[n]])]]
-	yy <- nDeam22[rownames(tWgdByType[[n]])]/(2-t0[rownames(tWgdByType[[n]])])
+for(n in names(wgdTimeAbsType)){
+	a <- age[sample2donor[rownames(wgdTimeAbsType[[n]])]]
+	yy <- nDeam22[rownames(wgdTimeAbsType[[n]])]/(2-t0[rownames(wgdTimeAbsType[[n]])])
 	xx <- a
 	r <- yy/xx 
 	m <- median(r,na.rm=TRUE)
