@@ -13,7 +13,8 @@
 #+ Preliminaries, echo=FALSE
 options(width=120)
 pdf.options(pointsize=8)
-.par <- function() par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1) 
+.par <- function() par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1)
+require(knitr)
 knit_hooks$set(smallMar = function(before, options, envir) {
 			if (before) .par()
 		})
@@ -1482,6 +1483,9 @@ mg14::rotatedLabel(1:2, labels=c("Subclones","WGD"))
 #save(qWgd, qSubclone, timeWgd, timeSubclones, file=paste0(Sys.Date(),"-realTimeWgdAndSubclones.RData"))
 
 #' # Session
+#' ## Commit
+system("git log -n1")
+
 #' ## Objects
 l <- ls()
 data.frame(variable=l, Reduce("rbind",lapply(l, function(x) data.frame(class=class(get(x)), size=format(object.size(get(x)), units="auto")))))
