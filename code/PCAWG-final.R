@@ -33,9 +33,9 @@ MC_CORES=2
 
 #+ evalOff, echo=FALSE
 opts_chunk$set(eval=FALSE)
-load("2018-02-22-PCAWG-final.RData")
+load("2018-04-11-PCAWG-final.RData")
 source("PCAWG-functions.R")
-
+MC_CORES=2
 
 #' # Load data
 #' ## Whitelist
@@ -44,9 +44,9 @@ source("PCAWG-functions.R")
 p <- "../final/annotated_012/snv_mnv"
 finalSnv <- list()
 j <- 1
-for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+for(f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
 	if(j %% 10 ==0) print(j); j <- j+1
-	load(f)
+	vcf <- readVcf(f)
 	finalSnv[[f]] <- vcf
 }
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
@@ -66,8 +66,9 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 #+ loadIndel
 p <- "../final/annotated_012/indel"
 finalIndel <- list()
-for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
-	load(f)
+for( f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
+	t <- try(readVcf(f))
+        if(class(t)=="try-error") indelVcf <- indelVcf[NULL,] else indelVcf <- t
 	finalIndel[[f]] <- vcfIndel
 }
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
@@ -115,9 +116,9 @@ for(i in seq_along(finalDriversAnnotated)){
 p <- "../final/annotated_012/graylist/snv_mnv"
 finalSnvGray <- list()
 j <- 1
-for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+for(f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
 	if(j %% 10 ==0) print(j); j <- j+1
-	load(f)
+	vcf <- readVcf(f)
 	finalSnvGray[[f]] <- vcf
 }
 names(finalSnvGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
@@ -140,8 +141,8 @@ finalBB[names(finalBBGray)] <- finalBBGray
 #+ loadIndelGray
 p <- "../final/annotated_012/graylist/indel"
 finalIndelGray <- list()
-for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
-	load(f)
+for( f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
+	vcfIndel <- readVcf(f)
 	finalIndelGray[[f]] <- vcfIndel
 }
 names(finalIndelGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
@@ -1499,12 +1500,12 @@ devtools::session_info()
 #' # Other code
 #' All code is available at github.com/gerstung-lab/PCAWG-11
 #+ additionalCode, cache=FALSE, echo=FALSE, eval=TRUE
-read_chunk('./MutationTime.R', labels="MutationTimer")
+read_chunk('../modules/MutationTime.R/MutationTime.R', labels="MutationTimer")
 read_chunk('./PCAWG-functions.R', labels="PCAWG-functions")
 read_chunk('./VCF-annotate.R', labels="VCF-annotate")
 
 #' ## MutationTime.R
-#' See https://gist.github.com/mg14/7a8e1aa28cb9ade7e376acdbd2364790
+#' See https://github.com/gerstung-lab/MutationTime.R
 #+ MutationTimer, eval=FALSE
 
 #' ## PCAWG-functions.R
