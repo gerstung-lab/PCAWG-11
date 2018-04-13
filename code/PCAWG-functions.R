@@ -5,22 +5,22 @@
 
 library(Rsamtools)
 
-vcfPath <- '~/pcawg/final/final_consensus_12oct_passonly/snv_mnv'
-basePath <-  '~/pcawg/dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
-dpPath <- paste0('~/pcawg/final/consensus_subclonal_reconstruction_20170325')
-#CANCERGENES <- read.table('~/pcawg/ref/cancer_genes.txt')$V1
-purityPloidy <- read.table( '~/pcawg/final/consensus.20170218.purity.ploidy.txt', header=TRUE, row.names=1)
+vcfPath <- '../final/final_consensus_12oct_passonly/snv_mnv'
+basePath <-  '../dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
+dpPath <- paste0('../final/consensus_subclonal_reconstruction_20170325')
+#CANCERGENES <- read.table('../ref/cancer_genes.txt')$V1
+purityPloidy <- read.table( '../final/consensus.20170218.purity.ploidy.txt', header=TRUE, row.names=1)
 #colnames(purityPloidy) <- c("purity","ploidy")
 cnPath <- paste0(basePath,'/4_copynumber/')
 bbPath <- paste0(basePath,'/4_copynumber/')
 
-allGender <- read.table('~/pcawg/gender/2016_12_09_inferred_sex_all_samples.txt', header=TRUE, sep='\t')
+allGender <- read.table('../final/2016_12_09_inferred_sex_all_samples.txt', header=TRUE, sep='\t')
 allGender <- allGender[!duplicated(allGender$tumourid) & allGender$tumourid != 'tumourid',]
-#write.table(gender,'~/pcawg/gender/2016_12_09_inferred_sex_all_samples_CORRECTED_MG.txt', row.names=FALSE, col.names=TRUE, sep='\t', quote=FALSE)
+#write.table(gender,'../gender/2016_12_09_inferred_sex_all_samples_CORRECTED_MG.txt', row.names=FALSE, col.names=TRUE, sep='\t', quote=FALSE)
 rownames(allGender) <- allGender$tumourid
 
 addTNC <- function(vcf){	
-	r = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
+	r = "../ref/genome.fa.gz" #meta(header(v))["reference",]
 	if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 		tnc=scanFa(file=r, resize(granges(vcf), 3,fix="center"))
 		i = header(vcf)@header$INFO
@@ -34,7 +34,7 @@ dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 	
 bbFiles <- dir(bbPath, pattern="_segments.txt", recursive=TRUE)
 
-wccTable <- read.table("~/pcawg/final/wcc_consensus_values_9_12.tsv", header=TRUE, sep='\t')
+wccTable <- read.table("../final/wcc_consensus_values_9_12.tsv", header=TRUE, sep='\t')
 d <- data.frame(cluster=wccTable$sc_n, n_ssms=wccTable$consensus_mutation_number, proportion = round(wccTable$consensus_cluster_cp,3))
 d[d$cluster==1,"proportion"] <- wccTable[d$cluster==1,"purity"]
 wccClusters <- split(d, wccTable$sid)
@@ -84,7 +84,7 @@ loadBB <- function(ID){
 	if(class(t)=='try-error') GRanges(copy_number=numeric(), major_cn=numeric(), minor_cn=numeric(), clonal_frequency=numeric()) else t
 }
 
-loadConsensusCNA <- function(ID, purity=1, path="/lustre/scratch112/sanger/cgppipe/PanCancerDownloads/workspace/mg14/final/consensus.20170119.somatic.cna.annotated"){
+loadConsensusCNA <- function(ID, purity=1, path="../final/consensus.20170119.somatic.cna.annotated"){
 	file <- grep(paste0(ID,"[[:punct:]]"), dir(path, pattern="cna.annotated.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
 	if(grepl(".gz", file))
 		file <- gzfile(file)
@@ -106,7 +106,7 @@ loadConsensusCNA <- function(ID, purity=1, path="/lustre/scratch112/sanger/cgppi
 	sort(gr)
 }
 
-refFile = "/lustre/scratch112/sanger/cgppipe/PanCancerReference/genome.fa.gz" #meta(header(v))["reference",]
+refFile = "../ref/genome.fa.gz" #meta(header(v))["reference",]
 refLengths <- scanFaIndex(file=refFile)
 chrOffset <- cumsum(c(0,as.numeric(width(refLengths))))
 names(chrOffset) <- c(seqlevels(refLengths), "NA")
@@ -481,12 +481,12 @@ testIndel <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) FA
 asum <- function(x, dim) apply(x, setdiff(seq_along(dim(x)), dim), sum)
 
 #' official driver file
-#d <- lapply(2:3, function(sheet) xlsx::read.xlsx2(file="~/pcawg/ref/TableS2_driver_point_mutations_annotation.xlsx", sheetIndex=sheet, colIndex=1:22, stringsAsFactors=FALSE, na.char="NaN"))
+#d <- lapply(2:3, function(sheet) xlsx::read.xlsx2(file="../ref/TableS2_driver_point_mutations_annotation.xlsx", sheetIndex=sheet, colIndex=1:22, stringsAsFactors=FALSE, na.char="NaN"))
 #colnames(d[[2]]) <- colnames(d[[1]])
 #drivers <- do.call("rbind",d)
 #drivers[drivers=="NaN" | drivers==""] <- NA
 #drivers <- as.data.frame(sapply(drivers, function(x) if(all(!is.na(as.numeric(x[!is.na(x)])))) as.numeric(x) else x, simplify=FALSE))
-finalData <- read.table("~/pcawg/final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
+finalData <- read.table("../final/ref/release_may2016.v1.4.tsv", header=TRUE, sep="\t")
 #r <- gsub("-","",drivers$ref)
 #i <- grepl("-",drivers$ref) | grepl("-",drivers$alt)  #drivers$mut_type=="indel" # need to fix indels
 #r[i] <- paste0("N",r[i])
@@ -497,8 +497,8 @@ finalData <- read.table("~/pcawg/final/ref/release_may2016.v1.4.tsv", header=TRU
 #m <- sapply(levels(drivers$sample), function(x) grep(x, finalData$sanger_variant_calling_file_name_prefix))
 #finalDrivers <- VRanges(seqnames = drivers$chr, ranges=IRanges(p, width =  width(r)), ref=DNAStringSet(r), alt=DNAStringSet(a), sampleNames = finalData$icgc_donor_id[m[drivers$sample]])
 #mcols(finalDrivers) <- cbind(sample=drivers$sample, samples=finalData$sanger_variant_calling_file_name_prefix[m[drivers$sample]], ID= drivers$gene_id, drivers[,8:22], mut_type=ifelse(i, "indel","snv"))
-#save(finalDrivers, file="~/pcawg/ref/TableS2_driver_point_mutations_annotation.RData")
-load(file="~/pcawg/ref/TableS2_driver_point_mutations_annotation.RData")
+#save(finalDrivers, file="../ref/TableS2_driver_point_mutations_annotation.RData")
+load(file="../ref/TableS2_driver_point_mutations_annotation.RData")
 CANCERGENES <- levels(finalDrivers$ID)
 
 matchDrivers <- function(vcf, finalDrivers) {
