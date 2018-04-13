@@ -99,8 +99,11 @@ for(i in seq_along(finalDriversAnnotated)){
 		v <- finalIndel[[as.character(finalDriversAnnotated$sample[i])]]
 	}
 	j <- findOverlaps(finalDriversAnnotated[i], v, select='first')
-	if(!is.na(j))
+	if(!is.na(j)){
 		mcols(finalDriversAnnotated)[i,colnames(d)] <- info(v)[j, colnames(d)]
+		refDepth(finalDriversAnnotated)[i] <- info(v)[j,"t_ref_count"]
+		altDepth(finalDriversAnnotated)[i] <- info(v)[j,"t_alt_count"]
+	}
 	else
 		mcols(finalDriversAnnotated)[i,colnames(d)] <- NA
 }
@@ -478,7 +481,7 @@ aggregatePerChromosome <- function(bb, isWgd=FALSE){
 	.aggregateSegments <- function(m){
 		#m <- mcols(bb)
 		t <- weighted.mean(m$time, m$n.snv_mnv, na.rm=TRUE)
-		n <- sum(m$n.snv_mnv, na.rm=TRUE)
+		n <- sum(m$n.snv_mnv[!is.na(m$time)], na.rm=TRUE)
 		sd <- sd(m$time, na.rm=TRUE)
 		ci <- weighted.mean(m$time.up-m$time.lo, m$n.snv_mnv, na.rm=TRUE)
 		w <- sum(m$width[!is.na(m$time)], na.rm=TRUE)

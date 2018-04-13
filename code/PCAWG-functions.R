@@ -582,7 +582,7 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBr
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
 	names(l) <- s
-	plot(NA,NA, ylab="Copy number",xlab="",xlim=c(0,sum(l)), ylim=ylim, xaxt="n")
+	plot(NA,NA, ylab="Copy number",xlab="",xlim=c(min(chrOffset[as.character(seqnames(bb))]+start(bb)),max(chrOffset[as.character(seqnames(bb))]+end(bb))), ylim=ylim, xaxt="n")
 	c <- cumsum(l)
 	axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
 	if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
@@ -624,7 +624,7 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBr
 }
 
 plotVcf <- function(vcf, bb, clusters, col = RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)], ID = meta(header(vcf))[[1]]["ID",1], IS_WGD=classWgd(bb), NO_CLUSTER=FALSE, title=TRUE, legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, pch=16, pch.out=pch, cex=0.66) {
-	cls <- factor(paste(as.character(info(vcf)$CLS)), levels = c(levels(info(vcf)$CLS), "NA"))
+	cls <- factor(paste(as.character(info(vcf)$CLS)), levels = c("clonal [NA]","clonal [early]","clonal [late]","subclonal" , "NA"))
 	plot(start(vcf) + chrOffset[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, pch.out , pch), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n", cex=cex)
 	if(title){
 		title(main=paste0(ID,", ", donor2type[sample2donor[ID]], "\nploidy=",round(averagePloidy(bb),2), ", hom=",round(averageHom(bb),2), if(IS_WGD) ", WGD" else "", if(NO_CLUSTER) ", (No clusters available)" else(paste0(", clusters=(",paste(round(clusters$proportion, 2), collapse="; "),")"))), font.main=1, line=1, cex.main=1)
