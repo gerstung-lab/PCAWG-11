@@ -4,6 +4,7 @@
 ###############################################################################
 
 library(Rsamtools)
+library(VariantAnnotation)
 
 vcfPath <- '../final/final_consensus_12oct_passonly/snv_mnv'
 basePath <-  '../dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
@@ -577,12 +578,12 @@ averageHom <- function(bb){
 
 classWgd <- function(bb) .classWgd(averagePloidy(bb), averageHom(bb))
 
-plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBrewer::brewer.pal(4,"Set2"), type=c("lines","bars"), legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE){
+plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBrewer::brewer.pal(4,"Set2"), type=c("lines","bars"), legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, xlim=c(min(chrOffset[as.character(seqnames(bb))]+start(bb)),max(chrOffset[as.character(seqnames(bb))]+end(bb)))){
 	type <- match.arg(type)
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
 	names(l) <- s
-	plot(NA,NA, ylab="Copy number",xlab="",xlim=c(min(chrOffset[as.character(seqnames(bb))]+start(bb)),max(chrOffset[as.character(seqnames(bb))]+end(bb))), ylim=ylim, xaxt="n")
+	plot(NA,NA, ylab="Copy number",xlab="",xlim=xlim, ylim=ylim, xaxt="n")
 	c <- cumsum(l)
 	axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
 	if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
@@ -623,9 +624,9 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBr
 	}
 }
 
-plotVcf <- function(vcf, bb, clusters, col = RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)], ID = meta(header(vcf))[[1]]["ID",1], IS_WGD=classWgd(bb), NO_CLUSTER=FALSE, title=TRUE, legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, pch=16, pch.out=pch, cex=0.66) {
+plotVcf <- function(vcf, bb, clusters, col = RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)], ID = meta(header(vcf))[[1]]["ID",1], IS_WGD=classWgd(bb), NO_CLUSTER=FALSE, title=TRUE, legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, pch=16, pch.out=pch, cex=0.66, xlim=c(0,chrOffset["MT"])) {
 	cls <- factor(paste(as.character(info(vcf)$CLS)), levels = c("clonal [early]","clonal [late]","clonal [NA]","subclonal" , "NA"))
-	plot(start(vcf) + chrOffset[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls], xlab='', ylab="VAF", pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, pch.out , pch), ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n", cex=cex)
+	plot(NA,NA, xlab='', ylab="VAF", ylim=c(0,1), xlim=xlim, xaxt="n", cex=cex)
 	if(title){
 		title(main=paste0(ID,", ", donor2type[sample2donor[ID]], "\nploidy=",round(averagePloidy(bb),2), ", hom=",round(averageHom(bb),2), if(IS_WGD) ", WGD" else "", if(NO_CLUSTER) ", (No clusters available)" else(paste0(", clusters=(",paste(round(clusters$proportion, 2), collapse="; "),")"))), font.main=1, line=1, cex.main=1)
 	} 
@@ -637,10 +638,12 @@ plotVcf <- function(vcf, bb, clusters, col = RColorBrewer::brewer.pal(9, "Set1")
 					x <- chrOffset[as.character(seqnames(bb)[i])]
 					y <- bb$timing_param[[i]][,"f"]
 					l <- bb$timing_param[[i]][,"pi.s"] * bb$timing_param[[i]][,"P.m.sX"]
+					l[is.na(l)] <- 0
 					if(any(is.na(c(s,e,x,y,l)))) next
 					segments(s+x,y,e+x,y, lwd=l*4+.1)
 					#text(x=(s+e)/2 +x, y=y, paste(signif(bb$timing_param[[i]][,"m"],2),signif(bb$timing_param[[i]][,"cfi"]/purityPloidy[meta(header(vv))["ID",1],"purity"],2), sep=":"), pos=3, cex=0.5)
 				}
+	points(start(vcf) + chrOffset[as.character(seqnames(vcf))], getAltCount(vcf)/getTumorDepth(vcf),col=col[cls],  pch=ifelse(info(vcf)$pMutCNTail < 0.025 | info(vcf)$pMutCNTail > 0.975, pch.out , pch),  cex=cex)				
 	if(legend) legend("topleft", pch=19, col=col, legend=paste(as.numeric(table(cls)), levels(cls)), bg='white')
 }
 
@@ -654,8 +657,8 @@ timeToBeta <- function(time){
 	return(cbind(alpha, beta))
 }
 
-plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88"), legend=TRUE, col.grid='grey', lty.grid=1){
-	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=c(0,chrOffset["MT"]), xaxt="n")
+plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88"), legend=TRUE, col.grid='grey', lty.grid=1, xlim=c(0,chrOffset["MT"])){
+	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=xlim, xaxt="n")
 		try({
 					bb <- bb[!is.na(bb$time)]
 					s <- start(bb)
@@ -738,7 +741,7 @@ reduceBB <- function(bb){
 	return(s)
 }
 
-plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w) {
+plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w, regions=refLengths[1:24], ylim.bb=c(0,5), layout.height=c(4,1.2,3.5)) {
 	p <- par()
 	stackTime <- function(bb, t=seq(0,1,0.01)){
 		u <- unique(bb)
@@ -750,13 +753,17 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w) {
 		diff(car::logit(f(t))) * rowSums(sapply(which(!is.na(ut)), function(i) w[i]*dnorm(car::logit(t[-1] - diff(t)/2), mean=car::logit(ut[i]), sd= (car::logit(uu[i]) - car::logit(ul[i]) + 0.05)/4)))#(t <= u$time.up[i] & t >= u$time.lo[i])))
 		#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
 	}
-	layout(matrix(1:3, ncol=1), height=c(4,1.2,3.5))
+	layout(matrix(1:3, ncol=1), height=layout.height)
 	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
-	plotVcf(vcf, bb, finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33)
+	xlim=c(min(chrOffset[as.character(seqnames(regions))]+start(regions)),max(chrOffset[as.character(seqnames(regions))]+end(regions)))
+	bbb <- bb[bb %over% regions]
+	plotVcf(vcf[vcf %over% regions], bbb, finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33, xlim=xlim)
 	mtext(line=-1, side=3, title, las=1)
-	plotBB(bb, ylim=c(0,5), legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE)
+	plotBB(bbb, ylim=ylim.bb, legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE, xlim=xlim)
 	par(mar=c(3,3,0.5,0.5))
-	plotTiming(bb, legend=FALSE, col.grid=NA)
+	plotTiming(bbb, xlim=xlim, legend=FALSE, col.grid=NA)
+	if(length(regions) == 1)
+		axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
 	s <- stackTime(bb)
 	g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
 	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)

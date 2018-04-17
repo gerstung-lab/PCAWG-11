@@ -61,7 +61,7 @@ isClustered <- function(vcf, p=1e-3, q=0.1, r=100, alpha=1){
 #	q <- 0.05 # P Kat>N
 	P <- matrix(c(1-p,p,q, 1-q), ncol=2, byrow=TRUE) # Transition matrix
 	p0 <- c(1,0)
-	s <- c(mean(d[w]), r)
+	s <- c(median(d[w]), r)
 	dw <- d[w]
 	l <- length(dw)
 	T1 <- T2 <- matrix(0,ncol=l, nrow=2)

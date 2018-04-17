@@ -3473,7 +3473,7 @@ dev.off()
 
 #' Expression data
 
-fpkm <- read.table("../fpkm/joint_fpkm_uq.tsv.gz", header=TRUE, sep="\t", check.names=FALSE)
+fpkm <- read.table("../ref/joint_fpkm_uq.tsv.gz", header=TRUE, sep="\t", check.names=FALSE)
 g <- fpkm$feature
 fpkm <- as.matrix(fpkm[,-1])
 rownames(fpkm) <- g
@@ -3488,15 +3488,19 @@ names(ensg) <- genes
 
 m <- match(ensg, rownames(fpkm))
 
-g2t <- as.character(finalData$tumor_rna_seq_aliquot_id)
-names(g2t) <- finalData$sanger_variant_calling_file_name_prefix
-g2t[g2t==""] <- NA
+g2r <- as.character(finalData$tumor_rna_seq_aliquot_id)
+names(g2r) <- finalData$sanger_variant_calling_file_name_prefix
+g2r[g2r==""] <- NA
+
+r2s <- as.character(finalData$sanger_variant_calling_file_name_prefix)
+names(r2s) <- as.character(finalData$tumor_rna_seq_aliquot_id)
+
 
 scale <- 5000
 b <- ifelse(colMeans(col2rgb(tissueColors)/255) > 0.25, "black","lightgrey")
 c <- rev(paste(RColorBrewer::brewer.pal(9, "Spectral"),"AA", sep=""))
 s <- colnames(z)[o]
-f <- fpkm[m,match(g2t[s], colnames(fpkm))]
+f <- fpkm[m,match(g2r[s], colnames(fpkm))]
 q <- t(apply(f, 1, function(x) {
 #					y <- unlist(sapply(split(x, donor2type[sample2donor[s]]), 
 #									function(xx){n <- xx/mean(xx, na.rm=TRUE)
@@ -3518,7 +3522,7 @@ x <- colMeans(q)
 #plot(-t[o,1],t[o,2], bg=c[cut(x,9)], pch=21, cex=sqrt(colSums(z)[o]/scale)+0.5, xlab="t-SNE 1", ylab="t-SNE 2",bty="n", xaxt="n", yaxt="n", xpd=NA, main="MMR")
 
 w <- donor2type[sample2donor[s]]=="Skin-Melanoma"
-f <- fpkm[,match(g2t[s], colnames(fpkm))]
+f <- fpkm[,match(g2r[s], colnames(fpkm))]
 cr <- cor(t(f[,w]), colSums(z[,s])[w], use="c", method='s')
 
 medFpkm <- t(sapply(split(as.data.frame(t(f)), donor2type[sample2donor[s]]), sapply, median, na.rm=TRUE))
@@ -3529,12 +3533,22 @@ foo <- rr
 names(foo) <- NULL
 u <- unlist(foo)
 
-summary(lm(log(u) ~ log(mbd4[g2t[names(u)]]) ))
+summary(lm(log(u) ~ log(mbd4[g2r[names(u)]]) ))
 
-plot(mbd4[g2t[names(u)]], u, bg=tissueColors[donor2type[sample2donor[names(u)]]], col=tissueBorder[donor2type[sample2donor[names(u)]]], pch=21, log='xy')
+plot(mbd4[g2r[names(u)]], u, bg=tissueColors[donor2type[sample2donor[names(u)]]], col=tissueBorder[donor2type[sample2donor[names(u)]]], pch=21, log='xy')
 
-plot(fpkm[gencode$gene_id[match("MLH1", gencode$gene_name)],match(g2t[rownames(Z)], colnames(fpkm))], Z[,"delT"], bg=tissueColors[donor2type[sample2donor[rownames(Z)]]], col=tissueBorder[donor2type[sample2donor[rownames(Z)]]], pch=21, log='xy')
-plot(fpkm[gencode$gene_id[match("MSH2", gencode$gene_name)],match(g2t[rownames(Z)], colnames(fpkm))], Z[,"delT"], bg=tissueColors[donor2type[sample2donor[rownames(Z)]]], col=tissueBorder[donor2type[sample2donor[rownames(Z)]]], pch=21, log='xy')
+plot(fpkm[gencode$gene_id[match("MLH1", gencode$gene_name)],match(g2r[rownames(Z)], colnames(fpkm))], Z[,"delT"], bg=tissueColors[donor2type[sample2donor[rownames(Z)]]], col=tissueBorder[donor2type[sample2donor[rownames(Z)]]], pch=21, log='xy')
+plot(fpkm[gencode$gene_id[match("MSH2", gencode$gene_name)],match(g2r[rownames(Z)], colnames(fpkm))], Z[,"delT"], bg=tissueColors[donor2type[sample2donor[rownames(Z)]]], col=tissueBorder[donor2type[sample2donor[rownames(Z)]]], pch=21, log='xy')
+
+mbd4ByType <- sapply(split(mbd4, donor2type[sample2donor[r2s[colnames(fpkm)]]]), mean, na.rm=TRUE)
+
+plot(mbd4ByType[colnames(qDeamRate)], qDeamRate["50%",], pch=21,  bg=tissueColors[colnames(qDeamRate)], log='xy', cex=2)
+
+f <- sapply(finalSnv, function(vcf) mean(isDeamination(vcf), na.rm=TRUE))
+ff <- sapply(split(f, donor2type[sample2donor[names(f)]]), median)
+
+plot(mbd4ByType[colnames(qDeamRate)], ff[colnames(qDeamRate)], pch=21,  bg=tissueColors[colnames(qDeamRate)], cex=2)
+abline(coef(lm( ff[colnames(qDeamRate)] ~ mbd4ByType[colnames(qDeamRate)])))
 
 
 KLD <- function(x,y){
@@ -4030,3 +4044,146 @@ timeWgd <- sapply(s, function(l) {
 		}, simplify=FALSE)
 
 
+t <- sapply(wgdParamDeam[!void], function(x) x$time$time)
+s <- clinicalData$tobacco_smoking_intensity
+w <- grep("Lung", donor2type[sample2donor[colnames(t)]])
+names(s) <- clinicalData$icgc_donor_id
+boxplot(colMeans(t)[w]~droplevels(s[sample2donor[colnames(t)[w]]]), las=2)
+
+g <- mg14:::asum(finalGenotypes[131,,,,],c(1,3))
+
+
+
+
+b <- finalBB[donor2type[sample2donor[names(finalBB)]]=="CNS-GBM"]
+
+egfr <- GRanges(7, IRanges(55210077,55259524))
+
+sapply(b, function(bb) sum(width(bb[which(seqnames(bb)==7 & bb$total_cn>10)])))
+
+cn <- sapply(b, function(bb){
+			c(EGFR=median(bb[bb %over% e]$total_cn), chr7=averagePloidy(bb[seqnames(bb)==7]))
+		})
+
+t <- apply(g[,colnames(cn)], 2, function(x) paste(names(which(x>0)), collapse=":"))
+t[t==""] <- "wt"
+
+table(mut = t, amp=cn[1,] > 3, gain=cn[2,] > 2.5 )
+
+bb <- b[[1]]
+pdf("./GBM-7.pdf", 4,4, pointsize=8)
+for(i in names(b)){
+	#plotSample(i, regions=refLengths[7], ylim.bb=c(0,10), layout.height=c(2,1,1))
+	plotSample(i, regions=GRanges(7, IRanges(4.5e7,6.5e7)), ylim.bb=c(0,10), layout.height=c(2,1,1),title=paste0(substr(i,1,8), paste(rep(" ", 80), collapse="")))
+}
+dev.off()
+
+tamp <- sapply(b, function(bb){
+			t <- bb[bb %over% egfr]$timing_param[[1]]
+			if(is.null(t)) return(NA)
+			t <- t[t[,"state"]==1,, drop=FALSE]
+			if(nrow(t)>2)
+				t[nrow(t)-1:0,] else NA
+		})
+
+h <- allChrAgg[,,donor2type[sample2donor[names(finalBB)]]=="CNS-GBM"]
+t(h[7,,])
+
+
+image(x=1:24, z=h, col=rev(col))
+
+a <- na.omit(do.call("c", sapply(b, function(bb){
+					bb$time[as.character(seqnames(bb))==7 & bb$total_cn>10]
+				})))
+
+v <- finalSnv[donor2type[sample2donor[names(finalSnv)]]=="CNS-GBM"]
+m <- unlist(sapply(v, function(vcf){
+			info(vcf)$MutCN[which(as.character(seqnames(vcf))=='7' & info(vcf)$MajCN + info(vcf)$MinCN > 10)]
+		}))
+c <- unlist(sapply(v, function(vcf){
+			(info(vcf)$MajCN + info(vcf)$MinCN )[which(as.character(seqnames(vcf))=='7' & info(vcf)$MajCN + info(vcf)$MinCN > 10)]
+		}))
+M <- unlist(sapply(v, function(vcf){
+					(info(vcf)$MajCN )[which(as.character(seqnames(vcf))=='7' & info(vcf)$MajCN + info(vcf)$MinCN > 10)]
+				}))
+#w <- sapply(finalBB[donor2type[sample2donor[names(finalSnv)]]=="CNS-GBM"], function(bb)
+#			)
+
+hist(m/c)
+
+mean(1/(m/c))
+mean(c)
+
+e <- finalDriversAnnotated[which(grepl("EGFR", finalDriversAnnotated$ID) & donor2type[sample2donor[as.character(finalDriversAnnotated$sample)]]=="CNS-GBM")]
+vaf <- as.numeric(altDepth(e))/as.numeric(refDepth(e)+altDepth(e))
+plot(vaf, purityPloidy[finalDriversAnnotated$sample[grep("EGFR", finalDriversAnnotated$ID)],"purity"])
+
+as.data.frame(DataFrame(ID=e$sample, alt_count=altDepth(e), ref_count=refDepth(e), mut_cn=e$MutCN, maj_cn=e$MajCN, min_cn=e$MinCN))
+
+boxplot(vaf/purityPloidy[finalDriversAnnotated$sample[grep("EGFR", finalDriversAnnotated$ID)],"purity"])
+
+.getSNV <- function(vcf){
+	w <- which(!isMNV(vcf))
+	a <- unlist(alt(vcf))[w]
+	r <- ref(vcf)[w]
+	tnc <- DNAStringSet(info(vcf)$TNC)[w]
+	rc <- grepl("A|G", r)
+	tnc[rc] <- reverseComplement(tnc[rc])
+	a[rc] <- reverseComplement(a[rc])
+	t <- paste0(substr(tnc,1,1), "[",substr(tnc,2,2), ">",a, "]", substr(tnc,3,3))
+	n <- c("A","C","G","T")
+	f <- paste0(rep(n, each=4), "[", rep(c("C","T"), each=96/2), ">", c(rep(c("A","G","T"), each=48/3), rep(c("A","C","G"), each=48/3)), "]", n)
+	factor(t, levels=f)
+}
+
+s <- sapply(finalSnv, function(vcf) {
+			w <- which(info(vcf)$MajCN + info(vcf)$MinCN > 20 & !isMNV(vcf))
+			if(length(w)==0) return(matrix(rep(0,96*3), ncol=3))
+			v <- vcf[w]
+			maj_cn <- info(v)$MajCN
+			mut_cn <- info(v)$MutCN
+			t <- cut(mut_cn/maj_cn, breaks=c(-1,0,0.9,1),include.lowest=TRUE, labels=c("late", "intermediate","early"))
+			t[info(v)$MutCN == 1] <- "late"
+			table(SNV=.getSNV(v), time=t)
+		}, simplify='array')
+
+s0 <- sapply(finalSnv, function(vcf){
+				cls <- factor(paste(as.character(info(vcf)$CLS)), levels = c("clonal [NA]","clonal [early]","clonal [late]","subclonal" , "NA"))
+				w <- !isMNV(vcf)
+				table(SNV=.getSNV(vcf)[w], time=cls[w])
+		}, simplify='array')
+
+par(mfrow=c(3,1))
+w <- which(colSums(s[,'late',]) > 10)
+i <- w[donor2type[sample2donor[names(w)]]=="Skin-Melanoma"]
+#barplot(rowSums(s[,'late',]))
+barplot(rowSums(s[,'intermediate',i]))
+barplot(rowSums(s[,'early',i]))
+barplot(rowSums(s0[,"clonal [late]",i]))
+
+
+library(rhdf5)
+h5 <- rhdf5::h5read("/nfs/research1/gerstung/mg14/DeepLearning/allSubsTransRepClust3.h5","allSubsTransRepClust")
+
+#' Simulate episomes
+N0 <- 1
+Nf <- 100
+genotype <- list(numeric(0))[rep(1,N0)]
+mu <- 0.001
+T <- 150
+simulateEpisomes <- function(T, N0, Nf, mu) {
+	for(i in 1:T){
+		genotype <- genotype[sample(seq_along(genotype), size=round(N0 + (Nf-N0)/T*i), replace=TRUE)]
+		if(runif(1)<mu*length(genotype)){
+			w <- sample(seq_along(genotype), size=1)
+			genotype[[w]] <- c(genotype[[w]], i)
+		}
+	}
+	return(table(factor(table(unlist(genotype)), levels=0:Nf)))
+}
+
+simulateEpisomes(T = T, N0 = N0, Nf = Nf, mu = mu)
+
+sim <- sapply(1:100, function(foo) simulateEpisomes( T, N0, Nf, mu))
+
+barplot(rowMeans(sim))

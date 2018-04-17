@@ -26,16 +26,18 @@ my_png <-  function(file, width, height, pointsize=12, ...) {
 
 #' # Prelim
 #' ## Libraries
-library(VariantAnnotation)
 setwd("~/pcawg/code")
 source("PCAWG-functions.R")
 MC_CORES=2
 
 #+ evalOff, echo=FALSE
-opts_chunk$set(eval=FALSE)
-load("2018-04-11-PCAWG-final.RData")
-source("PCAWG-functions.R")
-MC_CORES=2
+dumpfile <- "2018-04-17-PCAWG-final.RData"
+if(file.exists(dumpfile)){
+	opts_chunk$set(eval=FALSE) # ie skip following steps
+	load(dumpfile)
+	source("PCAWG-functions.R")
+	MC_CORES=2
+}
 
 #' # Load data
 #' ## Whitelist
@@ -68,7 +70,8 @@ p <- "../final/annotated_012/indel"
 finalIndel <- list()
 for( f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
 	t <- try(readVcf(f))
-        if(class(t)=="try-error") indelVcf <- indelVcf[NULL,] else indelVcf <- t
+	if(class(t)=="try-error") vcfIndel <- vcfIndel[NULL,] 
+	else vcfIndel <- t
 	finalIndel[[f]] <- vcfIndel
 }
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
@@ -210,8 +213,8 @@ finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenoty
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
 #' # Save output
-#+ saveOut, eval=FALSE
-save.image(file=paste0(Sys.Date(),"-PCAWG-final.RData"))
+#+ saveOut
+save.image(file=dumpfile, compress=FALSE)
 save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
 
 #+ evalOn, eval=TRUE, echo=FALSE
