@@ -774,7 +774,7 @@ nClones <- sapply(finalClusters, nrow)
 #' Analyse relation to age, exclude hypermutators and samples with tumour in normal 1%. 
 #+ timeSubcloneAge, fig.width=10, fig.height=10
 deamRate <- cc <- list()
-remove <- character()
+remove <- "8454fe53-869d-41c8-b0c8-a7929d00eec3" # a cell line, add more samples in the following
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 for(n in typesSubclones){
 	i <- d==n
@@ -1487,7 +1487,28 @@ mg14::rotatedLabel(1:2, labels=c("Subclones","WGD"))
 #s <- 12/8
 #dev.copy2pdf(file="realTimeSubcloneWgd.pdf", width=2.5*s, height=3.5*s, pointsize=8*s)
 
-#save(qWgd, qSubclone, timeWgd, timeSubclones, file=paste0(Sys.Date(),"-realTimeWgdAndSubclones.RData"))
+#' ## Prepare outputs
+#' Real time WGD
+t <- as.data.frame(round(Reduce("rbind", wgdTimeAbsType),2))
+colnames(t) <- c("time", "time.lo","time.up")
+nDeam <- sapply(wgdParamDeam, function(x) if(!is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
+t <- cbind(sample=rownames(t), t, age=age[sample2donor[rownames(t)]], `CpG>TpG`=nDeam[rownames(t)], SNV=nSub[rownames(t)])
+write.table(t, file=paste0(Sys.Date(),"-wgdTimeAbs.txt"), quote=FALSE, row.names=FALSE, sep="\t")
+
+#' Real time MRCA
+t <- as.data.frame(round(Reduce("rbind", subclonesTimeAbsType),2))
+write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.names=NA, row.names=TRUE, sep="\t")
+
+#' All segments, MutationTime.R raw values
+t <- do.call("rbind", lapply(finalBB, as.data.frame))[,c(1:3,6,8:9,43:48)]
+n <- rownames(t); t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x)); t$sample <- sub("\\..+","",n)
+write.table(t, file=paste0(Sys.Date(),"-allSegmentsTimeRaw.txt"), quote=FALSE, sep="\t")
+
+#' Drivers
+t <- as.data.frame(finalDriversAnnotated)[c(1,2,6,7,9,10,11,12,13,31:44)]
+t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x));
+write.table(t, file=paste0(Sys.Date(),"-driversTiming.txt"), quote=FALSE, sep="\t")
+
 
 #' # Session
 #' ## Commit
