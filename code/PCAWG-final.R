@@ -1049,6 +1049,7 @@ names(m) <- dimnames(qSubclone)[[3]]
 m[sapply(subclonesTimeAbsType, function(x) sum(!is.na(x[,1]))) < 5] <- NA
 o <- order(m, na.last=NA)
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
+abline(h=seq(10,20,10), col="#DDDDDD", lty=3)
 x <- seq_along(m[o])
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o))try({
@@ -1102,7 +1103,7 @@ computeWgdParamDeam <- function(vcf, bb, clusters, purity){
 	b <- GRanges(1:3, IRanges(rep(1,3),rep(max(end(v)),3)), copy_number=4:2, major_cn=2, minor_cn=2:0, clonal_frequency=as.numeric(purity))
 	
 	# 4. Calculate times
-	l <- computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=10)
+	l <- computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=200, rho=0.01)
 	b$n.snv_mnv <- l$n <- table(factor(info(v)$MinCN, levels=2:0))
 	l$time <- bbToTime(b, l$P)
 	return(l)
@@ -1170,22 +1171,34 @@ d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
 
 #' Calculate real time by scaling with age at diagnosis
-f <- Vectorize(triangle:::rtriangle)
+f <- function(n, mu, a, b){ ## asymmetric normal to interpolate CIs of the timing estimates
+	r <- rnorm(n, sd=a)
+	w <- which(r>0)
+	r[w] <- r[w]*(b/a)[w]
+	return(r + mu)
+}
 wgdTimeAbs <- sapply(s, function(l) {
 			set.seed(42)
-			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])#, names(which(q5 > 0.1)))
-			a <- (1-wgdTimeDeamAcc["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(wgdTimeDeamAcc)[c(2,3,4,5)]))
-			m <- aperm(mg14:::asum(a, 2)/dim(a)[2])#sum(!is.na(age[sample2donor[n]][i]))
-			rownames(m) <- n[i]
-			colnames(m) <- c("hat","lo","up")
-			m <- apply(m, c(1,2,4), mean, na.rm=TRUE)
-			m0 <- apply(a, c(1,2,4,5), mean, na.rm=TRUE)
-			r <- prod(dim(m0)[c(1,4)])
-			ts <- sapply(1:1000, function(foo) {ax <- sample(1:20,1); matrix(f(1,a=m0[,ax,"time.up",]/1.05, b=m0[,ax,"time.lo",]*1.05, c=m0[,ax,"time",]), nrow=dim(m0)[1])}, simplify='array')
-			me <- apply(ts, 1:2, quantile, c(0.1, 0.9), na.rm=TRUE) # 80% CIs
-			m[,"lo",] <- t(me[1,3,])
-			m[,"up",] <- t(me[2,3,])
-			m
+			i <- d==l & ! n %in% c(rownames(purityPloidy)[purityPloidy$wgd_uncertain])
+			
+			## absolute time by multiplying with age at diagnosis
+			absTimeSeg <- aperm((1-wgdTimeDeamAcc["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(wgdTimeDeamAcc)[c(2,3,4,5)])))
+			w <- t(sapply(wgdParamDeam[n[i]], `[[`, "n")) #number of SNV as weights
+			
+			## weighted average over 2+0, 2+1 and 2+2 segments
+			absTime <- (absTimeSeg[,,1,,] * w[,1] + absTimeSeg[,,2,,] * w[,2] + absTimeSeg[,,3,,] * w[,3]) / rowSums(w) 
+			rownames(absTime) <- n[i]
+			
+			## Median over acceleration onset
+			absTimeMed <- apply(absTime, c(1,2,4), median, na.rm=TRUE) 
+			colnames(absTimeMed) <- c("hat","up","lo")
+			
+			## Simulate distribution sampling from timing onset and mutation time CI 
+			ts <- sapply(1:1000, function(foo) {ax <- sample(1:20,1); matrix(f(length(absTime[,"time",ax,]),a=abs(absTime[,"time",ax,] - absTime[,"time.up",ax,])/2, b=abs(absTime[,"time.lo",ax,]-absTime[,"time",ax,])/2, mu=absTime[,"time",ax,]), nrow=dim(absTime)[1])}, simplify='array')
+			me <- apply(ts, 1:2, quantile, c(0.1, 0.8), na.rm=TRUE) # 80% CIs
+			absTimeMed[,"lo",] <- (me[1,,])
+			absTimeMed[,"up",] <- (me[2,,])
+			absTimeMed[,c(1,3,2),]
 		}, simplify=FALSE)
 
 
@@ -1200,6 +1213,7 @@ names(m) <- dimnames(qWgd)[[3]]
 o <- order(m, na.last=NA)
 x <- seq_along(m[o])
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylim=c(0,max(do.call('rbind',wgdTimeAbsType)[,1], na.rm=TRUE)+5), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i")
+abline(h=seq(10,60,10), col="#DDDDDD", lty=3)
 mg14::rotatedLabel(x, labels=names(sort(m)))
 for(i in seq_along(o)){
 	n <- names(m)[o[i]]
