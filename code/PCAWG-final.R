@@ -1527,8 +1527,7 @@ write.table(t, file=paste0(Sys.Date(),"-driversTiming.txt"), quote=FALSE, sep="\
 
 #' # Session
 #' ## Commit
-system("git log -n1")
-
+cat(system("git log -n1", intern=TRUE), sep="\n")
 #' ## Objects
 l <- ls()
 data.frame(variable=l, Reduce("rbind",lapply(l, function(x) data.frame(class=class(get(x)), size=format(object.size(get(x)), units="auto")))))
