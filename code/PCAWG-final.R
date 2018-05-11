@@ -1171,6 +1171,7 @@ d <- droplevels(donor2type[sample2donor[n]])
 s <- setdiff(levels(d), c(typeNa, names(which(table(d)<3))))
 
 #' Calculate real time by scaling with age at diagnosis
+#+ wgdTimeAbs, warning=FALSE
 f <- function(n, mu, a, b){ ## asymmetric normal to interpolate CIs of the timing estimates
 	r <- rnorm(n, sd=a)
 	w <- which(r>0)
