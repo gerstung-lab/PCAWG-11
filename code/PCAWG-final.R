@@ -395,19 +395,22 @@ table(wgdStat, wgdStar)
 #' # Coamplification and WGD
 d <- fracGenomeWgdComp
 i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
-timingClass <- paste(ifelse(isWgd,"WGD","near-diploid"), ifelse(!i, "uninformative",""))
+timingClass <- paste(ifelse(isWgd,"WGD","ND"), ifelse(!i, "uninformative",""))
 timingClass[i] <- paste0(timingClass[i], ifelse(d[i,"nt.wgd"]/d[i,"nt.total"] > 0.75,"sync","async"))
 #timingClass[i] <- paste0(timingClass[i], cut(fracGenomeWgdComp[i,"nt.wgd"]/fracGenomeWgdComp[i,"nt.total"], c(0,0.5,0.8,1), include.lowest=TRUE))
 timingClass <- factor(timingClass)
 
 #+ timingClass, fig.width=4, fig.height=4
 #pdf("TimingClass.pdf", 4,4)
+colTime <- c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00")
+names(colTime) <- levels(timingClass)[c(4,5,6,3,2,1)]
 c <- c(RColorBrewer::brewer.pal(9, "Pastel1"),"#DDDDDD")
-t <- table(timingClass)[c(1:3,6,4:5)]
-pie(t, init.angle=90, labels=paste0(names(t), ",\nn=", t), col=c[c(1,1,9,10,2,2)], density=c(36,NA,NA,NA,36,NA))
-t <- table(isWgd)
+t <- table(timingClass)[names(colTime)]
+pie(t, init.angle=90, labels=paste0(names(t), ",\nn=", t), col=colTime)
+#t <- table(isWgd)
 par(new=TRUE)
-pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
+symbols(x=0,y=0,circles=0.4, inches=FALSE, add=TRUE, bg="white")
+#pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
 #dev.off()
 
 colnames(d) <- c("ntCoamp","ntAmp","timeCoamp","segCoamp","segAmp","chrCoamp","chrAmp", "sdTimeCoamp","avgCiSeg","sdAllSeg")
@@ -665,12 +668,9 @@ plot(d$x,cumsum(d$y * diff(d$x)[1]), xlim=c(0,1), type='l', ylim=c(0,1), xlab="R
 #+ multiGainLatencyClass, fig.height=1, fig.width=1.5
 c <- cut(r[w], 20)
 t <- table(timingClass[doubleGainsAggregated$sample[w]],c)
-barplot(t[c(4,5,6,3,2,1),]/sum(t), border=NA, col=c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00"), width=1/24, space=0.2, names.arg=rep("",20, bty="L", yaxs="s"))
+barplot(t[names(colTime),]/sum(t), border=NA, col=colTime, width=1/24, space=0.2, names.arg=rep("",20, bty="L", yaxs="s"))
 .par()
 axis(side=1, line=0.2)
-
-colTime <- c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00")
-names(colTime) <- levels(timingClass)[c(4,5,6,3,2,1)]
 
 #' Copy number increments
 cn <- do.call("rbind", sapply(names(finalBB), function(n){
