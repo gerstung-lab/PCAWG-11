@@ -544,6 +544,10 @@ names(sample2icgc) <- unlist(s)
 
 
 donor2type <- factor(specimenData$histology_abbreviation, levels=c(sort(unique(specimenData$histology_abbreviation))[-1], ""))
+donor2type <- as.character(donor2type)
+donor2type[donor2type=="Kidney-RCC" & grepl("clear cell", specimenData$histology_tier4)] <- "Kidney-CCRCC"
+donor2type[donor2type=="Kidney-RCC" & grepl("papillary",specimenData$histology_tier4)] <- "Kidney-PapRCC"
+donor2type <- factor(donor2type)
 names(donor2type) <- specimenData$icgc_donor_id
 levels(donor2type)[levels(donor2type)==""] <- "Other/NA"
 
@@ -555,6 +559,9 @@ c <- c[c != ""  & !duplicated(names(c))]
 tissueColors <- c(table(donor2type))*NA
 tissueColors[names(c)] <- c
 tissueColors["Lymph-CLL"] <- "#F4A35D"
+tissueColors["Kidney-CCRCC"] <-  tissueColors["Kidney-RCC"]
+tissueColors["Kidney-PapRCC"] <- "#E53E00"
+tissueColors <- tissueColors[levels(donor2type)]
 
 tissueBorder <- c("white","black")[names(tissueColors) %in% c("Lung-SCC","Lung-AdenoCa")+1]
 names(tissueBorder) <- names(tissueColors)
@@ -764,9 +771,11 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w, regi
 	plotTiming(bbb, xlim=xlim, legend=FALSE, col.grid=NA)
 	if(length(regions) == 1)
 		axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
-	s <- stackTime(bb)
-	g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
-	segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
+	if(any(!is.na(bb$time))){
+		s <- stackTime(bb)
+		g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
+		segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
+	}
 	#print(w)
 	par(p[setdiff(names(p), c("cin","cra","csi","cxy","din","page"))])
 }
