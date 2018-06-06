@@ -920,7 +920,7 @@ fit <- stan(
 
 #' Collect parameters
 s <- summary(fit, pars=c("offset","slope"))$summary
-ab <- array(s, dim=c(33,2,10), dimnames=list(levels(droplevels(t)), c("a","b"), colnames(s)))
+ab <- array(s, dim=c(ncol(tt),2,10), dimnames=list(levels(droplevels(t)), c("a","b"), colnames(s)))
 
 #' Summary plot
 #+ deamAgeBayes, fig.width=2, fig.height=2
