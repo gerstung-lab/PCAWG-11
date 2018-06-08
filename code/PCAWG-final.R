@@ -1034,7 +1034,7 @@ subclonesTimeAbs <- sapply(typesSubclones, function(l) {
 		})
 
 guessAccel <- sapply(subclonesTimeAbs, function(x) "5x")
-guessAccel["Ovary-AdenoCa"] <- "7.5x"
+guessAccel["Ovary-AdenoCa"] <- guessAccel["Liver-HCC"] <- "7.5x"
 guessAccel[grep('CNS', names(guessAccel))] <- "2.5x"
 
 #' Plot
