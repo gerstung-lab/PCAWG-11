@@ -1203,7 +1203,7 @@ wgdTimeAbs <- sapply(s, function(l) {
 		}, simplify=FALSE)
 
 
-#+ realTimeWgd, fig.height=3, fig.width=4
+#+ realTimeWgd, fig.height=3, fig.width=4.5
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 qWgd <- sapply(wgdTimeAbs, function(x) apply(x[rownames(x) %in% u,"hat",], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
@@ -1248,8 +1248,8 @@ yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
 #' WGD time v age at diagnosis
-#+ wgdAge, fig.width=8, fig.height=8
-par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
+#+ wgdAge, fig.width=10, fig.height=10
+par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
 for(i in seq_along(wgdTimeAbsType)){
 	n <- names(wgdTimeAbsType)[i]
 	y <- wgdTimeAbsType[[n]][,"hat"]
@@ -1372,8 +1372,8 @@ points(qWgd["50%","5x",], qAccelRelWgd["50%",], bg=tissueColors[t], pch=21,  col
 
 
 #' Mutations per year vs time
-#+ mutYearTime, fig.height=8, fig.width=8
-par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
+#+ mutYearTime, fig.height=10, fig.width=10
+par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 for(n in names(wgdTimeAbsType)){
 	a <- age[sample2donor[rownames(wgdTimeAbsType[[n]])]]
 	yy <- nDeam22[rownames(wgdTimeAbsType[[n]])]/a
@@ -1392,8 +1392,8 @@ for(n in names(wgdTimeAbsType)){
 }
 
 #' Age at diagnosis
-#+ mutAgeWgd, fig.height=8, fig.width=8
-par(mfrow=c(5,5), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
+#+ mutAgeWgd, fig.height=10, fig.width=10
+par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 deamRateWgd <- list()
 for(n in names(wgdTimeAbsType)){
 	a <- age[sample2donor[rownames(wgdTimeAbsType[[n]])]]
