@@ -757,18 +757,34 @@ effGenome <- unlist(mclapply(finalSnv, function(vcf) {
 				}, mc.cores=MC_CORES))
 names(effGenome) <- names(finalSnv)
 
+#+ finalPower
+finalPower <- sapply(names(finalBB), function(n) {
+			x <- finalBB[[n]]
+			f <- finalClusters[[n]]$proportion
+			for(i in 1:length(x)){
+				t <- x$timing_param[[i]]
+				p <- t[match(f, t[,"cfi"]), "power.s"]
+				if(!is.null(p)) if(all(!is.na(p))) break
+			}
+			if(is.null(p)) return(rep(NA, length(f)))
+			return(p)
+		})
+
 #+ subcloneDeam
 subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
-							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+							n <- meta(header(vcf))$META["ID",]
+							if(donor2type[sample2donor[n]]=="Skin-Melanoma")
 								w <- isDeaminationNoUV(vcf)
 							else
 								w <- isDeamination(vcf)
 							if(sum(w)==0) return(c(0,0))
 							p <- info(vcf)$pSub[w]; 
-							a.subclonal <- aggregate(p, list(info(vcf)$CNF[w]), sum, na.rm=TRUE)
-							f.subclonal <- a.subclonal$x %*% a.subclonal$Group.1 / max(a.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
-							f.subclonal <- f.subclonal 
-							c(f.subclonal, sum(1-p, na.rm=TRUE))}, mc.cores=MC_CORES)))
+							n.subclonal <- aggregate(p, list(info(vcf)$CNF[w]), sum, na.rm=TRUE)
+							m <- apply(abs(outer(n.subclonal$Group.1, finalClusters[[n]]$proportion, `-`)),1,which.min) # Match to subclones
+							p.subclonal <- finalPower[[n]][m] # Power of subclones
+							b.subclonal <- n.subclonal$x %*% (n.subclonal$Group.1 / p.subclonal) / max(n.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
+							f.clonal <- sum(1-p, na.rm=TRUE)/finalPower[[n]][1] 
+							c(b.subclonal, f.clonal)}, mc.cores=MC_CORES)))
 
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 typesSubclones <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
@@ -1103,12 +1119,13 @@ computeWgdParamDeam <- function(vcf, bb, clusters, purity){
 	v <- vcf[w]
 	if(nrow(v)<=100) return(NULL) # At least 100 SNVs
 	seqnames(rowRanges(v)) <- factor(3-info(v)$MinCN, levels=seqlevels(v))
+	v <- sort(v)
 	
 	# 3. Merged CN segments
 	b <- GRanges(1:3, IRanges(rep(1,3),rep(max(end(v)),3)), copy_number=4:2, major_cn=2, minor_cn=2:0, clonal_frequency=as.numeric(purity))
 	
 	# 4. Calculate times
-	l <- computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=200, rho=0.01)
+	l <- computeMutCn(v, b, clusters, purity, isWgd=TRUE, n.boot=200, rho=0.01, xmin=3)
 	b$n.snv_mnv <- l$n <- table(factor(info(v)$MinCN, levels=2:0))
 	l$time <- bbToTime(b, l$P)
 	return(l)
@@ -1135,10 +1152,13 @@ pairs(t(t[,"time",]))
 wgdTimeDeamAcc <- simplify2array(mclapply(names(wgdParamDeam[!void]), function(n) {
 					x <- wgdParamDeam[!void][[n]]
 					
-					T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal
-					a.subclonal <- aggregate(x$D[,"pSub"], list(x$D[,"CNF"]), sum)
-					f.subclonal <- a.subclonal$x %*% a.subclonal$Group.1 / max(a.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
-					f.subclonal <- f.subclonal / (f.subclonal + sum(1-x$D[,"pSub"]))
+					T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal					
+					
+					n.subclonal <- aggregate(x$D[,"pSub"], list(x$D[,"CNF"]), sum)
+					p.subclonal <- x$power.s # Power of subclones
+					b.subclonal <- n.subclonal$x %*% (n.subclonal$Group.1 / p.subclonal) / max(n.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
+					b.clonal <- sum(1-x$D[,"pSub"])/p.subclonal[1]
+					f.subclonal <- b.subclonal / (b.subclonal + b.clonal)
 					#f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)/(max(1,nClones[n]-1)) # Fraction subclonal (observed)
 					G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN)) # Effective ploidy clonal, adjusted for timing
 					G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub) # Final ploidy

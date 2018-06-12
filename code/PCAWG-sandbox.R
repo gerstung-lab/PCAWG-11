@@ -4342,4 +4342,6 @@ finalPower <- sapply(names(finalBB), function(n) {
 			return(p)
 		})
 
-plot(unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms"))/ unlist(finalPower) , unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms")), log='xy') 
+plot(unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms"))/ unlist(finalPower) , unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms")), log='xy',
+		xlab="Cluster size MutationTime.R", ylab="Cluster size WCC") 
+
