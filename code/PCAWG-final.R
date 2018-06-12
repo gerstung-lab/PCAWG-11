@@ -766,7 +766,7 @@ subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 							if(sum(w)==0) return(c(0,0))
 							p <- info(vcf)$pSub[w]; 
 							a.subclonal <- aggregate(p, list(info(vcf)$CNF[w]), sum, na.rm=TRUE)
-							f.subclonal <- a.subclonal$x %*% a.subclonal$Group.1 / max(a.subclonal$Group.1) # Fraction subclonal, neutral-like scaled
+							f.subclonal <- a.subclonal$x %*% a.subclonal$Group.1 / max(a.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
 							f.subclonal <- f.subclonal 
 							c(f.subclonal, sum(1-p, na.rm=TRUE))}, mc.cores=MC_CORES)))
 
@@ -1510,8 +1510,51 @@ mg14::rotatedLabel(1:2, labels=c("Subclones","WGD"))
 #s <- 12/8
 #dev.copy2pdf(file="realTimeSubcloneWgd.pdf", width=2.5*s, height=3.5*s, pointsize=8*s)
 
+#' #### Multi-sample cases
+donor2sample <- split(names(finalBB),sample2donor[names(finalBB)])
+donor2sample <- donor2sample[sapply(donor2sample, length)>1]
+
+#' WGD - samples with * removed
+#+ wgdMulti, fig.width=6, fig.height=4.5
+par(mfrow=c(2,3), mar=c(4,3,2,1), cex=1)
+for(n in names(donor2sample)){
+	t <- as.character(donor2type[n])
+	try({
+				s <- wgdTimeAbs[[t]][,,guessAccel[t]]
+				s <- s[rownames(s) %in% donor2sample[[n]],,drop=FALSE]
+				if(length(s) ==0  ) next 
+				if(nrow(s) ==1) next
+				plot(s[,"hat"], ylim=c(0, 30), main = paste(n, t), ylab="Time WGD [yr]", xlab="", xaxt="n", xlim=c(0,nrow(s)+1), pch=NA)
+				mg14::rotatedLabel(labels=paste0(sample2icgc[rownames(s)],ifelse(rownames(s) %in% remove, "*","")))
+				segments(x0=1:nrow(s),y0=s[,'lo'], y1=s[,'up'], col=tissueLines[t],lty=tissueLty[t])
+				points(s[,"hat"], pch=21, bg=tissueColors[t], cex=tissueCex[t], col=tissueBorder[t])
+				abline(h= mean(s[,'hat']), col=tissueLines[t], lty=3)
+			})
+}
+
+#' MRCA - samples with * removed
+#+ mrcaMulti, fig.width=20, fig.height=20
+par(mfrow=c(8,8), mar=c(4,3,2,1))
+for(n in names(donor2sample)){
+	t <- as.character(donor2type[n])
+	try({
+				s <- subclonesTimeAbs[[t]][,,guessAccel[t]]
+				s <- s[rownames(s) %in% donor2sample[[n]],,drop=FALSE]
+				if(length(s) ==0  ) next 
+				if(nrow(s) ==1) next
+				plot(s[,"hat"], ylim=c(0, 20), main = paste(n, t), ylab="Time WGD [yr]", xlab="", xaxt="n", xlim=c(0,nrow(s)+1), pch=NA)
+				mg14::rotatedLabel(labels=paste0(sample2icgc[rownames(s)],ifelse(rownames(s) %in% remove, "*","")))
+				par(xpd=NA)
+				segments(x0=1:nrow(s),y0=s[,'10%'], y1=s[,'90%'], col=tissueLines[t],lty=tissueLty[t])
+				points(s[,"hat"], pch=21, bg=tissueColors[t], cex=tissueCex[t], col=tissueBorder[t])
+				par(xpd=TRUE)
+				abline(h= mean(s[,'hat']), col=tissueLines[t], lty=3)
+			})
+}
+
 #' ## Prepare outputs
 #' Real time WGD
+#+ wgdOut
 t <- as.data.frame(round(Reduce("rbind", wgdTimeAbsType),2))
 colnames(t) <- c("time", "time.lo","time.up")
 nDeam <- sapply(wgdParamDeam, function(x) if(!is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
@@ -1519,15 +1562,18 @@ t <- cbind(sample=rownames(t), t, age=age[sample2donor[rownames(t)]], `CpG>TpG`=
 write.table(t, file=paste0(Sys.Date(),"-wgdTimeAbs.txt"), quote=FALSE, row.names=FALSE, sep="\t")
 
 #' Real time MRCA
+#+ mrcaOut
 t <- as.data.frame(round(Reduce("rbind", subclonesTimeAbsType),2))
 write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.names=NA, row.names=TRUE, sep="\t")
 
 #' All segments, MutationTime.R raw values
+#+ segOut
 t <- do.call("rbind", lapply(finalBB, as.data.frame))[,c(1:3,6,8:9,43:48)]
-n <- rownames(t); t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x)); t$sample <- sub("\\..+","",n)
+n <- rownames(t); t <- as.data.frame(mclapply(t, function(x) if(class(x)=="numeric") round(x,3) else x, mc.cores=MC_CORES)); t$sample <- sub("\\..+","",n)
 write.table(t, file=paste0(Sys.Date(),"-allSegmentsTimeRaw.txt"), quote=FALSE, sep="\t")
 
 #' Drivers
+#+ driverOut
 t <- as.data.frame(finalDriversAnnotated)[c(1,2,6,7,9,10,11,12,13,31:44)]
 t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x));
 write.table(t, file=paste0(Sys.Date(),"-driversTiming.txt"), quote=FALSE, sep="\t")

@@ -538,9 +538,9 @@ s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",
 sample2donor <- as.character(finalData$icgc_donor_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))])
 names(sample2donor) <- unlist(s)
 
-s <- strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),",")
-sample2icgc <- as.character(finalData$tumor_wgs_icgc_sample_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))])
-names(sample2icgc) <- unlist(s)
+s <- unlist(strsplit(as.character(finalData$sanger_variant_calling_file_name_prefix),","))
+sample2icgc <- unlist(strsplit(as.character(finalData$tumor_wgs_icgc_sample_id),",")) #as.character(finalData$tumor_wgs_icgc_sample_id[unlist(sapply(seq_along(s), function(i) rep(i, length(s[[i]]))))])
+names(sample2icgc) <- s#unlist(s)
 
 
 donor2type <- factor(specimenData$histology_abbreviation, levels=c(sort(unique(specimenData$histology_abbreviation))[-1], ""))
