@@ -25,7 +25,7 @@ addTNC <- function(vcf){
 	if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
 		tnc=scanFa(file=r, resize(granges(vcf), 3,fix="center"))
 		i = header(vcf)@header$INFO
-		exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Trinucleotide context", row.names="TNC"))
+		info(header(vcf)) <- rbind(i, DataFrame(Number=1,Type="String",Description="Trinucleotide context", row.names="TNC"))
 		info(vcf)$TNC <- as.character(tnc)
 	}
 	return(vcf)
@@ -234,9 +234,9 @@ loadVcf <- function(ID){
 	vcf <- vcf[na.omit(f)]
 	vcf <- addDriver(vcf, CANCERGENES)
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster", row.names="DPC"))
+	info(header(vcf)) <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster", row.names="DPC"))
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster probability", row.names="DPP"))
+	info(header(vcf)) <- rbind(i, DataFrame(Number=1,Type="Numeric",Description="DP cluster probability", row.names="DPP"))
 	info(vcf)$DPC <- pos$cluster[!is.na(f)]
 	info(vcf)$DPP <- pos$likelihood[!is.na(f)]	
 	vcf
@@ -250,7 +250,7 @@ testDriver <- function(vcf) sapply(info(vcf)$VC, function(x) if(length(x) ==0) F
 
 addDriver <- function(vcf, mutsigDrivers){
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver gene", row.names="DG"))
+	info(header(vcf)) <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver gene", row.names="DG"))
 	if(nrow(vcf)==0){
 		info(vcf)$DG <- CharacterList()
 		return(vcf)
@@ -273,7 +273,7 @@ loadAssignment <- function(ID){
 addAssignment <- function(vcf, ID){
 	a <- loadAssignment(ID)
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=ncol(a),Type="Numeric",Description="DP probability", row.names="DPP"))
+	info(header(vcf)) <- rbind(i, DataFrame(Number=ncol(a),Type="Numeric",Description="DP probability", row.names="DPP"))
 	info(vcf)$DPP <- as.matrix(a)
 	vcf
 }
@@ -515,7 +515,7 @@ matchDrivers <- function(vcf, finalDrivers) {
 
 addFinalDriver <- function(vcf, finalDrivers){
 	i = header(vcf)@header$INFO
-	exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver mutation", row.names="DG"))
+	info(header(vcf)) <- rbind(i, DataFrame(Number=1,Type="String",Description="Driver mutation", row.names="DG"))
 	info(vcf)$DG <- factor(rep(NA,nrow(vcf)), levels = levels(finalDrivers$ID))
 	if(nrow(vcf)==0)
 		return(vcf)

@@ -45,17 +45,17 @@ meta(header(vcf))$META <- rbind(meta(header(vcf))$META, DataFrame(Value=c(ID, as
 vcf <- addFinalDriver(vcf, finalDrivers)
 
 # Add TNC
-if(!"TNC" %in% rownames(header(vcf)@header$INFO)){
+if(!"TNC" %in% rownames(info(header(vcf)))){
     tnc=scanFa(file=refFile, resize(granges(vcf), 3,fix="center"))
-    i = header(vcf)@header$INFO
-    exptData(vcf)$header@header$INFO <- rbind(i, DataFrame(Number=1,Type="String",Description="Trinucleotide context", row.names="TNC"))
+    i = info(header(vcf))
+    info(header(vcf)) <- rbind(i, DataFrame(Number=1,Type="String",Description="Trinucleotide context", row.names="TNC"))
     info(vcf)$TNC <- as.character(tnc)
 }
 
 #' Add mutation copy numbers
 # vcf <-  addMutCn(vcf, bb, clusters)
-i = header(vcf)@header$INFO
-exptData(vcf)$header@header$INFO <- rbind(i,mcnHeader())
+i = info(header(vcf))
+info(header(vcf)) <- rbind(i,mcnHeader())
 L <- computeMutCn(vcf, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]), isWgd=IS_WGD, n.boot=500)
 info(vcf) <- cbind(info(vcf), L$D)
 bb$timing_param <- L$P 
@@ -90,8 +90,8 @@ meta(header(vcfIndel))$META <- rbind(meta(header(vcfIndel))$META, DataFrame(Valu
 #' Add driver genes
 vcfIndel <- addFinalDriver(vcfIndel, finalDrivers)
 #' Add mutation copy numbers
-i = header(vcfIndel)@header$INFO
-exptData(vcfIndel)$header@header$INFO <- rbind(i,mcnHeader())
+i = info(header(vcfIndel))
+info(header(vcfIndel)) <- rbind(i,mcnHeader())
 L <- computeMutCn(vcfIndel, bb, clusters=clusters, purity=purity, xmin=3, gender=as.character(allGender[ID, "pred_gender"]), isWgd=IS_WGD)
 info(vcfIndel) <- cbind(info(vcfIndel), L$D)
 #' Classify mutation
