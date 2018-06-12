@@ -31,7 +31,7 @@ source("PCAWG-functions.R")
 MC_CORES=2
 
 #+ evalOff, echo=FALSE
-dumpfile <- "2018-04-17-PCAWG-final.RData"
+dumpfile <- "2018-06-12-PCAWG-final.RData"
 if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
 	load(dumpfile)
@@ -43,7 +43,7 @@ if(file.exists(dumpfile)){
 #' ## Whitelist
 #' ### SNV and MNV
 #+ loadSNV
-p <- "../final/annotated_012/snv_mnv"
+p <- "../final/annotated_013/snv_mnv"
 finalSnv <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
@@ -55,7 +55,7 @@ names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FA
 
 #' ### Copy number profiles
 #+ loadBB
-p <- "../final/annotated_012/cn"
+p <- "../final/annotated_013/cn"
 finalBB <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -66,7 +66,7 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 
 #' ### Indel
 #+ loadIndel
-p <- "../final/annotated_012/indel"
+p <- "../final/annotated_013/indel"
 finalIndel <- list()
 for( f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
 	t <- try(readVcf(f))
@@ -80,7 +80,7 @@ names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=
 #+ loadClusters
 finalClusters <- list()
 finalPurity <- numeric()
-p <- "../final/annotated_012/clusters"
+p <- "../final/annotated_013/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClusters[[f]] <- clusters
@@ -116,7 +116,7 @@ for(i in seq_along(finalDriversAnnotated)){
 #' ## Graylisted data
 #' ### SNV and MNV
 #+ loadSnvGray
-p <- "../final/annotated_012/graylist/snv_mnv"
+p <- "../final/annotated_013/graylist/snv_mnv"
 finalSnvGray <- list()
 j <- 1
 for(f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
@@ -129,7 +129,7 @@ finalSnv[names(finalSnvGray)] <- finalSnvGray
 
 #' ### Copy number profiles
 #+ loadBBGray
-p <- "../final/annotated_012/graylist/cn"
+p <- "../final/annotated_013/graylist/cn"
 finalBBGray <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -142,7 +142,7 @@ finalBB[names(finalBBGray)] <- finalBBGray
 
 #' ### Indel
 #+ loadIndelGray
-p <- "../final/annotated_012/graylist/indel"
+p <- "../final/annotated_013/graylist/indel"
 finalIndelGray <- list()
 for( f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
 	vcfIndel <- readVcf(f)
@@ -156,7 +156,7 @@ finalIndel[names(finalIndelGray)] <- finalIndelGray
 #+ loadClustersGray
 finalClustersGray <- list()
 finalPurityGray <- numeric()
-p <- "../final/annotated_012/graylist/clusters"
+p <- "../final/annotated_013/graylist/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClustersGray[[f]] <- clusters
