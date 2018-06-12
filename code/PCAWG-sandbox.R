@@ -3551,6 +3551,26 @@ plot(mbd4ByType[colnames(qDeamRate)], ff[colnames(qDeamRate)], pch=21,  bg=tissu
 abline(coef(lm( ff[colnames(qDeamRate)] ~ mbd4ByType[colnames(qDeamRate)])))
 
 
+#' TAD
+w <- which(donor2type[sample2donor[r2s[colnames(fpkm)]]]=="Liver-HCC")
+t <- sapply(w, function(i) matrix(table(getTrinucleotideSubs(finalSnv[[r2s[colnames(fpkm)][i]]]))[c(l,r)], ncol=2, dimnames=list(l, c("pyr","pur"))), simplify='array')
+
+
+s <- r2s[colnames(fpkm)][w[6]]
+f <- fpkm[,w[6]]
+c <- cut(f, unique(quantile(f, seq(0,1,0.1))), include.lowest=TRUE)
+m <- findOverlaps(finalSnv[[s]], genes, select='first')
+
+e <- c[m]
+t <- table(getTrinucleotideSubs(finalSnv[[r2s[colnames(fpkm)][w[6]]]]), as.character(strand(genes))[m], e)[c(l,r),,]
+t <- t[1:96,,]+t[97:192,2:1,]
+
+w <- aggregate(width(genes), list(c), "sum")$x
+barplot(t(mg14:::asum(t[,,],2))/w)
+
+barplot(t(mg14:::asum(t[,,],3)))
+barplot(t(t[,2,])/w)
+
 KLD <- function(x,y){
 	sum(log(x^x) - log(x^y) + log(y^y) - log(y^x))
 }
@@ -4187,3 +4207,84 @@ simulateEpisomes(T = T, N0 = N0, Nf = Nf, mu = mu)
 sim <- sapply(1:100, function(foo) simulateEpisomes( T, N0, Nf, mu))
 
 barplot(rowMeans(sim))
+
+#' Osteosarcomas
+w <- which(donor2type[sample2donor[names(finalSnv)]]=="Bone-Osteosarc")
+s <- uuid2said[names(finalSnv)[w]]
+
+pdf("Bone-Osteosarc.pdf", 6,6, pointsize=8)
+for(ww in w) plotSample(ww)
+dev.off()
+
+#' Medullo
+w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-Medullo")
+s <- uuid2said[names(finalSnv)[w]]
+
+pdf("CNS-Medullo.pdf", 6,6, pointsize=8)
+for(ww in w) plotSample(ww)
+dev.off()
+
+f <- dir("../final/annotated_012/cn/", pattern="0bfe2ac9-0afa-c248-e050-11ac0d487e1c", full.names=TRUE) #bad
+#f <- dir("../final/annotated_012/cn/", pattern="0bfd1043-8189-e3e4-e050-11ac0c4860c5", full.names=TRUE) #good
+load(f)
+b <- bb
+f <- dir("../final/annotated_012/cn/", pattern="0bfd1043-70fb-d2dc-e050-11ac0c4860cb", full.names=TRUE)
+load(f)
+
+m <- findOverlaps(b, bb, select="first")
+plot(b$time, bb$time[m], pch=ifelse(b$n.snv_mnv > 50, 1, NA))
+
+#' Multi-sample cases
+donor2sample <- split(names(finalBB),sample2donor[names(finalBB)])
+donor2sample <- donor2sample[sapply(donor2sample, length)>1]
+
+addSub <- function(bb){
+	p <- sapply(bb$timing_param, function(x){
+				w <- which(abs(x[1,"f"]-x[,"f"])<0.1 & x[,"s"]>1)[1]
+				if(length(w)==0) return(1)
+				(1-x[w,"pi.s"] / (x[w,"majCN"]+x[w,"minCN"]))
+			})
+	p[sapply(p, length)==0] <- 1
+	bb$time * unlist(p)
+}
+
+multiTiming <- sapply(donor2sample, function(samples){
+			l <- GRangesList(finalBB[samples])
+			u <- unlist(l)
+			r <- reduce(u[(!is.na(u$time) & u$n.snv_mnv > 20)])
+			sapply(samples, function(s){
+						b <- finalBB[[s]]
+						b <- b[b$clonal_frequency==max(b$clonal_frequency)]
+						o <- findOverlaps(r, b, select='first')
+						addSub(b)[o]
+						#b$time[o]	
+					})
+		})
+
+pdf("multiTiming.pdf", 8,8)
+for(n in names(multiTiming)){
+	if(sum(!is.na(multiTiming[[n]]))>10)
+	try(pairs(multiTiming[[n]], main=n, panel=function(x,y, ...) try({points(x,y,...); abline(0,1)}),pch=19, xlim=c(0,1), ylim=c(0,1)))
+}
+dev.off()
+
+par(mfrow=c(4,4))
+for(n in names(donor2sample)){
+	t <- as.character(donor2type[n])
+	try({
+				s <- wgdTimeAbs[[t]][,,"5x"]
+				s <- s[rownames(s) %in% donor2sample[[n]],,drop=FALSE]
+				if(length(s) ==0 ) next
+				plot(s[,"hat"], ylim=c(0, max(s, na.rm=TRUE)), main = paste(n, t)) 
+				segments(x0=1:nrow(s),y0=s[,'lo'], y1=s[,'up'])
+			})
+}
+
+t(sapply(donor2sample[['DO51954']], function(n) table(info(finalSnv[[n]])$CLS)))
+
+n <- "0bfe2ac9-0afa-c248-e050-11ac0d487e1c"
+x <- wgdParamDeam[[n]]
+
+
+a <- aggregate(x$D[,"pSub"], list(x$D[,"CNF"]), sum)
+a$x %*% a$Group.1 / max(a$Group.1)

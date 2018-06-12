@@ -757,13 +757,18 @@ effGenome <- unlist(mclapply(finalSnv, function(vcf) {
 				}, mc.cores=MC_CORES))
 names(effGenome) <- names(finalSnv)
 
+#+ subcloneDeam
 subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
 								w <- isDeaminationNoUV(vcf)
 							else
 								w <- isDeamination(vcf)
+							if(sum(w)==0) return(c(0,0))
 							p <- info(vcf)$pSub[w]; 
-							c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))})))
+							a.subclonal <- aggregate(p, list(info(vcf)$CNF[w]), sum, na.rm=TRUE)
+							f.subclonal <- a.subclonal$x %*% a.subclonal$Group.1 / max(a.subclonal$Group.1) # Fraction subclonal, neutral-like scaled
+							f.subclonal <- f.subclonal 
+							c(f.subclonal, sum(1-p, na.rm=TRUE))}, mc.cores=MC_CORES)))
 
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 typesSubclones <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
@@ -778,7 +783,7 @@ remove <- "8454fe53-869d-41c8-b0c8-a7929d00eec3" # a cell line, add more samples
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 for(n in typesSubclones){
 	i <- d==n
-	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)/3 # 3Gb Haploid genome
+	tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / 3#cbind(nClones[i]-1, 1)/3 # 3Gb Haploid genome
 	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
 	yy <- rowSums(tt0)
 	a <- age[sample2donor[names(finalSnv)[i]]]
@@ -1014,7 +1019,7 @@ set.seed(42)
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 subclonesTimeAbs <- sapply(typesSubclones, function(l) {
 			i <- d==l
-			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) / cbind(nClones[i]-1, 1)
+			tt0 <- subcloneDeam[i,]/cbind(finalPloidy[i], effGenome[i]) #/ cbind(nClones[i]-1, 1)
 			resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
 						tt <- matrix(rpois(length(tt0), lambda=tt0), ncol=ncol(tt0))
 						res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
@@ -1131,7 +1136,10 @@ wgdTimeDeamAcc <- simplify2array(mclapply(names(wgdParamDeam[!void]), function(n
 					x <- wgdParamDeam[!void][[n]]
 					
 					T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal
-					f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)/(max(1,nClones[n]-1)) # Fraction subclonal (observed)
+					a.subclonal <- aggregate(x$D[,"pSub"], list(x$D[,"CNF"]), sum)
+					f.subclonal <- a.subclonal$x %*% a.subclonal$Group.1 / max(a.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
+					f.subclonal <- f.subclonal / (f.subclonal + sum(1-x$D[,"pSub"]))
+					#f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)/(max(1,nClones[n]-1)) # Fraction subclonal (observed)
 					G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN)) # Effective ploidy clonal, adjusted for timing
 					G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub) # Final ploidy
 					if(is.nan(G.subclonal)) G.subclonal <- mean(x$D$MajCN + x$D$MinCN)
