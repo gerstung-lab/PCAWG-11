@@ -4268,17 +4268,8 @@ for(n in names(multiTiming)){
 }
 dev.off()
 
-par(mfrow=c(4,4))
-for(n in names(donor2sample)){
-	t <- as.character(donor2type[n])
-	try({
-				s <- wgdTimeAbs[[t]][,,"5x"]
-				s <- s[rownames(s) %in% donor2sample[[n]],,drop=FALSE]
-				if(length(s) ==0 ) next
-				plot(s[,"hat"], ylim=c(0, max(s, na.rm=TRUE)), main = paste(n, t)) 
-				segments(x0=1:nrow(s),y0=s[,'lo'], y1=s[,'up'])
-			})
-}
+
+
 
 t(sapply(donor2sample[['DO51954']], function(n) table(info(finalSnv[[n]])$CLS)))
 
@@ -4288,3 +4279,67 @@ x <- wgdParamDeam[[n]]
 
 a <- aggregate(x$D[,"pSub"], list(x$D[,"CNF"]), sum)
 a$x %*% a$Group.1 / max(a$Group.1)
+
+#' Load indel and fix header
+p <- "../final/annotated_013/indel"
+finalIndel <- list()
+for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+	load(f)
+	i = info(header(vcfIndel))
+	h <- mcnHeader()
+	info(header(vcfIndel)) <- rbind(i,h[setdiff(rownames(h), rownames(i)),])
+	finalIndel[[f]] <- vcfIndel
+}
+names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
+
+
+p <- "../final/annotated_013/graylist/indel"
+finalIndelGray <- list()
+for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+	load(f)
+	i = info(header(vcfIndel))
+	h <- mcnHeader()
+	info(header(vcfIndel)) <- rbind(i,h[setdiff(rownames(h), rownames(i)),])
+	finalIndelGray[[f]] <- vcfIndel
+}
+names(finalIndelGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
+
+
+p <- sapply(finalSnv, function(x) mean(info(x)$pSub, na.rm=TRUE))
+f <- sapply(finalClusters, function(x) sum(x$n_ssms[-1])/sum(x$n_ssms))
+
+plot(p,f)
+
+
+subcloneDeamLinear <- t(simplify2array(mclapply(finalSnv, function(vcf) {
+							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
+								w <- isDeaminationNoUV(vcf)
+							else
+								w <- isDeamination(vcf)
+							if(sum(w)==0) return(c(0,0))
+							p <- info(vcf)$pSub[w]; 
+							c(sum(p, na.rm=TRUE), sum(1-p, na.rm=TRUE))}, mc.cores=MC_CORES)))
+
+f <- (subcloneDeam[,1] / finalPloidy) / rowSums(subcloneDeam / cbind(finalPloidy, effGenome))
+l <- (subcloneDeamLinear[,1]/ finalPloidy)/rowSums(subcloneDeamLinear / cbind(finalPloidy, effGenome))
+
+t <- donor2type[sample2donor[names(finalSnv)]]
+plot(f, l, xlab="Subclonal branch length (branching)", ylab="Subclonal branch length (linear)", pch=21, bg=tissueColors[t], col=tissueBorder[t], cex=tissueCex[t])
+abline(0,1, lty=2)
+
+quantile(l/f, na.rm=TRUE)
+
+#' power
+finalPower <- sapply(names(finalBB), function(n) {
+			x <- finalBB[[n]]
+			f <- finalClusters[[n]]$proportion
+			for(i in 1:length(x)){
+				t <- x$timing_param[[i]]
+				p <- t[match(f, t[,"cfi"]), "power.s"]
+				if(!is.null(p)) if(all(!is.na(p))) break
+			}
+			if(is.null(p)) return(rep(NA, length(f)))
+			return(p)
+		})
+
+plot(unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms"))/ unlist(finalPower) , unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms")), log='xy') 
