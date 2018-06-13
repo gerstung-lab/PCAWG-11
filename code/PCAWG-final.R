@@ -1329,16 +1329,14 @@ abline(h=0, lty=3)
 
 #' #### Assessment of absolute mutation counts
 #' Number of deaminatinos in 2:2 regions
-nDeam22 <- sapply(wgdParamDeam, function(x) if(!is.null(x$n)) x$n[1] else NA)
-names(nDeam22) <- names(finalSnv)[isWgd]
-w22 <- sapply(finalBB[isWgd], function(bb) {
+nDeam22 <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) x$n[1] else NA)
+w22 <- sapply(finalBB[isWgd][!void], function(bb) {
 			w <- bb$major_cn==2 & bb$minor_cn==2 & !duplicated(bb)
 			sum(as.numeric(width(bb)[w]), na.rm=TRUE)})
 nDeam22 <- nDeam22/w22*1e9
 
 #' Fraction of deam on 1 and 2 copies
-d <- nDeam22 *  t(sapply(wgdParamDeam, function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
-rownames(d) <- names(finalSnv)[isWgd]
+d <- nDeam22 *  t(sapply(wgdParamDeam[!void], function(x) if(!is.null(x$P)) x$P[[1]][1:2,"P.m.sX"] else c(NA,NA)))
 d[rownames(d) %in% remove] <- NA
 
 #' Unadjusted time (inc. of subclonal mutations)
