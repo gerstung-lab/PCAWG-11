@@ -1135,7 +1135,7 @@ computeWgdParamDeam <- function(vcf, bb, clusters, purity){
 #' Takes ~8h
 #+ finalWgdParam, eval=FALSE
 wgdParamDeam <- mclapply(names(finalSnv)[isWgd], function(ID){
-			computeWgdParamDeam(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID])
+			try(computeWgdParamDeam(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID]))
 		},  mc.cores=MC_CORES)
 
 #+ finalWgdParamLoad, echo=FALSE
