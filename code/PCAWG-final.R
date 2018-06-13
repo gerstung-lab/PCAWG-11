@@ -769,6 +769,8 @@ finalPower <- sapply(names(finalBB), function(n) {
 			if(is.null(p)) return(rep(NA, length(f)))
 			return(p)
 		})
+plot(unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms")),unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms"))/ unlist(finalPower), log='xy',
+		xlab="Cluster size WCC (consensus)", ylab="Cluster size MutationTime.R") 
 
 #+ subcloneDeam
 subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
@@ -782,9 +784,9 @@ subcloneDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 							n.subclonal <- aggregate(p, list(info(vcf)$CNF[w]), sum, na.rm=TRUE)
 							m <- apply(abs(outer(n.subclonal$Group.1, finalClusters[[n]]$proportion, `-`)),1,which.min) # Match to subclones
 							p.subclonal <- finalPower[[n]][m] # Power of subclones
-							b.subclonal <- n.subclonal$x %*% (n.subclonal$Group.1 / p.subclonal) / max(n.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
-							f.clonal <- sum(1-p, na.rm=TRUE)/finalPower[[n]][1] 
-							c(b.subclonal, f.clonal)}, mc.cores=MC_CORES)))
+							b.subclonal <- n.subclonal$x %*% (n.subclonal$Group.1 / p.subclonal) / max(n.subclonal$Group.1) # Subclonal branch, power adjusted & 1/f-scaled
+							b.clonal <- sum(1-p, na.rm=TRUE)/finalPower[[n]][1] # Clonal branch (trunk), power adjusted & 1/f-scaled
+							c(b.subclonal, b.clonal)}, mc.cores=MC_CORES)))
 
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 typesSubclones <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
@@ -1132,17 +1134,18 @@ computeWgdParamDeam <- function(vcf, bb, clusters, purity){
 }
 
 #' ### Timing
-#' Takes ~8h
+#' Takes ~1h
 #+ finalWgdParam, eval=FALSE
 wgdParamDeam <- mclapply(names(finalSnv)[isWgd], function(ID){
 			try(computeWgdParamDeam(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID]))
 		},  mc.cores=MC_CORES)
+names(wgdParamDeam) <- names(finalSnv)[isWgd]
 
 #+ finalWgdParamLoad, echo=FALSE
-wgdParamDeam <- readRDS("2018-03-13-finalWgdParam2.rds")
+wgdParamDeam <- readRDS("2018-06-13-finalWgdParam.rds")
 
 #' Samples with insufficient data
-void <- sapply(wgdParamDeam, is.null)
+void <- sapply(wgdParamDeam, function(x) is.null(x) | class(x)=="try-error")
 
 #' Some checks
 t <- sapply(wgdParamDeam[!void], function(x) {r <- as.matrix(x$time[,2:4]); rownames(r) <- x$time[,1];r}, simplify='array')
@@ -1155,11 +1158,11 @@ wgdTimeDeamAcc <- simplify2array(mclapply(names(wgdParamDeam[!void]), function(n
 					T.clonal <- as.matrix(x$time[,2:4]) # Time of WGD as fraction of clonal					
 					
 					n.subclonal <- aggregate(x$D[,"pSub"], list(x$D[,"CNF"]), sum)
-					p.subclonal <- x$power.s # Power of subclones
-					b.subclonal <- n.subclonal$x %*% (n.subclonal$Group.1 / p.subclonal) / max(n.subclonal$Group.1) # Fraction subclonal, 1/f-scaled
-					b.clonal <- sum(1-x$D[,"pSub"])/p.subclonal[1]
+					m <- match(n.subclonal$Group.1, finalClusters[[n]]$proportion)
+					p.subclonal <- x$power.c[m] # Power of subclones
+					b.subclonal <- n.subclonal$x %*% (n.subclonal$Group.1 / p.subclonal) / max(n.subclonal$Group.1) # Subclonal branch, power adjusted & 1/f-scaled
+					b.clonal <- sum(1-x$D[,"pSub"])/p.subclonal['1'] # Clonal branch (trunk), power adjusted & 1/f-scaled
 					f.subclonal <- b.subclonal / (b.subclonal + b.clonal)
-					#f.subclonal <- sum(x$D[,"pSub"])/nrow(x$D)/(max(1,nClones[n]-1)) # Fraction subclonal (observed)
 					G.clonal <- sum (1-x$D$pSub)/sum((1-x$D$pSub)*x$D$MutCN/(x$D$MajCN + x$D$MinCN)) # Effective ploidy clonal, adjusted for timing
 					G.subclonal <- sum(x$D$pSub*(x$D$MajCN + x$D$MinCN))/ sum (x$D$pSub) # Final ploidy
 					if(is.nan(G.subclonal)) G.subclonal <- mean(x$D$MajCN + x$D$MinCN)
