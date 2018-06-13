@@ -1329,7 +1329,7 @@ abline(h=0, lty=3)
 
 #' #### Assessment of absolute mutation counts
 #' Number of deaminatinos in 2:2 regions
-nDeam22 <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) x$n[1] else NA)
+nDeam22 <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) as.numeric(x$n[1]) else NA)
 w22 <- sapply(finalBB[isWgd][!void], function(bb) {
 			w <- bb$major_cn==2 & bb$minor_cn==2 & !duplicated(bb)
 			sum(as.numeric(width(bb)[w]), na.rm=TRUE)})
