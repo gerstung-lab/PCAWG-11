@@ -1578,7 +1578,7 @@ for(n in names(donor2sample)){
 #+ wgdOut
 t <- as.data.frame(round(Reduce("rbind", wgdTimeAbsType),2))
 colnames(t) <- c("time", "time.lo","time.up")
-nDeam <- sapply(wgdParamDeam, function(x) if(!is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
+nDeam <- sapply(wgdParamDeam[!void], function(x) if(is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
 t <- cbind(sample=rownames(t), t, age=age[sample2donor[rownames(t)]], `CpG>TpG`=nDeam[rownames(t)], SNV=nSub[rownames(t)])
 write.table(t, file=paste0(Sys.Date(),"-wgdTimeAbs.txt"), quote=FALSE, row.names=FALSE, sep="\t")
 
