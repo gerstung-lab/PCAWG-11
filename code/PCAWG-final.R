@@ -805,6 +805,7 @@ typesSubclones <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
 nClones <- sapply(finalClusters, nrow)
 
 #' Comparison to linear branching
+#+ branchDeamLinear
 branchDeamLinear <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 							if(donor2type[sample2donor[meta(header(vcf))$META["ID",]]]=="Skin-Melanoma")
 								w <- isDeaminationNoUV(vcf)
@@ -828,7 +829,7 @@ branchDeamLinear <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 
 #' Plot
 #+ branchingLinear
-f <- (subcloneDeam[,1] / finalPloidy) / rowSums(subcloneDeam / cbind(finalPloidy, effGenome))
+f <- (branchDeam[,1] / finalPloidy) / rowSums(branchDeam / cbind(finalPloidy, effGenome))
 l <- (branchDeamLinear[,1]/ finalPloidy)/rowSums(branchDeamLinear / cbind(finalPloidy, effGenome))
 t <- donor2type[sample2donor[names(finalSnv)]]
 plot(f, l, xlab="Subclonal branch length (branching)", ylab="Subclonal branch length (linear)", pch=21, bg=tissueColors[t], col=tissueBorder[t], cex=tissueCex[t])
