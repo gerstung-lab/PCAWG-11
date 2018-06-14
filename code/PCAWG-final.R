@@ -7,8 +7,7 @@
 #'     number_sections: true
 #'     auto_identifiers: true
 #'     table_captions: true
-#' author: Moritz Gerstung & Santiago Gonzalez
-#' ---
+#' author: Moritz Gerstung and Santiago Gonzalez
 
 #+ Preliminaries, echo=FALSE
 options(width=120)
