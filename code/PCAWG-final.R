@@ -1,5 +1,5 @@
 #' ---
-#' title: Supplementary code: The evolutionary history of 2,658 cancers 
+#' title: "Supplementary code: The evolutionary history of 2,658 cancers" 
 #' output:
 #'   html_document:
 #'     toc: true
