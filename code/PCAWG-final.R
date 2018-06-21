@@ -28,7 +28,7 @@ my_png <-  function(file, width, height, pointsize=12, ...) {
 #' ## Libraries
 setwd("~/pcawg/code")
 source("PCAWG-functions.R")
-MC_CORES=2
+MC_CORES=8
 
 #+ evalOff, echo=FALSE
 dumpfile <- "2018-06-12-PCAWG-final.RData"
@@ -36,7 +36,7 @@ if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
 	load(dumpfile)
 	source("PCAWG-functions.R")
-	MC_CORES=2
+	MC_CORES=8
 }
 
 #' # Load data
@@ -1638,8 +1638,10 @@ write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.name
 
 #' ## All segments, MutationTime.R raw values
 #+ segOut
-t <- do.call("rbind", lapply(finalBB, as.data.frame))[,c(1:3,6,8:9,43:48)]
-n <- rownames(t); t <- as.data.frame(mclapply(t, function(x) if(class(x)=="numeric") round(x,3) else x, mc.cores=MC_CORES)); t$sample <- sub("\\..+","",n)
+t <- do.call("rbind", mclapply(finalBB, as.data.frame, mc.cores=MC_CORES))[,c(1:3,6,8:9,43:48)]
+n <- rownames(t) 
+t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x)) 
+t$sample <- sub("\\..+","",n)
 write.table(t, file=paste0(Sys.Date(),"-allSegmentsTimeRaw.txt"), quote=FALSE, sep="\t")
 
 #' ## Drivers
