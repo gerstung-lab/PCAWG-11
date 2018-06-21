@@ -1544,7 +1544,7 @@ for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueLines[
 #s <- 12/8; dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
-#' ### MRCA v WGD
+#' ## MRCA v WGD
 #' Scatter of median
 #+ realTimeSubcloneWgdScatter
 par( mar=c(4,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
@@ -1578,11 +1578,11 @@ mg14::rotatedLabel(1:2, labels=c("Subclones","WGD"))
 #s <- 12/8
 #dev.copy2pdf(file="realTimeSubcloneWgd.pdf", width=2.5*s, height=3.5*s, pointsize=8*s)
 
-#' ### Multi-sample cases
+#' ## Multi-sample cases
 donor2sample <- split(names(finalBB),sample2donor[names(finalBB)])
 donor2sample <- donor2sample[sapply(donor2sample, length)>1]
 
-#' #### WGD
+#' ### WGD
 #' WGD - samples with * removed
 #+ wgdMulti, fig.width=6, fig.height=4.5
 par(mfrow=c(2,3), mar=c(4,3,2,1), cex=1)
@@ -1601,7 +1601,7 @@ for(n in names(donor2sample)){
 			})
 }
 
-#' #### WGD
+#' ### MRCA
 #' MRCA - samples with * removed
 #+ mrcaMulti, fig.width=20, fig.height=20
 par(mfrow=c(8,8), mar=c(4,3,2,1), cex=1)
@@ -1622,8 +1622,8 @@ for(n in names(donor2sample)){
 			})
 }
 
-#' ## Prepare outputs
-#' Real time WGD
+#' # Outputs
+#' ## Real time WGD
 #+ wgdOut
 t <- as.data.frame(round(Reduce("rbind", wgdTimeAbsType),2))
 colnames(t) <- c("time", "time.lo","time.up")
@@ -1631,18 +1631,18 @@ nDeam <- sapply(wgdParamDeam[!void], function(x) if(is.null(x$n)) sum(x$n, na.rm
 t <- cbind(sample=rownames(t), t, age=age[sample2donor[rownames(t)]], `CpG>TpG`=nDeam[rownames(t)], SNV=nSub[rownames(t)])
 write.table(t, file=paste0(Sys.Date(),"-wgdTimeAbs.txt"), quote=FALSE, row.names=FALSE, sep="\t")
 
-#' Real time MRCA
+#' ## Real time MRCA
 #+ mrcaOut
 t <- as.data.frame(round(Reduce("rbind", subclonesTimeAbsType),2))
 write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.names=NA, row.names=TRUE, sep="\t")
 
-#' All segments, MutationTime.R raw values
+#' ## All segments, MutationTime.R raw values
 #+ segOut
 t <- do.call("rbind", lapply(finalBB, as.data.frame))[,c(1:3,6,8:9,43:48)]
 n <- rownames(t); t <- as.data.frame(mclapply(t, function(x) if(class(x)=="numeric") round(x,3) else x, mc.cores=MC_CORES)); t$sample <- sub("\\..+","",n)
 write.table(t, file=paste0(Sys.Date(),"-allSegmentsTimeRaw.txt"), quote=FALSE, sep="\t")
 
-#' Drivers
+#' ## Drivers
 #+ driverOut
 t <- as.data.frame(finalDriversAnnotated)[c(1,2,6,7,9,10,11,12,13,31:44)]
 t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x));
