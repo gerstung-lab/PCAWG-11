@@ -666,7 +666,8 @@ timeToBeta <- function(time){
 
 plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88"), legend=TRUE, col.grid='grey', lty.grid=1, xlim=c(0,chrOffset["MT"])){
 	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=xlim, xaxt="n")
-		try({
+	if(any(!is.na(bb$time)))
+		tryCatch({
 					bb <- bb[!is.na(bb$time)]
 					s <- start(bb)
 					e <- end(bb)
@@ -674,7 +675,7 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 					y <- time[,2]
 					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]], angle = ifelse(bb$time.star=="*" | is.na(bb$time.star),45,135), density=ifelse(bb$time.star == "***", -1, 72))
 					segments(s+x,y,e+x,y)
-				}, silent=FALSE)
+				}, error=function(x) warning(x))
 	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
@@ -748,7 +749,7 @@ reduceBB <- function(bb){
 	return(s)
 }
 
-plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w, regions=refLengths[1:24], ylim.bb=c(0,5), layout.height=c(4,1.2,3.5)) {
+plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w]], title=w, regions=refLengths[1:24], ylim.bb=c(0,5), layout.height=c(4,1.2,3.5), y1=ylim.bb[2]-1) {
 	p <- par()
 	stackTime <- function(bb, t=seq(0,1,0.01)){
 		u <- unique(bb)
@@ -767,6 +768,11 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w, regi
 	plotVcf(vcf[vcf %over% regions], bbb, finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33, xlim=xlim)
 	mtext(line=-1, side=3, title, las=1)
 	plotBB(bbb, ylim=ylim.bb, legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE, xlim=xlim)
+	tryCatch({
+		par(xpd=NA)
+		plotSv(sv, y1=y1, regions=regions, add=TRUE)
+		par(xpd=TRUE)
+	}, error=function(x) warning(x))
 	par(mar=c(3,3,0.5,0.5))
 	plotTiming(bbb, xlim=xlim, legend=FALSE, col.grid=NA)
 	if(length(regions) == 1)
@@ -778,6 +784,34 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], title=w, regi
 	}
 	#print(w)
 	par(p[setdiff(names(p), c("cin","cra","csi","cxy","din","page"))])
+}
+
+plotSv <- function(sv, y0=0,y1=y0, h=1, col=RColorBrewer::brewer.pal(5,"Set1"), regions=refLengths[1:24], add=FALSE){
+	if(add==FALSE){
+		s <- c(1:22, "X","Y")
+		l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
+		names(l) <- s
+		plot(NA,NA, ylab="Copy number",xlab="",xlim=xlim, ylim=ylim, xaxt="n")
+		c <- cumsum(l)
+		axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
+		if(length(regions) == 1)
+			axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
+		if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
+	}
+	r <- rowRanges(sv)
+	a <- unlist(alt(sv))
+	vs <- GRanges(sub("(.*(\\]|\\[))(.+)(:.+)","\\3",a), IRanges(info(sv)$MATEPOS, width=1))
+	l <- 100
+	x <- seq(0,1,l=l) 
+	y <- x*(1-x)*4*h
+	cls <- factor(as.character(info(sv)$SVCLASS), levels=c("DEL", "DUP", "h2hINV","t2tINV","TRA"))
+	w <- which(sv %over% regions | vs %over% regions)
+	for(i in w)
+		try({
+					x <- seq(start(sv)[i] + chrOffset[as.character(seqnames(sv)[i])], start(vs)[i] + chrOffset[as.character(seqnames(vs)[i])], length.out=l)
+					lines(x, y1 + y * if(grepl("INV", cls[i])) -1 else 1, col=col[cls[i]])
+					segments(x0=c(x[1], x[l]), x1=c(x[1],x[l]), y0=y0, y1=y1, col=col[cls[i]])
+	})
 }
 
 t <- read.table("../ref/release_may2016.v1.1.TiN__donor.TiNsorted.20Jul2016.tsv", header=TRUE, sep="\t")
