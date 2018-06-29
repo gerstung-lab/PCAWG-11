@@ -4345,3 +4345,268 @@ finalPower <- sapply(names(finalBB), function(n) {
 plot(unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms"))/ unlist(finalPower) , unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms")), log='xy',
 		xlab="Cluster size MutationTime.R", ylab="Cluster size WCC") 
 
+
+
+
+mycol <- function(n){
+	c <- col2rgb(col16)
+	k <- kmeans(t(c), )
+}
+
+
+g <- read.table("../ref/pcawg2652.germline.brca.mmr.tp53.tsv", header=TRUE)
+rownames(g) <- finalData$icgc_donor_id[match(g$donor_unique_id, finalData$donor_unique_id)]
+
+o <- which(donor2type[sample2donor[names(finalSnv)]]=="Ovary-AdenoCa" & whiteList)
+s <- names(finalSnv)[o]
+w <- finalDriversAnnotated$sample %in% s
+t <- table(droplevels(finalDriversAnnotated$ID[w]), finalDriversAnnotated$CLS[w])
+
+BRCA <- rowSums(g[sample2donor[s],2:3])
+table(BRCA, WGD=isWgd[o])
+
+t <- wgdTimeAbsType[["Ovary-AdenoCa"]]
+
+p <- grep("TP53", rownames(finalGenotypesP))
+p <- t(mg14:::asum(finalGenotypesP[p,,,o[o <=2703]], c(1,2)))
+
+round(aggregate(cbind(p,wt=rowSums(p)==0), list(WGD=isWgd[o]+0, BRCA=BRCA), sum))
+
+#' WGD
+round(t(sapply(dimnames(qWgd)[[3]], function(n) c(qWgd[,guessAccel[n],n], accel=as.numeric(sub("x","",guessAccel[n]))))),1)
+
+#' MRCA
+round(t(sapply(dimnames(qSubclone)[[3]], function(n) c(qSubclone[,guessAccel[n],n], accel=as.numeric(sub("x","",guessAccel[n]))))),2)
+
+
+
+
+#' Pie charts per arm
+aggregatePerChromosomeArm <- function(bb, isWgd=FALSE){
+	.aggregateSegments <- function(m){
+		#m <- mcols(bb)
+		t <- weighted.mean(m$time, m$n.snv_mnv, na.rm=TRUE)
+		n <- sum(m$n.snv_mnv[!is.na(m$time)], na.rm=TRUE)
+		sd <- sd(m$time, na.rm=TRUE)
+		ci <- weighted.mean(m$time.up-m$time.lo, m$n.snv_mnv, na.rm=TRUE)
+		w <- sum(as.numeric(m$width[!is.na(m$time)]), na.rm=TRUE)
+		o <- m$time.up >= t & m$time.lo <= t
+		c(time=t, n=n, sd=sd, ci=ci, w=w, f=sum(as.numeric(m$width[o]), na.rm=TRUE)/w)
+	}
+#	if(!isWgd){
+	o <- findOverlaps(bb, pq)
+	l <- factor(names(pq))
+	s <- split(as.data.frame(bb)[queryHits(o),c("time","time.up","time.lo","n.snv_mnv","width")], l[subjectHits(o)])
+	r <- t(sapply(s, .aggregateSegments))
+	r <- r[l,]
+#	}else{
+	w <- .aggregateSegments(as.data.frame(bb))
+	r <- rbind(r,WGD=w)
+#	}
+	return(r)
+}
+
+allPQAgg <- simplify2array(mclapply(finalBB, aggregatePerChromosomeArm, mc.cores=MC_CORES))
+
+t <- allPQAgg[names(pq),"time",!isWgd]
+t[allPQAgg[names(pq),"w",!isWgd] < width(pq)*.5] <- NA # At least 33% of arm
+
+
+s <- split(as.data.frame(t(t)), droplevels(donor2type[sample2donor[names(finalSnv)]])[!isWgd])
+n <- 10
+
+
+at <- function(x, n){
+	if(sum(!is.na(x))<3) return(rep(sum(!is.na(x))/n,n))
+	bw=if(sum(!is.na(x))< 6) 0.5 else "nrd0"
+	d <- density(x, n=n, from=1/n/2, to=1-1/n/2, bw=bw, na.rm=TRUE)
+	d$y/sum(d$y)*d$n
+}
+
+allPQCancerHist <- sapply(s, apply, 2, at, n=n, simplify="array")
+u <- split(data.frame(WGD=allPQAgg["WGD","time",isWgd]), droplevels(donor2type[sample2donor[names(finalSnv)]])[isWgd])
+wgdCancerHist <- sapply(u, function(x) if(nrow(x)>0){at(x$WGD,n=n)}else{rep(0,n)}, simplify="array")
+allPQCancerHist <- abind::abind(allPQCancerHist, All=sapply(sapply(s, as.matrix), at, n=n, simplify="array")/23*5, WGD=wgdCancerHist, along=2)
+
+
+
+
+d
+n <- 10
+prg <- RColorBrewer::brewer.pal(10,"PRGn")
+col <- colorRampPalette(prg[1:8])(n)
+#col <- sample(col16,n)#colorRampPalette(col16[c("FUCHSIA","BLUE","OLIVE")])(n)
+
+p <- 0
+v <- table(droplevels(donor2type[sample2donor[names(finalSnv)]]))
+#h <- (allChrCancerHist + p)  / rep(v + p, each=prod(dim(allChrCancerHist)[1:2]))
+h <- (allPQCancerHist + p)  / rep(v + p, each=prod(dim(allPQCancerHist)[1:2]))
+
+h <- aperm(h, c(2,3,1))
+
+a <- colMeans(c(2,1) * t(sapply(c("All","WGD"), function(i) h[i,,] %*% seq(1/n/2,1-1/n/2,l=n) / rowSums(h[i,,]))), na.rm=TRUE)
+o <- order(-a)
+h <- h[,o,]
+w <- v[o]>=15 #& apply(h, 2, max) > 0.05*8/n
+h <- h[,w,]
+
+d <- dim(h)
+#par(mfrow=d[c(2,1)], cex=0.1, las=0, xpd=NA)
+#for(i in d[2]:1) for(j in 1:d[1]){
+#		hij <- h[j,i,]
+#		if(sum(hij)>0) 
+#			pie(hij, labels=NA, radius=2*sqrt(sum(hij)), col=rev(col), border=NA, clockwise=TRUE)
+#		else
+#			plot.new()
+#	}
+
+m <- 0.02
+layout(matrix(1:prod(dim(h)[1:2]+1), ncol=dim(h)[1]+1, byrow=TRUE), height=1, width=c(5, rep(1,dim(h)[1])))
+par(mar=c(0.05,0.1,0,0.1), xpd=NA)
+for(i in c(0,d[2]:1)) for(j in 0:d[1]){		#if(all(h[i,j,]==0)) 
+		if(j==0 & i !=0) {plot(NA,NA,xlab="",ylab="", xaxt="n",yaxt="n",xlim=c(-1,1),ylim=c(-1,1), bty="n")
+			text(1,0,dimnames(h)[[2]][i],pos=2)
+			next
+		}
+		if(i == 0 ){
+			plot(NA,NA,xlab="",ylab="", xaxt="n",yaxt="n",xlim=c(-1,1),ylim=c(-1,1), bty="n")
+			if(j==0) next
+			text(0,0,dimnames(h)[[1]][j],pos=1)
+			next
+		}
+		hij <- h[j,i,]
+		if(sum(hij)>0) 
+			pie(hij, labels=NA, radius=1.5*sqrt(sum(hij)), col=rev(col), border=NA, clockwise=TRUE)
+		else
+			plot.new()
+		if(j==0) if(i>0) abline(v=0, col='lightgrey', lty=3)
+		if(i==0) if(j>0) abline(h=0, col='lightgrey', lty=3)
+#		if(i==2){
+#			abline(h=0.05*8/n, col='lightgrey', lty=1)
+#			axis(side=2, at=c(0,0.05*8/n), labels=c("",""), tcl=-.1)
+#		}
+	}
+dev.copy2pdf(file="pieTimingPQ.pdf",width=12, height=8, pointsize=8)
+
+#' Heatmaps
+t <- allPQAgg[,"time",]
+t[names(pq),][allPQAgg[names(pq),"w",] < width(pq)*.75] <- NA # At least 75% of arm
+t["WGD",!isWgd] <- NA
+
+w <- which(donor2type[sample2donor[names(finalSnv)]]=="Cervix-SCC")
+image(t[,w], col=rev(col))
+
+finalSv <- mclapply(dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE), function(x) {
+			t <- try(readVcf(x))
+			return(t)
+		}, mc.cores=6)
+names(finalSv) <- sub("../final/pcawg_consensus_1.6.161116.somatic_svs/","", sub(".pcawg_consensus_1.6.161116.somatic.sv.vcf.gz","",dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE)))
+save(finalSv, file="2018-06-20-finalSv.RData")
+
+
+
+pdf("allTiming.pdf",6,6)
+for(w in names(finalSnv))
+try(plotSampleSv(w, title=paste(w, donor2type[sample2donor[w]])))
+dev.off()
+
+bb <- finalBB[[3]]
+w <- which(seqnames(bb)=="7")
+
+plotPQ <- function(w, ...){
+	s <- start(pq) + chrOffset[as.character(seqnames(pq))]
+	e <- end(pq) + chrOffset[as.character(seqnames(pq))]
+	t <- allPQAgg[,"time",w]
+	t[names(pq)][allPQAgg[names(pq),"w",w] < width(pq)*.8] <- NA # At least 75% of arm
+	segments(x0=s, x1=e, y0=t, ...)
+	if(isWgd[w])
+	abline(h=fracGenomeWgdComp[w,"time.wgd"], lty=3)
+}
+
+aggChromosomeArm <- function(bb, isWgd=FALSE){
+	o <- findOverlaps(bb, pq)
+	l <- factor(names(pq))
+	s <- split(bb[queryHits(o)], l[subjectHits(o)])
+	r <- t(sapply(s, fractionGenomeWgdCompatible, min.dist=0.01))
+	r <- r[l,]
+	r[r[,"n.wgd"]==0] <- NA
+	return(r)
+}
+
+aggPQ <- simplify2array(mclapply(finalBB, aggChromosomeArm, mc.cores=MC_CORES))
+
+t <- aggPQ[,"time.wgd",!isWgd]
+t[aggPQ[,"nt.wgd",!isWgd] < pmax(aggPQ[,"nt.total",!isWgd]*.8, width(pq) *.5) ] <- NA # At least 80% of arm
+
+
+s <- split(as.data.frame(t(t)), droplevels(donor2type[sample2donor[names(finalSnv)]])[!isWgd])
+n <- 10
+
+
+at <- function(x, n){
+	if(sum(!is.na(x))<3) return(rep(sum(!is.na(x))/n,n))
+	bw=if(sum(!is.na(x))< 6) 0.5 else "nrd0"
+	d <- density(x, n=n, from=1/n/2, to=1-1/n/2, bw=bw, na.rm=TRUE)
+	d$y/sum(d$y)*d$n
+}
+
+at <- function(x,n) table(cut(x, seq(0,1,l=n+1), include.lowest=TRUE))
+
+allPQCancerHist <- sapply(s, apply, 2, at, n=n, simplify="array")
+allPQCancerHist <- abind::abind(allPQCancerHist, 
+		All=sapply(sapply(s, as.matrix), at, n=n, simplify="array")/23*5, 
+		WGD=sapply(split(fracGenomeWgdComp[isWgd,"time.wgd"], droplevels(donor2type[sample2donor[names(finalSnv)]])[isWgd]), at, n=n),
+		along=2)
+
+
+foo <- sapply(bb[1:10], aggChromosomeArm, simplify='array')
+
+segments(x0=s, x1=e, y0=foo[,"time.wgd"], col=2)
+
+pdf("allTiming2nd.pdf",6,6)
+i <- 0
+for(w in names(finalSnv)){
+	i <- i+1
+	if((i+1) %% 10==1) print(i)
+	try({
+				bb <- finalBB[[w]]
+				bb <- bb[width(bb)>1e6]
+				vcf <- finalSnv[[w]]
+				if(nrow(vcf)> 2e4) vcf <- vcf[sort(sample(1:nrow(vcf), 2e4)),]
+				mcols(bb)[,colnames(bbToTime(bb))] <- DataFrame(bbToTime(bb))
+				plotSample(w, vcf=vcf, bb=bb, title=paste(w, donor2type[sample2donor[w]], paste0(age[sample2donor[w]],"yr"), sep=", "))
+			})
+}
+dev.off()
+
+betaFromCi <- function(x){
+	f <- function(par,x) {
+		beta <- exp(par)
+		sum((qbeta(c(0.025,0.975), beta[1], beta[2])-x[-1])^2)+5*((beta[1]-1)/(beta[1]+beta[2]-2)-x[1])^2
+	}
+	tryCatch(exp(optim(c(0.1,0.1), fn=f,x=x)$par), error=c(1,1))
+}
+
+histBeta <- function(bb, time="time",n.min=10, s=seq(0.005,0.995,0.01)){
+	s <- pmax(0.001,pmin(0.999, s))
+	cols <- paste0(time,c("",".lo",".up"))
+	w <- which(bb$n.snv_mnv > n.min & !is.na(mcols(bb)[cols[1]]) & !duplicated(bb))
+	if(length(w)==0) return(rep(NA, length(s)))
+	d <- apply(as.matrix(mcols(bb)[w,c(cols, "n.snv_mnv")]), 1, function(x){
+				beta <- betaFromCi(x[1:3])
+				beta <- (beta * x[4] + 5*c(1,1))/(x[4]+5) # "posterior" with prior B(1,1)
+				dbeta(s,beta[1],beta[2])
+			})
+	wd <- as.numeric(width(bb)[w])
+	o <- d %*% wd
+}
+
+stackTime <- histBeta
+
+modeBeta <- function(s){}
+
+s <- h
+g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
+segments(x0=chrOffset["MT"] ,y0=seq(0.005,0.995,0.01),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
+
+	

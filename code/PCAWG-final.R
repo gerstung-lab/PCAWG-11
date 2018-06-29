@@ -31,7 +31,7 @@ source("PCAWG-functions.R")
 MC_CORES=8
 
 #+ evalOff, echo=FALSE
-dumpfile <- "2018-06-12-PCAWG-final.RData"
+dumpfile <- "2018-06-29-PCAWG-final.RData"
 if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
 	load(dumpfile)
@@ -168,6 +168,24 @@ finalPurity <- c(finalPurity, finalPurityGray)
 
 whiteList <- seq_along(finalSnv) %in% 1:2703
 grayList <- !whiteList
+
+#' ## Structural variants
+finalSv <- mclapply(dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE), function(x) {
+			t <- try(readVcf(x))
+			return(t)
+		}, mc.cores=MC_CORES)
+names(finalSv) <- sub("../final/pcawg_consensus_1.6.161116.somatic_svs/","", sub(".pcawg_consensus_1.6.161116.somatic.sv.vcf.gz","",dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE)))
+
+#' ## Update timing values
+#' This may not be needed in the future
+n <- names(finalBB)
+finalBB <- mclapply(finalBB, function(bb){
+			time <- bbToTime(bb)
+			mcols(bb)[,colnames(time)] <- DataFrame(time)
+			bb
+		}, mc.cores=MC_CORES)
+names(finalBB) <- n
+
 
 #' # QC
 #+ QC

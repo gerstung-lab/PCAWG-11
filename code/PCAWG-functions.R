@@ -664,7 +664,7 @@ timeToBeta <- function(time){
 	return(cbind(alpha, beta))
 }
 
-plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")], col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88"), legend=TRUE, col.grid='grey', lty.grid=1, xlim=c(0,chrOffset["MT"])){
+plotTiming <- function(bb, time=mcols(bb), col=paste0(RColorBrewer::brewer.pal(5,"Set2")[c(3:5)],"88"), legend=TRUE, col.grid='grey', lty.grid=1, xlim=c(0,chrOffset["MT"]), plot=2){
 	plot(NA,NA, xlab='', ylab="Time [mutations]", ylim=c(0,1), xlim=xlim, xaxt="n")
 	if(any(!is.na(bb$time)))
 		tryCatch({
@@ -672,9 +672,21 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 					s <- start(bb)
 					e <- end(bb)
 					x <- chrOffset[as.character(seqnames(bb))]
-					y <- time[,2]
-					rect(s+x,time[,3],e+x,time[,4], border=NA, col=col[time[,1]], angle = ifelse(bb$time.star=="*" | is.na(bb$time.star),45,135), density=ifelse(bb$time.star == "***", -1, 72))
+					y <- time[,"time"]
+					rect(s+x,time[,"time.lo"],e+x,time[,"time.up"], border=NA, col=col[time[,"type"]], angle = ifelse(bb$time.star=="*" | is.na(bb$time.star),45,135), density=ifelse(bb$time.star == "***", -1, 72))
 					segments(s+x,y,e+x,y)
+					
+					if("time.2nd" %in% colnames(time)){ 
+						w <- !is.na(time[,"time.2nd"])
+						if(sum(w) != 0 & plot==2){
+							s <- start(bb)[w]
+							e <- end(bb)[w]
+							x <- chrOffset[as.character(seqnames(bb))][w]
+							y <- time[w,"time.2nd"]
+							rect(s+x,time[w,"time.2nd.lo"],e+x,time[w,"time.2nd.up"], border=NA, col=sub("88$","44",col)[as.numeric(time[w,"type"])], angle = ifelse(bb$time.star[w]=="*" | is.na(bb$time.star[w]),45,135), density=ifelse(bb$time.star[w] == "***", -1, 72))
+							segments(s+x,y,e+x,y)
+						}
+					}
 				}, error=function(x) warning(x))
 	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
 	s <- c(1:22, "X","Y")
@@ -683,7 +695,7 @@ plotTiming <- function(bb, time=mcols(bb)[,c("type","time","time.lo","time.up")]
 	c <- cumsum(l)
 	axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
 	mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
-	if(legend) legend("topleft", levels(time[,1]), fill=col, bg="white")
+	if(legend) legend("topleft", levels(time[,"type"]), fill=col, bg="white")
 }
 
 source("../modules/MutationTime.R/MutationTime.R")
@@ -749,18 +761,21 @@ reduceBB <- function(bb){
 	return(s)
 }
 
+stackTime <- function(bb, time="time", t=seq(0,1,0.01)){
+	u <- unique(bb)
+	cols <- paste0(time,c("",".up",".lo"))
+	w <- as.numeric(width(u))
+	u <- mcols(u)
+	f <- function(x) pmin(pmax(x,0.01),0.99)
+	ut <- f((0.5*5+u[,cols[1]] * u$n.snv_mnv)/(5+u$n.snv_mnv))
+	uu <- f(u[,cols[2]])
+	ul <- f(u[,cols[3]])
+	diff(car::logit(f(t))) * rowSums(sapply(which(!is.na(ut)), function(i) w[i]*dnorm(car::logit(t[-1] - diff(t)/2), mean=car::logit(ut[i]), sd= (car::logit(uu[i]) - car::logit(ul[i]) + 0.05)/4)))#(t <= u$time.up[i] & t >= u$time.lo[i])))
+	#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
+}
+
 plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w]], title=w, regions=refLengths[1:24], ylim.bb=c(0,5), layout.height=c(4,1.2,3.5), y1=ylim.bb[2]-1) {
 	p <- par()
-	stackTime <- function(bb, t=seq(0,1,0.01)){
-		u <- unique(bb)
-		w <- as.numeric(width(u))
-		f <- function(x) pmin(pmax(x,0.01),0.99)
-		ut <- f((0.5*5+u$time * u$n.snv_mnv)/(5+u$n.snv_mnv))
-		uu <- f(u$time.up)
-		ul <- f(u$time.lo)
-		diff(car::logit(f(t))) * rowSums(sapply(which(!is.na(ut)), function(i) w[i]*dnorm(car::logit(t[-1] - diff(t)/2), mean=car::logit(ut[i]), sd= (car::logit(uu[i]) - car::logit(ul[i]) + 0.05)/4)))#(t <= u$time.up[i] & t >= u$time.lo[i])))
-		#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
-	}
 	layout(matrix(1:3, ncol=1), height=layout.height)
 	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
 	xlim=c(min(chrOffset[as.character(seqnames(regions))]+start(regions)),max(chrOffset[as.character(seqnames(regions))]+end(regions)))
@@ -771,22 +786,40 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w
 	tryCatch({
 		par(xpd=NA)
 		plotSv(sv, y1=y1, regions=regions, add=TRUE)
-		par(xpd=TRUE)
+		par(xpd=FALSE)
 	}, error=function(x) warning(x))
 	par(mar=c(3,3,0.5,0.5))
 	plotTiming(bbb, xlim=xlim, legend=FALSE, col.grid=NA)
 	if(length(regions) == 1)
 		axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
 	if(any(!is.na(bb$time))){
+		y0 <- seq(0.005,0.995,0.01)
 		s <- stackTime(bb)
 		g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
-		segments(x0=chrOffset["MT"] ,y0=seq(0,1,l=100),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
+		segments(x0=chrOffset["MT"] ,y0=y0,x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
+		getMode <- function(s){
+			if(all(is.na(s))) return(NA)
+			w <- which.max(s)
+			if(w %in% c(1, length(s))){
+				m <- which(c(0,diff(s))>0 & c(diff(s),0)<0)
+				if(length(m)==0) return(w)
+				m <- m[which.max(s[m])]
+				return(if(s[w] > 2*s[m]) w else m) 
+			} else return(w)
+		}
+		abline(h=y0[getMode(s)], lty=5)
+		if("time.2nd" %in% colnames(mcols(bb))) if(any(!is.na(bb$time.2nd))){
+		s2 <- stackTime(bb, time="time.2nd")
+		segments(x0=chrOffset["MT"] + s/max(s) * 1e8 ,y0=y0,x1=chrOffset["MT"] + s/max(s) * 1e8 + s2/max(s) * 1e8, col=paste0(g,"44"), lend=3)
+		abline(h=y0[getMode(s2)], lty=3)
+		
+	}
 	}
 	#print(w)
 	par(p[setdiff(names(p), c("cin","cra","csi","cxy","din","page"))])
 }
 
-plotSv <- function(sv, y0=0,y1=y0, h=1, col=RColorBrewer::brewer.pal(5,"Set1"), regions=refLengths[1:24], add=FALSE){
+plotSv <- function(sv, y0=0,y1=y0, h=1, col=paste0(RColorBrewer::brewer.pal(5,"Set1"),"44"), regions=refLengths[1:24], add=FALSE){
 	if(add==FALSE){
 		s <- c(1:22, "X","Y")
 		l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
@@ -798,19 +831,22 @@ plotSv <- function(sv, y0=0,y1=y0, h=1, col=RColorBrewer::brewer.pal(5,"Set1"), 
 			axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
 		if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
 	}
-	r <- rowRanges(sv)
-	a <- unlist(alt(sv))
-	vs <- GRanges(sub("(.*(\\]|\\[))(.+)(:.+)","\\3",a), IRanges(info(sv)$MATEPOS, width=1))
-	l <- 100
-	x <- seq(0,1,l=l) 
-	y <- x*(1-x)*4*h
+	#r <- rowRanges(sv)
+	#a <- unlist(alt(sv))
+	vs <- GRanges(info(sv)$MATECHROM, IRanges(info(sv)$MATEPOS, width=1))
+	l <- 20
+	x0 <- seq(0,1,l=l) 
+	y2 <- x0*(1-x0)*4*h
 	cls <- factor(as.character(info(sv)$SVCLASS), levels=c("DEL", "DUP", "h2hINV","t2tINV","TRA"))
 	w <- which(sv %over% regions | vs %over% regions)
 	for(i in w)
 		try({
 					x <- seq(start(sv)[i] + chrOffset[as.character(seqnames(sv)[i])], start(vs)[i] + chrOffset[as.character(seqnames(vs)[i])], length.out=l)
-					lines(x, y1 + y * if(grepl("INV", cls[i])) -1 else 1, col=col[cls[i]])
-					segments(x0=c(x[1], x[l]), x1=c(x[1],x[l]), y0=y0, y1=y1, col=col[cls[i]])
+					x <- c(x[1], x, x[length(x)])
+					y <- y1 + y2 * if(grepl("INV", cls[i])) -1 else 1
+					y <- c(y0, y , y0)
+					lines(x, y, col=col[cls[i]])
+					#segments(x0=c(x[1], x[l]), x1=c(x[1],x[l]), y0=y0, y1=y1, col=col[cls[i]])
 	})
 }
 
