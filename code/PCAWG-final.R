@@ -26,7 +26,6 @@ my_png <-  function(file, width, height, pointsize=12, ...) {
 
 #' # Prelim
 #' ## Libraries
-setwd("~/pcawg/code")
 source("PCAWG-functions.R")
 MC_CORES=8
 
