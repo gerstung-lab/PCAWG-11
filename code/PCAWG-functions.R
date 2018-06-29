@@ -774,6 +774,30 @@ stackTime <- function(bb, time="time", t=seq(0,1,0.01)){
 	#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
 }
 
+betaFromCi <- function(x){
+	f <- function(par,x) {
+		beta <- exp(par)
+		sum((qbeta(c(0.025,0.975), beta[1], beta[2])-x[-1])^2)+5*((beta[1]-1)/(beta[1]+beta[2]-2)-x[1])^2
+	}
+	tryCatch(exp(optim(c(0.1,0.1), fn=f,x=x)$par), error=c(1,1))
+}
+
+histBeta <- function(bb, time="time",n.min=10, s=seq(0.005,0.995,0.01)){
+	s <- pmax(0.001,pmin(0.999, s))
+	cols <- paste0(time,c("",".lo",".up"))
+	w <- which(bb$n.snv_mnv > n.min & !is.na(mcols(bb)[cols[1]]) & !duplicated(bb))
+	if(length(w)==0) return(rep(NA, length(s)))
+	d <- apply(as.matrix(mcols(bb)[w,c(cols, "n.snv_mnv")]), 1, function(x){
+				beta <- betaFromCi(x[1:3])
+				beta <- (beta * x[4] + 5*c(1,1))/(x[4]+5) # "posterior" with prior B(1,1)
+				dbeta(s,beta[1],beta[2])
+			})
+	wd <- as.numeric(width(bb)[w])
+	o <- d %*% wd
+}
+
+
+
 plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w]], title=w, regions=refLengths[1:24], ylim.bb=c(0,5), layout.height=c(4,1.2,3.5), y1=ylim.bb[2]-1) {
 	p <- par()
 	layout(matrix(1:3, ncol=1), height=layout.height)
@@ -794,7 +818,7 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w
 		axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
 	if(any(!is.na(bb$time))){
 		y0 <- seq(0.005,0.995,0.01)
-		s <- stackTime(bb)
+		s <- histBeta(bb)
 		g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
 		segments(x0=chrOffset["MT"] ,y0=y0,x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
 		getMode <- function(s){
@@ -809,7 +833,7 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w
 		}
 		abline(h=y0[getMode(s)], lty=5)
 		if("time.2nd" %in% colnames(mcols(bb))) if(any(!is.na(bb$time.2nd))){
-		s2 <- stackTime(bb, time="time.2nd")
+		s2 <- histBeta(bb, time="time.2nd")
 		segments(x0=chrOffset["MT"] + s/max(s) * 1e8 ,y0=y0,x1=chrOffset["MT"] + s/max(s) * 1e8 + s2/max(s) * 1e8, col=paste0(g,"44"), lend=3)
 		abline(h=y0[getMode(s2)], lty=3)
 		
