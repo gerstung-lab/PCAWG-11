@@ -34,6 +34,7 @@ dumpfile <- "2018-06-29-PCAWG-final.RData"
 if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
 	load(dumpfile)
+	finalSv <- finalSv[names(finalSnv)]
 	source("PCAWG-functions.R")
 	MC_CORES=8
 }
@@ -174,6 +175,7 @@ finalSv <- mclapply(dir("../final/pcawg_consensus_1.6.161116.somatic_svs", patte
 			return(t)
 		}, mc.cores=MC_CORES)
 names(finalSv) <- sub("../final/pcawg_consensus_1.6.161116.somatic_svs/","", sub(".pcawg_consensus_1.6.161116.somatic.sv.vcf.gz","",dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE)))
+finalSv <- finalSv[names(finalSnv)]
 
 #' ## Update timing values
 #' This may not be needed in the future

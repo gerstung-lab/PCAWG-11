@@ -775,6 +775,7 @@ stackTime <- function(bb, time="time", t=seq(0,1,0.01)){
 }
 
 betaFromCi <- function(x){
+	if(any(is.na(x))) return(rep(NA,2))
 	f <- function(par,x) {
 		beta <- exp(par)
 		sum((qbeta(c(0.025,0.975), beta[1], beta[2])-x[-1])^2)+5*((beta[1]-1)/(beta[1]+beta[2]-2)-x[1])^2
