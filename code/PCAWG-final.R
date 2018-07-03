@@ -22,21 +22,19 @@ opts_chunk$set(dev=c('my_png','pdf'), fig.ext=c('png','pdf'), fig.width=3, fig.h
 my_png <-  function(file, width, height, pointsize=12, ...) {
 	png(file, width = 1.5*width, height = 1.5*height, units="in", res=72*1.5, pointsize=pointsize, ...)
 }
+options(mc.cores=as.numeric(Sys.getenv("LSB_MAX_NUM_PROCESSORS")))
 
 
 #' # Prelim
 #' ## Libraries
 source("PCAWG-functions.R")
-MC_CORES=8
 
 #+ evalOff, echo=FALSE
 dumpfile <- "2018-06-29-PCAWG-final.RData"
 if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
 	load(dumpfile)
-	finalSv <- finalSv[names(finalSnv)]
 	source("PCAWG-functions.R")
-	MC_CORES=8
 }
 
 #' # Load data
@@ -173,7 +171,7 @@ grayList <- !whiteList
 finalSv <- mclapply(dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE), function(x) {
 			t <- try(readVcf(x))
 			return(t)
-		}, mc.cores=MC_CORES)
+		})
 names(finalSv) <- sub("../final/pcawg_consensus_1.6.161116.somatic_svs/","", sub(".pcawg_consensus_1.6.161116.somatic.sv.vcf.gz","",dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE)))
 finalSv <- finalSv[names(finalSnv)]
 
@@ -184,7 +182,7 @@ finalBB <- mclapply(finalBB, function(bb){
 			time <- bbToTime(bb)
 			mcols(bb)[,colnames(time)] <- DataFrame(time)
 			bb
-		}, mc.cores=MC_CORES)
+		})
 names(finalBB) <- n
 
 
@@ -212,22 +210,22 @@ for(i in seq_along(finalSnv)[1:25]){
 #' # Driver genotypes
 #' ## MAP genotypes
 #+ finalGenotypes
-finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, mc.cores=MC_CORES, useNA="always"))
-finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, mc.cores=MC_CORES, useNA="always"))
+finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, useNA="always"))
+finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, useNA="always"))
 finalGenotypes <- aperm(abind::abind(subs=finalGenotypesSnv,indels=finalGenotypesIndel, along=5), c(1,5,2,3,4))
 rm(finalGenotypesSnv,finalGenotypesIndel)
 
 #' ## Probabilistic genotypes
 #+ finalGenotypesP
-finalGenotypesSnvP <- simplify2array(mclapply(finalSnv[whiteList], probGenotype, mc.cores=MC_CORES))
-finalGenotypesIndelP <- simplify2array(mclapply(finalIndel[whiteList], probGenotype, mc.cores=MC_CORES))
+finalGenotypesSnvP <- simplify2array(mclapply(finalSnv[whiteList], probGenotype))
+finalGenotypesIndelP <- simplify2array(mclapply(finalIndel[whiteList], probGenotype))
 finalGenotypesP <- aperm(abind::abind(subs=finalGenotypesSnvP,indels=finalGenotypesIndelP, along=4), c(1,4,2,3))
 rm(finalGenotypesSnvP,finalGenotypesIndelP)
 
 #' ## Probabilistic genotypes - tail prob (QC)
 #+ finalGenotypesQ
-finalGenotypesSnvQ <- simplify2array(mclapply(finalSnv[whiteList], probGenotypeTail, mc.cores=MC_CORES))
-finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenotypeTail, mc.cores=MC_CORES))
+finalGenotypesSnvQ <- simplify2array(mclapply(finalSnv[whiteList], probGenotypeTail))
+finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenotypeTail))
 finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenotypesIndelQ, along=3), c(1,3,2))
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
@@ -746,7 +744,7 @@ s <- simplify2array(mclapply(1:50, function(foo){
 					bb0$timing_param <- NULL
 					L <- computeMutCn(v, bb0, clusters=d, purity=purity, rho=rho, n.boot=0)
 					L$P[[1]]
-				}, mc.cores=MC_CORES))
+				}))
 
 #+ simMultiGain, fig.height=2.5, fig.width=1.5
 boxplot(t(s[2:3,"T.m.sX",]), at=3:2, xlab="Simulated time point", names=c("t2","t3"))
@@ -781,7 +779,7 @@ effGenome <- unlist(mclapply(finalSnv, function(vcf) {
 					else
 						w <- w & isDeamination(vcf)
 					2/avgWeights(vcf[na.omit(w)])
-				}, mc.cores=MC_CORES))
+				}))
 names(effGenome) <- names(finalSnv)
 
 #' #### Power per (sub)clone
@@ -816,7 +814,7 @@ branchDeam <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 							p.subclonal <- finalPower[[n]][m] # Power of subclones
 							b.subclonal <- n.subclonal$x %*% (n.subclonal$Group.1 / p.subclonal) / max(n.subclonal$Group.1) # Subclonal branch, power adjusted & 1/f-scaled
 							b.clonal <- sum(1-p, na.rm=TRUE)/finalPower[[n]][1] # Clonal branch (trunk), power adjusted & 1/f-scaled
-							c(b.subclonal, b.clonal)}, mc.cores=MC_CORES)))
+							c(b.subclonal, b.clonal)})))
 
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
 typesSubclones <- setdiff(levels(d), c(typeNa, names(which(table(d)<5))))
@@ -843,7 +841,7 @@ branchDeamLinear <- t(simplify2array(mclapply(finalSnv, function(vcf) {
 							p.subclonal <- finalPower[[n]][m] # Power of subclones
 							b.subclonal <- n.subclonal$x %*% (1 / p.subclonal)  # Subclonal branch, power adjusted 
 							b.clonal <- sum(1-p, na.rm=TRUE)/finalPower[[n]][1] # Clonal branch (trunk), power adjusted
-							c(b.subclonal, b.clonal)}, mc.cores=MC_CORES)))
+							c(b.subclonal, b.clonal)})))
 
 
 #' Plot
@@ -1199,7 +1197,7 @@ computeWgdParamDeam <- function(vcf, bb, clusters, purity){
 #+ finalWgdParam, eval=FALSE
 wgdParamDeam <- mclapply(names(finalSnv)[isWgd], function(ID){
 			try(computeWgdParamDeam(finalSnv[[ID]], finalBB[[ID]], clusters=finalClusters[[ID]], purity=finalPurity[ID]))
-		},  mc.cores=MC_CORES)
+		})
 names(wgdParamDeam) <- names(finalSnv)[isWgd]
 
 #+ finalWgdParamLoad, echo=FALSE
@@ -1252,7 +1250,7 @@ wgdTimeDeamAcc <- simplify2array(mclapply(names(wgdParamDeam[!void]), function(n
 					dim(res) <- c(2, length(accel), length(ta), dim(res)[-1])
 					return(res)
 					
-				}, mc.cores=MC_CORES))
+				}))
 dimnames(wgdTimeDeamAcc)[1:2] <- list(c("T.WGD","T.MRCA"), names(accel))
 dimnames(wgdTimeDeamAcc)[[5]] <- colnames(wgdParamDeam[[1]]$time)[2:4] 
 dimnames(wgdTimeDeamAcc)[[4]] <- levels(finalBB[[1]]$type)[c(3,1,2)]
@@ -1657,7 +1655,7 @@ write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.name
 
 #' ## All segments, MutationTime.R raw values
 #+ segOut
-t <- do.call("rbind", mclapply(finalBB, as.data.frame, mc.cores=MC_CORES))[,c(1:3,6,8:9,43:48)]
+t <- do.call("rbind", mclapply(finalBB, as.data.frame))[,c(1:3,6,8:9,43:48)]
 n <- rownames(t) 
 t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x)) 
 t$sample <- sub("\\..+","",n)

@@ -774,11 +774,11 @@ stackTime <- function(bb, time="time", t=seq(0,1,0.01)){
 	#rowSums(sapply(which(!is.na(ut)), function(i) w[i]*(t <= u$time.up[i] & t >= u$time.lo[i])))
 }
 
-betaFromCi <- function(x){
+betaFromCi <- function(x, weight.mode=5){
 	if(any(is.na(x))) return(rep(NA,2))
 	f <- function(par,x) {
 		beta <- exp(par)
-		sum((qbeta(c(0.025,0.975), beta[1], beta[2])-x[-1])^2)+5*((beta[1]-1)/(beta[1]+beta[2]-2)-x[1])^2
+		sum((qbeta(c(0.025,0.975), beta[1], beta[2])-x[-1])^2)+weight.mode*((beta[1]-1)/(beta[1]+beta[2]-2)-x[1])^2
 	}
 	tryCatch(exp(optim(c(0.1,0.1), fn=f,x=x)$par), error=c(1,1))
 }
