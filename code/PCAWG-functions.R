@@ -192,6 +192,55 @@ clustersFromBB <- function(bb){
 
 
 
+mergeClustersByMutreadDiff = function(clusters, purity, ploidy, vcf_snv, min_read_diff) {
+	calc_exp_mutreads_ccf = function(ccf, purity, ploidy, mean_depth) {
+		return(ccf / (purity*ploidy + (1-purity)*2) * mean_depth)
+	}
+	clusters_new = clusters
+	exp_reads = sapply(clusters$ccf, calc_exp_mutreads_ccf, purity=purity, ploidy=ploidy, mean_depth=mean(getTumorDepth(vcf_snv), na.rm=T))
+	ccf_diff = exp_reads[1:(length(exp_reads)-1)] - exp_reads[2:length(exp_reads)]
+	
+	
+	if (any(ccf_diff < min_read_diff)) {
+		
+		# Iteratively merge a pair of clusters untill no more pairs within distance can be found
+		merged = T
+		while(merged) {
+			merged = F
+			
+			exp_reads = sapply(clusters_new$ccf, calc_exp_mutreads_ccf, purity=purity, ploidy=ploidy, mean_depth=mean(getTumorDepth(vcf_snv), na.rm=T))
+			ccf_diff = exp_reads[1:(length(exp_reads)-1)] - exp_reads[2:length(exp_reads)]
+			to_merge = which(ccf_diff < min_read_diff)
+			
+			if (length(to_merge)==0) {
+				merged = F
+				break
+			} else {
+				i = to_merge[1]
+				clusters_new$ccf[i] = sum(clusters_new$ccf[c(i, i+1)]*clusters_new$n_ssms[c(i, i+1)]) / sum(clusters_new$n_ssms[c(i, i+1)])
+				clusters_new$n_ssms[i] = sum(clusters_new$n_ssms[c(i, i+1)])
+				clusters_new = clusters_new[-(i+1),]
+				merged = T
+			}
+			
+			if (nrow(clusters_new)==1) {
+				merged = F
+				break
+			}
+		}
+	}
+	clusters_new$proportion = clusters_new$ccf * purity
+	
+	# sorting and renumbering clusters
+	clusters_new = clusters_new[with(clusters_new, order(proportion, decreasing=T)),]
+	clusters_new$cluster = 1:nrow(clusters_new)
+	return(clusters_new)
+}
+
+
+
+
+
 probGenotype <- function(vcf){
 	dg <- factor(paste(unlist(info(vcf)$DG)), levels=c("NA",as.character(CANCERGENES)))
 	P <- pGainToTime(vcf)
@@ -879,3 +928,5 @@ t <- read.table("../ref/release_may2016.v1.1.TiN__donor.TiNsorted.20Jul2016.tsv"
 TiN <- t$TiN_donor
 names(TiN) <- t$icgc_donor_id
 
+w <- read.table("../final/structure_weme_released_consensus_merged.txt", header=TRUE)
+wemeClustersMerged <- split(w[,1:4], w$sample)

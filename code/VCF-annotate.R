@@ -28,6 +28,7 @@ print(ID)
 # Load clusters
 clusters <- consensusClustersToOld(loadConsensusClusters((ID))) # consensus clusters
 clusters$proportion <- wccClusters[[ID]]$proportion # WCC adjusted CP
+clusters$n_ssms <- wemeClustersMerged[[ID]]$n_ssms # WEME prevalence to fix consensus bug
 purity <- purityPloidy[ID,'purity']
 
 #' ## COPYNUMBER

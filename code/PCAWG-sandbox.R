@@ -786,11 +786,12 @@ cyto <- hg19IdeogramCyto
 cyto <- sort(cyto)
 seqlevels(cyto) <- sub("chr","", seqlevels(cyto))
 chrCyto <- split(cyto, seqnames(cyto))
-detach(package:biovizBase)
+#detach(package:biovizBase)
 
 pq <- paste0(seqnames(unlist(chrCyto)), sub("[0-9].+","", unlist(chrCyto)$name))
-mcols(chrCyto)$pq <- pq
+#mcols(chrCyto)$pq <- pq
 pq <- unlist(GRangesList(sapply(split(unlist(chrCyto), pq), reduce)))
+pq <- sort(sortSeqlevels(pq))
 
 allRanges <- GRangesList(sapply(names(bbTimeTnc), function(ID) granges(allBB[[ID]])[bbTimeTnc[[ID]]$cnid]))
 
@@ -2092,9 +2093,9 @@ getDriverGenotype <- function(vcf, drivers, reclassify='missing', ...){
 
 
 #' ## Broad 500
-dpPath <- '/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/Subclonal_Structure'
+dpPath <- '../broad500/Subclonal_Structure'
 dpFiles <- dir(dpPath, pattern="subclonal_structure.txt", recursive=TRUE)
-simPurityPloidy <- read.table("/nfs/users/nfs_c/cgppipe/pancancer/workspace/mg14/broad500/pp_table.txt", header=TRUE, sep='\t')
+simPurityPloidy <- read.table("../broad500/pp_table.txt", header=TRUE, sep='\t')
 rownames(simPurityPloidy) <- simPurityPloidy$sample
 simPurityPloidy <- simPurityPloidy[,2:3]
 
@@ -2199,6 +2200,40 @@ applyPigeonHole <- function(clusters){
 }
 
 
+
+broad500_old <- mclapply(dir("../broad500/annotated_vcf_rho0_xmin3", pattern=".vcf$", full.names=TRUE), function(f){
+			readVcf(f)
+		})
+names(broad500_old) <- sub(".no_real.+","",dir("../broad500/annotated_vcf_rho0_xmin3", pattern=".vcf$"))
+
+broad500 <- mclapply(dir("../broad500/annotated_vcf_new_rho0.01_xmin3", pattern=".vcf.RData$", full.names=TRUE), function(f){
+			e <- new.env()
+			load(f, envir=e)
+			e$vcf
+		})
+names(broad500) <- sub(".no_real.+","",dir("../broad500/annotated_vcf_new_rho0_xmin3", pattern=".vcf.RData$"))
+
+simFiles <- dir('../broad500/Subclonal_Structure', pattern="subclonal_structure.txt", recursive=TRUE, full.names=TRUE)
+simClusters <- sapply(simFiles, read.table, header=TRUE, simplify=FALSE)
+names(simClusters) <- names(broad500)
+
+foo <- sapply(broad500, function(vcf) sum(info(vcf)$pSub, na.rm=TRUE))
+bar <- sapply(simClusters, function(cl) sum(cl$n_ssms[-1]))#)/sum(cl$n_ssms))
+bak <- sapply(broad500_old, function(vcf) sum(info(vcf)$pSub, na.rm=TRUE))
+
+mrgd <- sapply(simClusters, function(cl) (cl$proportion[2]/cl$proportion[1] > 0.8))
+
+
+par(mfrow=c(2,1))
+plot(bar,foo, xlab="Fraction Subclonal (truth)",ylab="Fraction Subclonal (estimated; new)", pch=c(1,4)[mrgd+1]); abline(0,1, lty=4)
+plot(bar,bak, xlab="Fraction Subclonal (truth)", ylab="Fraction Subclonal (estimated; old)", pch=c(1,4)[mrgd+1], col=(simPurityPloidy[,1] < 0.5)+1); abline(0,1, lty=4)
+
+simBB <- sapply(dir('../broad500/Segments', full.names=TRUE), loadBB)
+names(simBB) <- names(broad500)
+
+for(i in seq_along(simClusters)) simClusters[[i]]$proportion <- simClusters[[i]]$ccf * simPurityPloidy[i,1] 
+for(i in seq_along(simBB)) simBB[[i]]$clonal_frequency <- simPurityPloidy[i,1] 
+tmp <- computeMutCn(vcf=broad500[[1]], bb=simBB[[1]], clusters=simClusters[[1]], purity=simPurityPloidy[1,1], n.boot=0, rho=0.01)
 
 #' ### CN-LOH cases
 w <- which(finalPloidy < 2.6 & aep > .5)
@@ -2545,7 +2580,7 @@ plot(s)
 
 library(ape)
 
-bb <- finalBB[[1]]
+bb <- bb
 trees <- sapply(1:10, function(foo){
 			w <- !is.na(bb$time)
 			t <- pmin(1, pmax(0,rnorm(bb$time[w], sd = (bb$time.up[w]- bb$time.lo[w])/4)))
@@ -2662,7 +2697,7 @@ frac2SD
 
 pdf("0009b464-b376-4fbc-8a56-da538269a02f.timing.pdf", 4,1.25, pointsize=8)
 par(mar=c(3,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25)
-plotTiming(finalBB[[1]])
+plotTiming(bb)
 dev.off()
 
 
@@ -3760,7 +3795,7 @@ table(simTime$time.up >= realTime$time & simTime$time.lo <= simTime$time, cut(si
 
 #' A few more checks re power and WCC
 load("../final/annotated_010/clusters/0009b464-b376-4fbc-8a56-da538269a02f.consensus.20160830.somatic.snv_mnv.complete_annotation.clusters_purity.RData")
-bb <- finalBB[[1]]
+bb <- bb
 bb$timing_param <- NULL
 D <- computeMutCn(finalSnv[[1]], bb=bb, purity= purityPloidy[1,"purity"], clusters=clusters, isWgd=TRUE, gender='female', xmin=3, n.boot=0)
 v <- finalSnv[[1]]
@@ -3774,16 +3809,16 @@ table(classifyMutations(v), classifyMutations(v0))
 table(info(v)$CLS, classifyMutations(v0))
 
 
-b <- finalBB[[1]]
+b <- bb
 b$timing_param <- D$P
 t <- bbToTime(b)
 
-b0 <- finalBB[[1]]
+b0 <- bb
 b0$timing_param <- D0$P
 t0 <- bbToTime(b0)
 
 plot(t$time, t0$time)
-plot(finalBB[[1]]$time, t$time)
+plot(bb$time, t$time)
 
 cl <- clusters
 cl$proportion <- wccClusters[[1]]$proportion
@@ -3794,7 +3829,7 @@ info(v3)[colnames(D3$D)] <- D3$D
 b0$timing_param <- D3$P
 t3 <- bbToTime(b0)
 
-cor(cbind(bb=finalBB[[1]]$time, t=t$time, t0=t0$time, t3=t3$time),use='c')
+cor(cbind(bb=bb$time, t=t$time, t0=t0$time, t3=t3$time),use='c')
 
 table(classifyMutations(v3), classifyMutations(v0))
 table(classifyMutations(v3), info(v)$CLS)
@@ -4345,8 +4380,10 @@ finalPower <- sapply(names(finalBB), function(n) {
 plot(unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms"))/ unlist(finalPower) , unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms")), log='xy',
 		xlab="Cluster size MutationTime.R", ylab="Cluster size WCC") 
 
+plot(1/unlist(finalPower) , unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms"))/unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms")), log='xy',
+		xlab="Cluster size MutationTime.R", ylab="Cluster size WCC") 
 
-
+cor(1/unlist(finalPower) , unlist(lapply(wccClusters[names(finalSnv)], `[[`, "n_ssms"))/unlist(lapply(finalClusters[names(finalSnv)], `[[`, "n_ssms")), use='c')
 
 mycol <- function(n){
 	c <- col2rgb(col16)
@@ -4573,35 +4610,13 @@ for(w in names(finalSnv)){
 				bb <- bb[width(bb)>1e6]
 				vcf <- finalSnv[[w]]
 				if(nrow(vcf)> 2e4) vcf <- vcf[sort(sample(1:nrow(vcf), 2e4)),]
-				mcols(bb)[,colnames(bbToTime(bb))] <- DataFrame(bbToTime(bb))
+				#mcols(bb)[,colnames(bbToTime(bb))] <- DataFrame(bbToTime(bb))
 				plotSample(w, vcf=vcf, bb=bb, title=paste(w, donor2type[sample2donor[w]], paste0(age[sample2donor[w]],"yr"), sep=", "))
 			})
 }
 dev.off()
 
-betaFromCi <- function(x){
-	f <- function(par,x) {
-		beta <- exp(par)
-		sum((qbeta(c(0.025,0.975), beta[1], beta[2])-x[-1])^2)+5*((beta[1]-1)/(beta[1]+beta[2]-2)-x[1])^2
-	}
-	tryCatch(exp(optim(c(0.1,0.1), fn=f,x=x)$par), error=c(1,1))
-}
 
-histBeta <- function(bb, time="time",n.min=10, s=seq(0.005,0.995,0.01)){
-	s <- pmax(0.001,pmin(0.999, s))
-	cols <- paste0(time,c("",".lo",".up"))
-	w <- which(bb$n.snv_mnv > n.min & !is.na(mcols(bb)[cols[1]]) & !duplicated(bb))
-	if(length(w)==0) return(rep(NA, length(s)))
-	d <- apply(as.matrix(mcols(bb)[w,c(cols, "n.snv_mnv")]), 1, function(x){
-				beta <- betaFromCi(x[1:3])
-				beta <- (beta * x[4] + 5*c(1,1))/(x[4]+5) # "posterior" with prior B(1,1)
-				dbeta(s,beta[1],beta[2])
-			})
-	wd <- as.numeric(width(bb)[w])
-	o <- d %*% wd
-}
-
-stackTime <- histBeta
 
 modeBeta <- function(s){}
 
@@ -4609,4 +4624,92 @@ s <- h
 g <- colorRampPalette(RColorBrewer::brewer.pal(4,"Set1")[c(3,2,4)])(100)
 segments(x0=chrOffset["MT"] ,y0=seq(0.005,0.995,0.01),x1=chrOffset["MT"] + s/max(s) * 1e8, col=g, lend=3)
 
+
+aggregateTime <- function(bb, method=c("none","time","cn","both"), split=c("none","chr","pq"), hclust.method="complete"){
+	method <- match.arg(method)
+	split <- match.arg(split)
+	x <- as.matrix(mcols(bb)[c("time","time.lo","time.up")])
+	beta <- t(apply(x,1,betaFromCi, weight.mode=1))
+	ldb <- function(x,size,prob) x * log(prob) + (size-x) * log(1-prob)
+	lrd <- function(x,y) {
+		p <- x[,1]/(x[,1]+x[,2])
+		q <- y[,1]/(y[,1]+y[,2])
+		pq <- (y[,1]+x[,1])/(y[,1]+x[,1]+y[,2]+x[,2])
+		ldb(x=x[,1], size=x[,1]+x[,2], prob=p) + ldb(x=y[,1], size=y[,1]+y[,2], prob=q) - ldb(x=x[,1], size=x[,1]+x[,2], prob=pq) - ldb(x=y[,1], size=y[,1]+y[,2], prob=pq)  
+	}
+	if(split=="chr") sp <- seqnames(bb)
+	else if(split=="pq") sp <- Rle(names(pq)[findOverlaps(bb,pq, select='first')])
+	else sp <- Rle("all")
+	sb <- split(beta, sp)
+	t <- sapply(sb, function(x){
+				w <- which(!is.na(x[,1]))
+				if(length(w)==0) return(NA)
+				d <- sapply(w,function(i) lrd(x[w,,drop=FALSE],x[i,,drop=FALSE]))
+				#d[is.na(d)] <- 0
+				if(length(w)>1){
+					h <- hclust(as.dist(d), method=hclust.method)
+					c <- cutree(h, h=qchisq(1-0.01/length(w),1)/2)
+				} else c <- 1
+				xx <- split(x[w,,drop=FALSE], Rle(c))
+				r <- t(sapply(xx, function(x){
+									b <- colSums(x, na.rm=TRUE)
+									r <- qbeta(c(0.5,0.025, 0.975), b[1],b[2])
+									names(r) <- c("hat","2.5%","97.5%")
+									r
+								}))
+				cbind(r, n.seg=table(c))
+				
+			}, simplify=FALSE)
+	return(t)
+}
+
+finalSv <- finalSv[names(finalSnv)]
+
+
+computeClusterProbs <- function(vcf, bb, max_clust=10){
+	x <- getAltCount(vcf)
+	n <- getTumorDepth(vcf)
 	
+	f <- findOverlaps(vcf, bb, select='first')
+	p <- matrix(NA, nrow=nrow(vcf), ncol=max_clust)
+	colnames(p) <- paste("cluster", 1:max_clust)
+	p0 <- do.call("rbind",mclapply(unique(f), function(i){
+						w <- which(f==i)
+						if(length(w)==0) return(NULL)
+						if(is.null(bb$timing_param[[i]])) return(matrix(NA, nrow=length(w), ncol=max_clust))
+						p <- posteriorMutCN(mg14:::na.zero(x[w]), mg14:::na.zero(n[w]), bb$timing_param[[i]])
+						m <- model.matrix(~ factor(pmin(bb$timing_param[[i]][,"s"], max_clust), levels=1:max_clust)-1)
+						pc <- p %*% m
+						pc[is.na(x[w]),] <- NA
+						return(pc)
+					}))
+	p[!is.na(f),] <- p0
+	return(p[,colSums(p, na.rm=TRUE) > 0])
+}
+
+foo <- sapply(finalSnv, function(vcf){
+			mean(info(vcf)$pSub, na.rm=TRUE)
+		})
+
+bar <- sapply(finalClusters, function(cl) 1-cl$n_ssms[1]/sum(cl$n_ssms))
+
+
+weme <- read.table("../final/structure_weme_released_consensus.txt", header=TRUE)
+wemeClusters <- split(weme[,1:3], weme$samplename)
+
+wemeClustersMerged <- sapply(names(wemeClusters), function(i){
+			cl <- wemeClusters[[i]]
+			cl$ccf <- cl$proportion/purityPloidy[i,"purity"]
+			if(nrow(cl) > 1) 
+				mergeClustersByMutreadDiff(cl, purityPloidy[i,"purity"], purityPloidy[i,"ploidy"], finalSnv[[i]], min_read_diff=2)
+			else
+				cl
+		}, simplify=FALSE)
+
+w <- do.call("rbind", wemeClustersMerged)
+w$sample <- sub("\\..+","",rownames(w))
+rownames(w) <- NULL
+n <- sapply(finalSnv, nrow)
+w$n_ssms <- w$n_ssms / 100 * n[w$sample]
+
+write.table(w, file="../final/structure_weme_released_consensus_merged.txt", quote=FALSE, sep="\t", row.names=FALSE)
