@@ -42,11 +42,13 @@ if(file.exists(dumpfile)){
 #' ### SNV and MNV
 #+ loadSNV
 p <- "../final/annotated_014/snv_mnv"
-finalSnv <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f) {
-			e <- new.env()
-			load(f, envir=e)
-			e$vcf
-		})
+finalSnv <- list()
+j <- 1
+for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+	if(j %% 10 ==0) print(j); j <- j+1
+	load(f)
+	finalSnv[[f]] <- vcf
+}
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
@@ -63,11 +65,11 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 #' ### Indel
 #+ loadIndel
 p <- "../final/annotated_014/indel"
-finalIndel <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f){
-			e <- new.env()
-			load(f, envir=e)
-			e$vcfIndel
-		})
+finalIndel <- list()
+for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+	load(f)
+	finalIndel[[f]] <- vcfIndel
+}
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Clusters and purity
@@ -111,11 +113,13 @@ for(i in seq_along(finalDriversAnnotated)){
 #' ### SNV and MNV
 #+ loadSnvGray
 p <- "../final/annotated_014/graylist/snv_mnv"
-finalSnvGray <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f) {
-			e <- new.env()
-			load(f, envir=e)
-			e$vcf
-		})
+finalSnvGray <- list()
+j <- 1
+for(f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+	if(j %% 10 ==0) print(j); j <- j+1
+	load(f)
+	finalSnvGray[[f]] <- vcf
+}
 names(finalSnvGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 finalSnv[names(finalSnvGray)] <- finalSnvGray
 
@@ -135,11 +139,11 @@ finalBB[names(finalBBGray)] <- finalBBGray
 #' ### Indel
 #+ loadIndelGray
 p <- "../final/annotated_014/graylist/indel"
-finalIndelGray <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f) {
-			e <- new.env()
-			load(f, envir=e)
-			e$vcfIndel
-		})
+finalIndelGray <- list()
+for( f in dir(p, pattern="*.vcf.RData", full.names=TRUE)){
+	load(f)
+	finalIndelGray[[f]] <- vcfIndel
+}
 names(finalIndelGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 finalIndel[names(finalIndelGray)] <- finalIndelGray
 
@@ -1639,7 +1643,7 @@ write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.name
 
 #' ## All segments, MutationTime.R raw values
 #+ segOut
-t <- do.call("rbind", mclapply(finalBB, function(bb) as.data.frame(bb[,c(1:6,38:47)])))
+t <- do.call("rbind", mclapply(finalBB, as.data.frame))[,c(1:3,6,8:9,43:48)]
 n <- rownames(t) 
 t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x)) 
 t$sample <- sub("\\..+","",n)
