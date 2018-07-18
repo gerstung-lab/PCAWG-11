@@ -30,7 +30,7 @@ options(mc.cores=as.numeric(Sys.getenv("LSB_MAX_NUM_PROCESSORS")))
 source("PCAWG-functions.R")
 
 #+ evalOff, echo=FALSE
-dumpfile <- "2018-06-29-PCAWG-final.RData"
+dumpfile <- "2018-07-18-PCAWG-final.RData"
 if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
 	load(dumpfile)
@@ -41,19 +41,13 @@ if(file.exists(dumpfile)){
 #' ## Whitelist
 #' ### SNV and MNV
 #+ loadSNV
-p <- "../final/annotated_013/snv_mnv"
-finalSnv <- list()
-j <- 1
-for(f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
-	if(j %% 10 ==0) print(j); j <- j+1
-	vcf <- readVcf(f)
-	finalSnv[[f]] <- vcf
-}
+p <- "../final/annotated_014/snv_mnv"
+finalSnv <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), readVcf)
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
 #+ loadBB
-p <- "../final/annotated_013/cn"
+p <- "../final/annotated_014/cn"
 finalBB <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -64,21 +58,18 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 
 #' ### Indel
 #+ loadIndel
-p <- "../final/annotated_013/indel"
-finalIndel <- list()
-for( f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
+p <- "../final/annotated_014/indel"
+finalIndel <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), function(f){
 	t <- try(readVcf(f))
-	if(class(t)=="try-error") vcfIndel <- vcfIndel[NULL,] 
-	else vcfIndel <- t
-	finalIndel[[f]] <- vcfIndel
-}
+})
+for(i in which(sapply(finalIndel, class)=="try-error")) finalIndel[[i]] <- finalIndel[[1]][NULL,]
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Clusters and purity
 #+ loadClusters
 finalClusters <- list()
 finalPurity <- numeric()
-p <- "../final/annotated_013/clusters"
+p <- "../final/annotated_014/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClusters[[f]] <- clusters
@@ -114,20 +105,14 @@ for(i in seq_along(finalDriversAnnotated)){
 #' ## Graylisted data
 #' ### SNV and MNV
 #+ loadSnvGray
-p <- "../final/annotated_013/graylist/snv_mnv"
-finalSnvGray <- list()
-j <- 1
-for(f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
-	if(j %% 10 ==0) print(j); j <- j+1
-	vcf <- readVcf(f)
-	finalSnvGray[[f]] <- vcf
-}
+p <- "../final/annotated_014/graylist/snv_mnv"
+finalSnvGray <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), readVcf)
 names(finalSnvGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 finalSnv[names(finalSnvGray)] <- finalSnvGray
 
 #' ### Copy number profiles
 #+ loadBBGray
-p <- "../final/annotated_013/graylist/cn"
+p <- "../final/annotated_014/graylist/cn"
 finalBBGray <- list()
 for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 	load(f)
@@ -140,12 +125,8 @@ finalBB[names(finalBBGray)] <- finalBBGray
 
 #' ### Indel
 #+ loadIndelGray
-p <- "../final/annotated_013/graylist/indel"
-finalIndelGray <- list()
-for( f in dir(p, pattern="*.vcf.bgz", full.names=TRUE)){
-	vcfIndel <- readVcf(f)
-	finalIndelGray[[f]] <- vcfIndel
-}
+p <- "../final/annotated_014/graylist/indel"
+finalIndelGray <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), readVcf)
 names(finalIndelGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 finalIndel[names(finalIndelGray)] <- finalIndelGray
 
@@ -154,7 +135,7 @@ finalIndel[names(finalIndelGray)] <- finalIndelGray
 #+ loadClustersGray
 finalClustersGray <- list()
 finalPurityGray <- numeric()
-p <- "../final/annotated_013/graylist/clusters"
+p <- "../final/annotated_014/graylist/clusters"
 for( f in dir(p, pattern="*.RData", full.names=TRUE)){
 	load(f)
 	finalClustersGray[[f]] <- clusters
@@ -174,16 +155,6 @@ finalSv <- mclapply(dir("../final/pcawg_consensus_1.6.161116.somatic_svs", patte
 		})
 names(finalSv) <- sub("../final/pcawg_consensus_1.6.161116.somatic_svs/","", sub(".pcawg_consensus_1.6.161116.somatic.sv.vcf.gz","",dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE)))
 finalSv <- finalSv[names(finalSnv)]
-
-#' ## Update timing values
-#' This may not be needed in the future
-n <- names(finalBB)
-finalBB <- mclapply(finalBB, function(bb){
-			time <- bbToTime(bb)
-			mcols(bb)[,colnames(time)] <- DataFrame(time)
-			bb
-		})
-names(finalBB) <- n
 
 
 #' # QC
@@ -1655,7 +1626,7 @@ write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.name
 
 #' ## All segments, MutationTime.R raw values
 #+ segOut
-t <- do.call("rbind", mclapply(finalBB, as.data.frame))[,c(1:3,6,8:9,43:48)]
+t <- do.call("rbind", mclapply(finalBB, function(bb) as.data.frame(bb[,c(1:6,38:47)])))
 n <- rownames(t) 
 t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x)) 
 t$sample <- sub("\\..+","",n)
