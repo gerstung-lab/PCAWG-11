@@ -42,7 +42,11 @@ if(file.exists(dumpfile)){
 #' ### SNV and MNV
 #+ loadSNV
 p <- "../final/annotated_014/snv_mnv"
-finalSnv <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), readVcf)
+finalSnv <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f) {
+			e <- new.env()
+			load(f, envir=e)
+			e$vcf
+		})
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
@@ -59,10 +63,11 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 #' ### Indel
 #+ loadIndel
 p <- "../final/annotated_014/indel"
-finalIndel <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), function(f){
-	t <- try(readVcf(f))
-})
-for(i in which(sapply(finalIndel, class)=="try-error")) finalIndel[[i]] <- finalIndel[[1]][NULL,]
+finalIndel <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f){
+			e <- new.env()
+			load(f, envir=e)
+			e$vcfIndel
+		})
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Clusters and purity
@@ -106,7 +111,11 @@ for(i in seq_along(finalDriversAnnotated)){
 #' ### SNV and MNV
 #+ loadSnvGray
 p <- "../final/annotated_014/graylist/snv_mnv"
-finalSnvGray <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), readVcf)
+finalSnvGray <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f) {
+			e <- new.env()
+			load(f, envir=e)
+			e$vcf
+		})
 names(finalSnvGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 finalSnv[names(finalSnvGray)] <- finalSnvGray
 
@@ -126,7 +135,11 @@ finalBB[names(finalBBGray)] <- finalBBGray
 #' ### Indel
 #+ loadIndelGray
 p <- "../final/annotated_014/graylist/indel"
-finalIndelGray <- mclapply(dir(p, pattern="*.vcf.bgz", full.names=TRUE), readVcf)
+finalIndelGray <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f) {
+			e <- new.env()
+			load(f, envir=e)
+			e$vcfIndel
+		})
 names(finalIndelGray) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 finalIndel[names(finalIndelGray)] <- finalIndelGray
 
