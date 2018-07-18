@@ -42,11 +42,12 @@ if(file.exists(dumpfile)){
 #' ### SNV and MNV
 #+ loadSNV
 p <- "../final/annotated_014/snv_mnv"
-finalSnv <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f) {
+d <- dir(p, pattern="*.vcf.RData", full.names=TRUE)
+finalSnv <- unlist(mclapply(split(d, seq_along(d) %/% 100), lapply, function(f) { # read in batches of 100
 			e <- new.env()
 			load(f, envir=e)
 			e$vcf
-		}, mc.preschedule=FALSE)
+		}, mc.preschedule=FALSE), recursive=FALSE)
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
@@ -63,11 +64,12 @@ names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.na
 #' ### Indel
 #+ loadIndel
 p <- "../final/annotated_014/indel"
-finalIndel <- mclapply(dir(p, pattern="*.vcf.RData", full.names=TRUE), function(f){
-			e <- new.env()
-			load(f, envir=e)
-			e$vcfIndel
-		}, mc.preschedule=FALSE)
+d <- dir(p, pattern="*.vcf.RData", full.names=TRUE)
+finalIndel <- unlist(mclapply(split(d, seq_along(d) %/% 100), lapply, function(f) { # read in batches of 100
+					e <- new.env()
+					load(f, envir=e)
+					e$vcfIndel
+				}, mc.preschedule=FALSE), recursive=FALSE)
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Clusters and purity
