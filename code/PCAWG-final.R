@@ -1080,26 +1080,31 @@ names(accel) <- paste0(accel, "x")
 #+ timeSubclones, warning=FALSE
 set.seed(42)
 d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
-subclonesTimeAbs <- sapply(typesSubclones, function(l) {
-			i <- d==l
-			tt0 <- branchDeam[i,]/cbind(finalPloidy[i], effGenome[i]) #/ cbind(nClones[i]-1, 1)
-			resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
-						tt <- matrix(rpois(length(tt0), lambda=tt0), ncol=ncol(tt0))
-						res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
-						colnames(res) <- paste0(accel, "x")
-						#res[res==0] <- NA
-						res}, simplify='array')
-			res <- sapply(accel, function(a)  tt0[,1]/a/rowSums(tt0/rep(c(a,1), each=nrow(tt0)))) * age[sample2donor[names(finalSnv)[i]]]
-			colnames(res) <- paste0(accel, "x")	
-			resCI <- apply(resB,1:2, quantile, c(0.1,0.9), na.rm=TRUE)
-			arr <- abind::abind(res, resCI, along=1)
-			rownames(arr)[1] <- "hat"
-			arr <- aperm(arr, c(2,1,3))
-			tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
-			r <- which(rowSums(branchDeam[i,]) < 50 ) ## Exclude samples with less than 50 subs 
-			arr[r,,] <- NA
-			return(arr)
-		})
+
+computeSubclonesTimeAbs <- function(l, b) {
+	i <- d==l
+	tt0 <- b[i,]/cbind(finalPloidy[i], effGenome[i]) #/ cbind(nClones[i]-1, 1)
+	resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
+				tt <- matrix(rpois(length(tt0), lambda=tt0), ncol=ncol(tt0))
+				res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
+				colnames(res) <- paste0(accel, "x")
+				#res[res==0] <- NA
+				res}, simplify='array')
+	res <- sapply(accel, function(a)  tt0[,1]/a/rowSums(tt0/rep(c(a,1), each=nrow(tt0)))) * age[sample2donor[names(finalSnv)[i]]]
+	colnames(res) <- paste0(accel, "x")	
+	resCI <- apply(resB,1:2, quantile, c(0.1,0.9), na.rm=TRUE)
+	arr <- abind::abind(res, resCI, along=1)
+	rownames(arr)[1] <- "hat"
+	arr <- aperm(arr, c(2,1,3))
+	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+	r <- which(rowSums(b[i,]) < 50 ) ## Exclude samples with less than 50 subs 
+	arr[r,,] <- NA
+	return(arr)
+}
+
+subclonesTimeAbs <- mclapply(typesSubclones, computeSubclonesTimeAbs, b=branchDeam)
+subclonesTimeAbsLinear <- mclapply(typesSubclones, computeSubclonesTimeAbs, b=branchDeamLinear)
+names(subclonesTimeAbsLinear) <- names(subclonesTimeAbs) <- typesSubclones
 
 guessAccel <- sapply(subclonesTimeAbs, function(x) "5x")
 guessAccel["Ovary-AdenoCa"] <- guessAccel["Liver-HCC"] <- "7.5x"
@@ -1142,6 +1147,26 @@ for(i in seq_along(o))try({
 #dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
 
 sapply(subclonesTimeAbs, nrow)
+
+#' Comparison of branching v linear
+#+ realTimeBranchLinear, fig.width=2.5, fig.height=3.5
+subclonesTimeAbsTypeLinear <- sapply(names(subclonesTimeAbsLinear), function(n) {x <- subclonesTimeAbsLinear[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
+qSubcloneLinear <- sapply(subclonesTimeAbsLinear, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
+n <- diag(qSubcloneLinear["50%",guessAccel[dimnames(qSubcloneLinear)[[3]]],])#t[1,3,]
+
+par( mar=c(5,3,3,10), mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="n", xpd=FALSE, las=1)
+plot(c(rep(1, length(m)), rep(2, each=length(n))), c(m,n), bg=tissueColors[c(names(m), names(n))], pch=21, cex=1, xaxt="n", ylab="Years after MRCA", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(n, na.rm=TRUE)))
+segments(rep(1, each=length(m)), m, rep(2, each=length(n)), n,col=tissueLines[names(m)], lty= ifelse(sapply(subclonesTimeAbsType, nrow) <= 5, 3, tissueLty[names(m)]))
+o <- order(n, na.last=NA)
+y0 <- n[o]
+y1 <- mg14:::mindist(n[o], diff(par('usr')[3:4])/30)
+par(xpd=NA)
+mtext(names(m)[o], at=y1, side=4 )
+segments(2.1,y0,2.2,y0)
+segments(2.2,y0,2.3,y1)
+segments(2.3,y1,2.4,y1)
+mg14::rotatedLabel(1:2, labels=c("Branching","Linear"))
+
 
 #' Numbers per decade
 yy <- do.call("rbind",subclonesTimeAbsType)
@@ -1636,7 +1661,7 @@ write.table(t, file=paste0(Sys.Date(),"-wgdTimeAbs.txt"), quote=FALSE, row.names
 
 #' ## Real time MRCA
 #+ mrcaOut
-t <- as.data.frame(round(Reduce("rbind", subclonesTimeAbsType),2))
+t <- cbind(branching=as.data.frame(round(Reduce("rbind", subclonesTimeAbsType),2)), linear=as.data.frame(round(Reduce("rbind", subclonesTimeAbsTypeLinear),2)))
 write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.names=NA, row.names=TRUE, sep="\t")
 
 #' ## All segments, MutationTime.R raw values
