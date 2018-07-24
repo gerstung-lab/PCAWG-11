@@ -1287,6 +1287,10 @@ wgdTimeAbs <- sapply(s, function(l) {
 			absTimeSeg <- aperm((1-wgdTimeDeamAcc["T.WGD",,,,,i]) * rep(age[sample2donor[n]][i], each = prod(dim(wgdTimeDeamAcc)[c(2,3,4,5)])))
 			w <- t(sapply(wgdParamDeam[n[i]], `[[`, "n")) #number of SNV as weights
 			
+			## remove NA due to zero mutations
+			for(c in 1:3)
+				absTimeSeg[,,c,,][is.na(absTimeSeg[,,c,,]) & w[,c]==0] <- 0
+			
 			## weighted average over 2+0, 2+1 and 2+2 segments
 			absTime <- (absTimeSeg[,,1,,] * w[,1] + absTimeSeg[,,2,,] * w[,2] + absTimeSeg[,,3,,] * w[,3]) / rowSums(w) 
 			rownames(absTime) <- n[i]
@@ -1651,18 +1655,43 @@ for(n in names(donor2sample)){
 }
 
 #' # Outputs
-#' ## Real time WGD
-#+ wgdOut
+#' ## Real time WGD & MRCA
+#+ wgdMrcaOut
+n <- names(finalSnv)
+wgdMrcaTimingData <- data.frame(
+		uuid=n,
+		icgc_sample_id=sample2icgc[n], 
+		icgc_donor_id=sample2donor[n], 
+		tissue=donor2type[sample2donor[n]], 
+		WGD=isWgd, 
+		ploidy=finalPloidy,
+		eff_ploidy=effGenome,
+		purity=finalPurity,
+		age=round(age[sample2donor[n]]),
+		n_snv_mnv=sapply(finalSnv, nrow),
+		CpG_TpG_trunk_pwradj=round(branchDeam[,2],2),
+		CpG_TpG_subclonal_branch_pwradj=round(branchDeam[,1],2),
+		CpG_TpG_subclonal_linear_pwradj=round(branchDeamLinear[,1],2),
+		TiN = TiN[sample2donor[n]],
+		remove = n %in% remove,
+		accel = ifelse(n %in% remove,NA,guessAccel[as.character(donor2type[sample2donor[n]])]), 
+		row.names=n)
+
 t <- as.data.frame(round(Reduce("rbind", wgdTimeAbsType),2))
 colnames(t) <- c("time", "time.lo","time.up")
-nDeam <- sapply(wgdParamDeam[!void], function(x) if(is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
-t <- cbind(sample=rownames(t), t, age=age[sample2donor[rownames(t)]], `CpG>TpG`=nDeam[rownames(t)], SNV=nSub[rownames(t)])
-write.table(t, file=paste0(Sys.Date(),"-wgdTimeAbs.txt"), quote=FALSE, row.names=FALSE, sep="\t")
+nDeam <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
+w <- data.frame(row.names=rownames(t), t, `CpG_TpG_total`=nDeam[rownames(t)])
+colnames(w) <- sub("lo", "10%", sub("up","90%", colnames(w)))
 
-#' ## Real time MRCA
-#+ mrcaOut
 t <- cbind(branching=as.data.frame(round(Reduce("rbind", subclonesTimeAbsType),2)), linear=as.data.frame(round(Reduce("rbind", subclonesTimeAbsTypeLinear),2)))
-write.table(t, file=paste0(Sys.Date(),"-mrcaTimeAbs.txt"), quote=FALSE, col.names=NA, row.names=TRUE, sep="\t")
+colnames(t) <- sub("\\.hat","", colnames(t))
+
+wgdMrcaTimingData <- cbind(wgdMrcaTimingData, 
+		WGD=w[rownames(wgdMrcaTimingData),],
+		MRCA.time=t[rownames(wgdMrcaTimingData),]
+)
+
+write.table(wgdMrcaTimingData, file=paste0(Sys.Date(),"-wgdMrcaTiming.txt"), sep="\t", quote=FALSE, row.names=FALSE)
 
 #' ## All segments, MutationTime.R raw values
 #+ segOut
