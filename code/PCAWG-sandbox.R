@@ -4688,10 +4688,23 @@ computeClusterProbs <- function(vcf, bb, max_clust=10){
 }
 
 foo <- sapply(finalSnv, function(vcf){
-			mean(info(vcf)$pSub, na.rm=TRUE)
+			sum(info(vcf)$pSub, na.rm=TRUE)
 		})
 
-bar <- sapply(finalClusters, function(cl) 1-cl$n_ssms[1]/sum(cl$n_ssms))
+e <- new.env()
+load("2018-06-12-FinalGenotypes.RData", envir=e)
+
+bar <- sapply(finalClusters, function(cl) sum(cl$n_ssms[-1]))
+
+tmp <- sapply(dir("../final/consensus_subclonal_reconstruction_20170325", pattern="*subclonal_structure.txt.gz", full.names=TRUE), read.table, header=TRUE, simplify=FALSE)
+baf <- sapply(tmp, function(cl) sum(cl$n_snvs[-1]))
+names(baf) <- sub("../final/consensus_subclonal_reconstruction_20170325/","",sub("_subclonal_structure.txt.gz","", names(baf)))
+
+bak <- sapply(finalSnv, nrow)
+
+par(mfrow=c(1,2))
+plot(bar/bak, foo/bak, xlab="WeMe subcl/total", ylab="New subcl/total", pch=19, col="#00000022"); abline(0,1, col='red')
+plot(bar/bak, baf[names(bak)]/bak, xlab="WeMe subcl/total", ylab="Old subcl/total", pch=19, col="#00000022"); abline(0,1, col='red')
 
 
 weme <- read.table("../final/structure_weme_released_consensus.txt", header=TRUE)
@@ -4713,3 +4726,171 @@ n <- sapply(finalSnv, nrow)
 w$n_ssms <- w$n_ssms / 100 * n[w$sample]
 
 write.table(w, file="../final/structure_weme_released_consensus_merged.txt", quote=FALSE, sep="\t", row.names=FALSE)
+
+
+computeSubclonesTimeAbs <- function(l, b) {
+	i <- d==l
+	tt0 <- b[i,]/cbind(finalPloidy[i], effGenome[i]) #/ cbind(nClones[i]-1, 1)
+	resB <- sapply(1:1000, function(foo){ ## Assess the impact of Poisson fluctuations on numbers
+				tt <- matrix(rpois(length(tt0), lambda=tt0), ncol=ncol(tt0))
+				res <- sapply(accel, function(a)  tt[,1]/a/rowSums(tt/rep(c(a,1), each=nrow(tt)))) * age[sample2donor[names(finalSnv)[i]]]
+				colnames(res) <- paste0(accel, "x")
+				#res[res==0] <- NA
+				res}, simplify='array')
+	res <- sapply(accel, function(a)  tt0[,1]/a/rowSums(tt0/rep(c(a,1), each=nrow(tt0)))) * age[sample2donor[names(finalSnv)[i]]]
+	colnames(res) <- paste0(accel, "x")	
+	resCI <- apply(resB,1:2, quantile, c(0.1,0.9), na.rm=TRUE)
+	arr <- abind::abind(res, resCI, along=1)
+	rownames(arr)[1] <- "hat"
+	arr <- aperm(arr, c(2,1,3))
+	tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
+	r <- which(rowSums(b[i,]) < 50 ) ## Exclude samples with less than 50 subs 
+	arr[r,,] <- NA
+	return(arr)
+}
+
+d <- droplevels(donor2type[sample2donor[names(finalSnv)]])
+subclonesTimeAbsLinear <- mclapply(typesSubclones, computeSubclonesTimeAbs, b=branchDeamLinear)
+names(subclonesTimeAbsLinear) <- typesSubclones
+subclonesTimeAbsTypeLinear <- sapply(names(subclonesTimeAbsLinear), function(n) {x <- subclonesTimeAbsLinear[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
+
+u <- setdiff(names(finalSnv)[uniqueSamples], remove)
+par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
+qSubcloneLinear <- sapply(subclonesTimeAbsLinear, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
+a <- "5x"
+m <- diag(qSubcloneLinear["50%",guessAccel[dimnames(qSubcloneLinear)[[3]]],])#t[1,3,]
+names(m) <- dimnames(qSubcloneLinear)[[3]]
+m[sapply(subclonesTimeAbsTypeLinear, function(x) sum(!is.na(x[,1]))) < 5] <- NA
+o <- order(m, na.last=NA)
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
+abline(h=seq(10,20,10), col="#DDDDDD", lty=3)
+x <- seq_along(m[o])
+mg14::rotatedLabel(x, labels=names(sort(m)))
+for(i in seq_along(o))try({
+				n <- names(m)[o[i]]
+				f <- function(x) x/max(abs(x))
+				a <- guessAccel[n]
+				bwd <- 0.8/2
+				j <- if(length(na.omit(subclonesTimeAbsTypeLinear[[o[i]]][,"hat"]))>1) f(mg14::violinJitter(na.omit(subclonesTimeAbsTypeLinear[[o[i]]][,"hat"]))$y)/4 + i else i
+				tpy <- 2
+				segments(j, na.omit(subclonesTimeAbsTypeLinear[[o[i]]][,"90%"]), j, na.omit(subclonesTimeAbsTypeLinear[[o[i]]][,"10%"]), col=mg14::colTrans(tissueLines[n],tpy))
+				points(j, na.omit(subclonesTimeAbsTypeLinear[[o[i]]][,"hat"]), pch=21, col=mg14::colTrans(tissueBorder[n], tpy), bg=mg14::colTrans(tissueColors[n],tpy), 
+						cex=tissueCex[n]*2/3, lwd=1)
+				rect(i-bwd,qSubcloneLinear["25%",a,n],i+bwd,qSubcloneLinear["75%",a,n], border=tissueLines[n],  col=paste(tissueColors[n],"44", sep=""))
+				segments(i-bwd,qSubcloneLinear["50%",a,n],i+bwd,qSubcloneLinear["50%",a,n],col=tissueLines[n], lwd=2)
+				segments(i,qSubcloneLinear["75%",a,n],i,qSubcloneLinear["95%",a,n],col=tissueLines[n], lwd=1.5)
+				segments(i,qSubcloneLinear["5%",a,n],i,qSubcloneLinear["25%",a,n],col=tissueLines[n], lwd=1.5)
+				f <- function(x) x/max(abs(x))
+			})
+
+x <- do.call("rbind", subclonesTimeAbsType)
+y <- do.call("rbind", subclonesTimeAbsTypeLinear)
+
+m <- sapply(subclonesTimeAbsType, function(x) median(x[,1], na.rm=TRUE))
+n <- sapply(subclonesTimeAbsTypeLinear, function(x) median(x[,1], na.rm=TRUE))
+
+par( mar=c(5,3,3,10), mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="n", xpd=FALSE, las=1)
+plot(c(rep(1, length(m)), rep(2, each=length(n))), c(m,n), bg=tissueColors[c(names(m), names(n))], pch=21, cex=1, xaxt="n", ylab="Years after MRCA", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(n, na.rm=TRUE)))
+segments(rep(1, each=length(m)), m, rep(2, each=length(n)), n,col=tissueLines[names(m)], lty= ifelse(sapply(subclonesTimeAbsType, nrow) <= 5, 3, tissueLty[names(n)]))
+o <- order(n, na.last=NA)
+y0 <- n[o]
+y1 <- mg14:::mindist(n[o], diff(par('usr')[3:4])/30)
+par(xpd=NA)
+mtext(names(n)[o], at=y1, side=4 )
+segments(2.1,y0,2.2,y0)
+segments(2.2,y0,2.3,y1)
+segments(2.3,y1,2.4,y1)
+mg14::rotatedLabel(1:2, labels=c("Branching","Linear"))
+
+mrcaOld <- read.table('2018-07-04-mrcaTimeAbs.txt', header=TRUE)
+qSubcloneOld <- t(sapply(split(mrcaOld[,1], droplevels(donor2type[sample2donor[rownames(mrcaOld)]])), quantile, na.rm=TRUE))
+
+qNew <- t(sapply(dimnames(qSubclone)[[3]], function(i) qSubclone[,guessAccel[i],i]))
+
+
+#' Concatenating all timing information
+n <- names(finalSnv)
+wgdMrcaTimingData <- data.frame(
+		uuid=n,
+		icgc_sample_id=sample2icgc[n], 
+		icgc_donor_id=sample2donor[n], 
+		tissue=donor2type[sample2donor[n]], 
+		WGD=isWgd, 
+		ploidy=finalPloidy,
+		eff_ploidy=effGenome,
+		purity=finalPurity,
+		age=round(age[sample2donor[n]]),
+		n_snv_mnv=sapply(finalSnv, nrow),
+		CpG_TpG_trunk_pwradj=round(branchDeam[,2],2),
+		CpG_TpG_subclonal_branch_pwradj=round(branchDeam[,1],2),
+		CpG_TpG_subclonal_linear_pwradj=round(branchDeamLinear[,1],2),
+		TiN = TiN[sample2donor[n]],
+		remove = n %in% remove,
+		accel = ifelse(n %in% remove,NA,guessAccel[as.character(donor2type[sample2donor[n]])]), 
+		row.names=n)
+
+t <- as.data.frame(round(Reduce("rbind", wgdTimeAbsType),2))
+colnames(t) <- c("time", "time.lo","time.up")
+nDeam <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
+w <- data.frame(row.names=rownames(t), t, `CpG_TpG_total`=nDeam[rownames(t)])
+colnames(w) <- sub("lo", "10%", sub("up","90%", colnames(w)))
+
+t <- cbind(branching=as.data.frame(round(Reduce("rbind", subclonesTimeAbsType),2)), linear=as.data.frame(round(Reduce("rbind", subclonesTimeAbsTypeLinear),2)))
+colnames(t) <- sub("\\.hat","", colnames(t))
+
+wgdMrcaTimingData <- cbind(wgdMrcaTimingData, 
+		WGD=w[rownames(wgdMrcaTimingData),],
+		MRCA.time=t[rownames(wgdMrcaTimingData),]
+)
+
+write.table(wgdMrcaTimingData, file=paste0(Sys.Date(),"-allData.txt"), sep="\t", quote=FALSE, row.names=FALSE)
+
+pdf("wgdAge3.pdf", 1.5,4.5, pointsize=8)
+par(mfrow=c(3,1), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
+for(n in c("Ovary-AdenoCa","ColoRect-AdenoCa","CNS-Medullo")){
+	y <- wgdTimeAbsType[[n]][,"hat"]
+	x <- age[sample2donor[names(y)]]
+	l <- if(n!="CNS-Medullo") c(0,90) else c(0,45)
+	plot(x,x-y, pch=NA, bg=tissueColors[n], col=tissueBorder[n], xlab="Age [yr]", ylab="WGD [yr]", cex=tissueCex[n], xlim=l, ylim=l)
+	segments(x, y0=x-wgdTimeAbsType[[n]][,"up"],y1=x-wgdTimeAbsType[[n]][,"lo"],col=tissueLines[n])
+	points(x,x-y, pch=21, bg=tissueColors[n], col=tissueBorder[n], cex=tissueCex[n])
+#	d <- density(na.omit(x), bw="SJ", from=0)
+#	lines(d$x,d$y*100,col=tissueLines[n], lty=tissueLty[n])
+#	d <- density(na.omit(x-y), bw="SJ", from=0)
+#	lines(d$y*100, d$x,col=tissueLines[n], lty=tissueLty[n])
+	rug(x, col=tissueLines[n],)
+	rug(x-y, side=2, col=tissueLines[n])
+	title(main=n, line=0, font.main=1, cex.main=1)
+	abline(0,1, lty=3)
+}
+dev.off()
+
+
+
+n <- gsub("-","-","d926a39f-d057-4e78-8907-b74f52157d99")
+bb <- finalBB[[n]]
+t <- bbToTime(bb)
+mcols(bb)[,colnames(t)] <- DataFrame(t)
+
+n <- "675a5a32-b405-4f03-bfcd-756343d1dfaf"
+bb <- finalBB[[n]]
+bb <- bb[!duplicated(bb)]
+mcols(bb)[bb %over% GRanges(3, IRanges(65850415,  87899999)),c("total_cn","major_cn","minor_cn")] <- DataFrame(4,2,2)
+bb$clonal_frequency <- finalPurity[n]
+bb$timing_param <- NULL
+foo <- computeMutCn(finalSnv[[n]], bb=bb, clusters=finalClusters[[n]], purity=finalPurity[n], n.boot = 200)
+bb$timing_param <- foo$P
+t <- bbToTime(bb)
+mcols(bb)[names(t)] <- DataFrame(t)
+d <- sample2donor[n]
+t <- paste0(sample2icgc[n], ", ", donor2type[d], ", ", age[d], "yr")
+vcf <- finalSnv[[n]]
+info(vcf)[colnames(foo$D)] <- foo$D
+info(vcf)$CLS <- classifyMutations(vcf, reclassify='all')
+b <- bb[width(bb)>10e6]
+sv <- finalSv[[n]]
+#sv <- sv[unlist(info(sv)$SVCLASS)=="TRA"]
+pdf(paste0(n,".pdf"), 3.5,3, pointsize=8)
+.par()
+plotSample(n, vcf=vcf, bb=b, sv=sv, title=t)
+dev.off()

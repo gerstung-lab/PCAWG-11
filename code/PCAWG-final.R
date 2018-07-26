@@ -263,28 +263,35 @@ legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n",
 #t <- 12/8
 #dev.copy2pdf(file="finalMutationProp.pdf", width=9*t, height=2.7*t, pointsize=8*t)
 
-#' ### Subs + indels
+#' ### Subs + indels + greylist
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
-d <- t(asum(finalGenotypesP[,,,], 1:2))
+d <- t(sapply(names(finalSnv)[whiteList &  selectedSamples], function(n) table(info(finalSnv[[n]])$CLS, useNA='a') + table(info(finalIndel[[n]])$CLS, useNA='a')))
 o <- order(droplevels(donor2type[sample2donor[rownames(d)]]), -d[,1]/rowSums(d))
 I <- t(apply(d/rowSums(d), 1, function(x) f(mg14:::roundProp(x * 100,p=100))))
 s <- cumsum(table(droplevels(donor2type[sample2donor[rownames(d)]][o])))
 
 col <- RColorBrewer::brewer.pal(9, "Set1")[c(3,4,2,1,9)] ## Colors for early-subclonal
 
-#+ finalMutationPropAll, fig.width=9, fig.height=1.8
-par(fig=c(0,1,0,1),mar=c(1,4,1,1)+.1, mgp=c(2,.5,0), mfrow=c(2,1), bty="n", las=2, xpd=FALSE)
+#+ finalMutationPropAll, fig.width=7.25, fig.height=1.5
+par(fig=c(0,1,0,1),mar=rep(0,4), bty="n", tcl=-0.25)
+layout(matrix(1:5,nrow=5), height=c(1,4,1.2,0.8,4))
+par(cex=1)
+plot(NA,NA, xaxt="n", yaxt="n", xlab="", ylab="", xlim=c(0, nrow(I)), ylim=c(0,1), xaxs="i", yaxs='i')
+legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n", horiz=TRUE, title="Mutation timing", cex=1)
+par(mar=c(0,4,0,0)+.1, mgp=c(2,.5,0), bty="n", las=2, xpd=FALSE, cex=1)
 image(z=I[o,], x=1:nrow(I), useRaster=TRUE, col=col, xaxt="n", ylab="Point mutations")
 abline(v=s, col='white')
+u <- par("usr")
+par(bty="o")
+barplot(t(t(table(droplevels(donor2type[sample2donor[rownames(d)]][o])))), horiz=TRUE, col=tissueColors[names(s)], border=NA, xlim=u[1:2], yaxs='i', xaxt="n")
 par(bty="n", xpd=NA)
 plot(NA,NA, xaxt="n", yaxt="n", xlab="", ylab="", xlim=c(0, nrow(I)), ylim=c(0,1), xaxs="i", yaxs='i')
 d0 <- s - diff(c(0,s))/2
-d1 <- mg14:::mindist(d0,30)
-segments(d0, 1.12, d0, 1.2)
-segments(d0, 1.12, d1, 1.08)
-segments(d1, 1.08, d1, 1)
-mg14::rotatedLabel(x0 = d1, names(s), y0=1)
-legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n", horiz=TRUE, title="Mutation timing")
+d1 <- mg14:::mindist(d0,60)
+segments(d0, 0.66, d0, 1)
+segments(d0, 0.66, d1, 0.33)
+segments(d1, 0.33, d1, 0)
+mg14::rotatedLabel(x0 = d1, names(s), y0=0)
 
 #t <- 12/8
 #dev.copy2pdf(file="finalMutationPropAll.pdf", width=9*t, height=1.8*t, pointsize=8*t)
@@ -1703,7 +1710,7 @@ write.table(t, file=paste0(Sys.Date(),"-allSegmentsTimeRaw.txt"), quote=FALSE, s
 
 #' ## Drivers
 #+ driverOut
-t <- as.data.frame(finalDriversAnnotated)[c(1,2,6,7,9,10,11,12,13,31:44)]
+t <- as.data.frame(finalDriversAnnotated)[c(1,2,6,7,9,10,11,12,13,14,31:44)]
 t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x));
 write.table(t, file=paste0(Sys.Date(),"-driversTiming.txt"), quote=FALSE, sep="\t")
 
