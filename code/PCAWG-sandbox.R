@@ -4872,14 +4872,35 @@ bb <- finalBB[[n]]
 t <- bbToTime(bb)
 mcols(bb)[,colnames(t)] <- DataFrame(t)
 
+
+reduceBB <- function(bb){
+	b <- bb[,c("major_cn","minor_cn","clonal_frequency")]
+	cn <- apply(mcols(b),1,paste0, collapse=":")
+	s <- split(b, cn)
+	rs <- sapply(s, reduce)
+	r <- sort(Reduce("c",rs))
+	f <- findOverlaps(r,b, select='first')
+	mcols(r) <- mcols(bb[f])
+	return(r)
+}
+
 n <- "675a5a32-b405-4f03-bfcd-756343d1dfaf"
 bb <- finalBB[[n]]
 bb <- bb[!duplicated(bb)]
-mcols(bb)[bb %over% GRanges(3, IRanges(65850415,  87899999)),c("total_cn","major_cn","minor_cn")] <- DataFrame(4,2,2)
+w <- which(bb$star==1) # Discrepant segments, use Battenberg
+bb$major_cn[w] <- bb$battenberg_nMaj1_A[w]
+bb$minor_cn[w] <- bb$battenberg_nMin1_A[w]
+bb$total_cn[w] <- bb$major_cn[w]  + bb$minor_cn[w] 
+#mcols(bb)[bb %over% GRanges(3, IRanges(65850415,  87899999)),c("total_cn","major_cn","minor_cn")] <- DataFrame(4,2,2)
 bb$clonal_frequency <- finalPurity[n]
 bb$timing_param <- NULL
+
+bb <- reduceBB(bb)
+
 foo <- computeMutCn(finalSnv[[n]], bb=bb, clusters=finalClusters[[n]], purity=finalPurity[n], n.boot = 200)
 bb$timing_param <- foo$P
+bb$n.snv_mnv <- countOverlaps(bb, finalSnv[[n]])
+bb$total_cn <- bb$major_cn + bb$minor_cn
 t <- bbToTime(bb)
 mcols(bb)[names(t)] <- DataFrame(t)
 d <- sample2donor[n]
@@ -4892,5 +4913,50 @@ sv <- finalSv[[n]]
 #sv <- sv[unlist(info(sv)$SVCLASS)=="TRA"]
 pdf(paste0(n,".pdf"), 3.5,3, pointsize=8)
 .par()
-plotSample(n, vcf=vcf, bb=b, sv=sv, title=t)
+plotSample(n, vcf=vcf, bb=b, sv=sv, title=t, ylim.bb=c(0,6))
+dev.off()
+
+	
+c <- colorRampPalette(col[c(1,3,2,4)])(16)
+
+set.seed(42)
+l <- sample(exp(seq(1,-1,length=16)))
+r <- rbeta(16, 0.9,1.1)
+g <- sapply(r, function(p) rbinom(100,1,p))
+m <- matrix(0, ncol=16, nrow=16)
+for(i in 1:15) for(j in (i+1):16) try({
+					n <- sum(g[,i]*g[,j])
+					x <- rbinom(1,size=n, p=l[i]/(l[i]+l[j]))
+					m[i,j] <- x
+					m[j,i] <- n-x
+				})
+
+f <- format(m)
+for(i in 1:16) cat(c(f[i,],"\n"), sep=" ")
+
+tncTime <- simplify2array(mclapply(finalSnv, function(vcf) table(tncToPyrimidine(vcf), info(vcf)$CLS)))
+w <- which(apply(mg14:::asum(tncTime[,c(1,2),], 1)>1000, 2, all))
+d <- sapply(w, function(i) {x <- tncTime[,,i]; 1-cosineDist(x[,1,drop=FALSE],x[,2,drop=FALSE])})
+
+makeTitle <- function(n){
+	d <- sample2donor[n]
+	paste0(sample2icgc[n], ", ", donor2type[d], ", ", age[d], "yr")
+}
+
+n <- names(tail(sort(d),10))
+pdf("sigChangeEarlyLate.pdf",2.5,2, pointsize=8)
+col <- sapply(c("#2196F3","#212121","#f44336","#BDBDBD","#8BC34A","#FFAB91"), rep,16)
+ttl <- function(){
+	l <- gsub("\\[|\\]||>.","", dimnames(tncTime)[[1]])
+	mtext(text=l, at=b, las=2, cex=0.25, side=1)
+	mtext(at=b[8+16*(0:5)], side=1,text=c("C>A","C>G","C>T","T>A","T>C","T>G"), las=1, line=1)
+}
+for(s in n){
+	.par()
+	par(mfrow=c(2,1), las=2, mar=c(2,3,2,1))	
+	b <- barplot(as.numeric(tncTime[,1,s]), ylab="Early mutations", main=makeTitle(s),col=col,border=NA, font.main=1, las=2, cex.main=1)
+	ttl()
+	barplot(as.numeric(tncTime[,2,s]), ylab="Late mutations", col=col, border=NA,las=2)
+	ttl()
+}
 dev.off()
