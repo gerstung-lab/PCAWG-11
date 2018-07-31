@@ -930,3 +930,7 @@ names(TiN) <- t$icgc_donor_id
 
 w <- read.table("../final/structure_weme_released_consensus_merged.txt", header=TRUE)
 wemeClustersMerged <- split(w[,1:4], w$sample)
+
+cosineDist <- function(x,y){
+	t(x)%*%y/(sqrt(colSums(x^2)  %*% t(colSums(y^2))) )
+}

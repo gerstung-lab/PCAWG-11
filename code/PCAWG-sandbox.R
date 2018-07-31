@@ -3448,10 +3448,6 @@ w <- which(!is.na(allTable[,330]))
 Z <- Z[w,]
 any(is.na(Z))
 
-cosineDist <- function(x,y){
-	t(x)%*%y/(sqrt(colSums(x^2)  %*% t(colSums(y^2))) )
-}
-
 #lrtDist <- function(x,y){
 #	z <- x+y 
 #	p <- z/sum(z)
