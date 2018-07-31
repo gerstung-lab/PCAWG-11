@@ -4894,3 +4894,17 @@ pdf(paste0(n,".pdf"), 3.5,3, pointsize=8)
 .par()
 plotSample(n, vcf=vcf, bb=b, sv=sv, title=t)
 dev.off()
+
+tncLrt <- function(x){
+	l1 <- dmultinom(x=x[,1], prob=x[,1], log=TRUE) + dmultinom(x=x[,2], prob=x[,2], log=TRUE)
+	l0 <- dmultinom(x=x[,1], prob=x[,1]+x[,2], log=TRUE) + dmultinom(x=x[,2], prob=x[,1]+x[,2], log=TRUE)
+	chisq <- 2*(l1-l0)
+	df <- nrow(x)-1
+	return(c(chisq=chisq, df=df, p=pchisq(chisq, df=df, lower.tail=FALSE)))
+}
+
+w <- which(colSums(tncTime[,1,])>0 & colSums(tncTime[,2,])>0)
+d <- apply(tncTime[,1:2,w], 3, function(x) 1- cosineDist(x[,1,drop=FALSE], x[,2,drop=FALSE]))
+p <- apply(tncTime[,1:2,w],3, tncLrt)
+
+plot(d, 1/p['p',], log='y')
