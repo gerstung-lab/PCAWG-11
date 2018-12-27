@@ -634,16 +634,19 @@ averageHom <- function(bb){
 
 classWgd <- function(bb) .classWgd(averagePloidy(bb), averageHom(bb))
 
-plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBrewer::brewer.pal(4,"Set2"), type=c("lines","bars"), legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, xlim=c(min(chrOffset[as.character(seqnames(bb))]+start(bb)),max(chrOffset[as.character(seqnames(bb))]+end(bb)))){
+plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBrewer::brewer.pal(4,"Set2"), type=c("lines","bars"), legend=TRUE, lty.grid=1, col.grid="grey", xaxt=TRUE, xlim=c(min(chrOffset[as.character(seqnames(bb))]+start(bb)),max(chrOffset[as.character(seqnames(bb))]+end(bb))), add=FALSE){
 	type <- match.arg(type)
 	s <- c(1:22, "X","Y")
 	l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
 	names(l) <- s
-	plot(NA,NA, ylab="Copy number",xlab="",xlim=xlim, ylim=ylim, xaxt="n")
 	c <- cumsum(l)
-	axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
-	if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
-	#abline(v=c, lty=3)
+	if(add==FALSE){
+		plot(NA,NA, ylab="Copy number",xlab="",xlim=xlim, ylim=ylim, xaxt="n")
+		axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
+		if(length(regions) == 1)
+			if(xaxt) axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))), las=1)
+		if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
+	}
 	if(type=="lines"){
 	x0 <- start(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
 	x1 <- end(bb) + cumsum(l)[as.character(seqnames(bb))] - l[as.character(seqnames(bb))]
@@ -673,7 +676,7 @@ plotBB <- function(bb, ylim=c(0,max(max(bb$total_cn, na.rm=TRUE))), col=RColorBr
 		abline(h = 1:floor(ylim[2]), lty=lty.grid, col=col.grid)
 	}
 	abline(v = chrOffset[1:25], lty=lty.grid, col=col.grid)
-	if(xaxt) mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
+	#if(xaxt) mtext(side=1, line=1, at=chrOffset[1:24] + diff(chrOffset[1:25])/2, text=names(chrOffset[1:24]))
 	if(legend){
 		if(type=="lines") legend("topleft", c("Total CN","Major CN","Minor CN"), col=c("black", col[1:2]), lty=1, lwd=2, bg='white')
 		else legend("topleft", c("Major CN","Minor CN"), fill=col[1:2], bg='white')
@@ -848,7 +851,7 @@ histBeta <- function(bb, time="time",n.min=10, s=seq(0.005,0.995,0.01)){
 
 
 
-plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w]], title=w, regions=refLengths[1:24], ylim.bb=c(0,5), layout.height=c(4,1.2,3.5), y1=ylim.bb[2]-1) {
+plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w]], title=w, regions=refLengths[1:24], grid.bb='white',col.bb=c("lightgrey", "darkgrey"), ylim.bb=c(0,5), layout.height=c(4,1.2,3.5), y1=ylim.bb[2]-1) {
 	p <- par()
 	layout(matrix(1:3, ncol=1), height=layout.height)
 	par(mar=c(0.5,3,0.5,0.5), mgp=c(2,0.25,0), bty="L", las=2, tcl=-0.25, cex=1)
@@ -856,16 +859,16 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w
 	bbb <- bb[bb %over% regions]
 	plotVcf(vcf[vcf %over% regions], bbb, finalClusters[[w]], title=FALSE, legend=FALSE, col.grid='white',  xaxt=FALSE, cex=0.33, xlim=xlim)
 	mtext(line=-1, side=3, title, las=1)
-	plotBB(bbb, ylim=ylim.bb, legend=FALSE, type='bar', col.grid='white', col=c("lightgrey", "darkgrey"), xaxt=FALSE, xlim=xlim)
 	tryCatch({
 		par(xpd=NA)
-		plotSv(sv, y1=y1, regions=regions, add=TRUE)
+		plotSv(sv, y1=y1, ylim=ylim.bb, regions=regions, add=FALSE, xaxt=FALSE)
 		par(xpd=FALSE)
 	}, error=function(x) warning(x))
+	plotBB(bbb, ylim=ylim.bb, legend=FALSE, type='bar', col.grid=grid.bb, col=col.bb, xaxt=FALSE, xlim=xlim, add=TRUE)
 	par(mar=c(3,3,0.5,0.5))
 	plotTiming(bbb, xlim=xlim, legend=FALSE, col.grid=NA)
 	if(length(regions) == 1)
-		axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
+		axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))), las=1)
 	if(any(!is.na(bb$time))){
 		y0 <- seq(0.005,0.995,0.01)
 		s <- histBeta(bb)
@@ -893,16 +896,16 @@ plotSample <- function(w, vcf = finalSnv[[w]], 	bb = finalBB[[w]], sv=finalSv[[w
 	par(p[setdiff(names(p), c("cin","cra","csi","cxy","din","page"))])
 }
 
-plotSv <- function(sv, y0=0,y1=y0, h=1, col=paste0(RColorBrewer::brewer.pal(5,"Set1"),"44"), regions=refLengths[1:24], add=FALSE){
+plotSv <- function(sv, y0=0,y1=y0, h=1, col=paste0(RColorBrewer::brewer.pal(5,"Set1"),"44"), regions=refLengths[1:24], ylim=c(0,1), xaxt=TRUE,xlim=c(min(chrOffset[as.character(seqnames(regions))]+start(regions)),max(chrOffset[as.character(seqnames(regions))]+end(regions))), add=FALSE){
 	if(add==FALSE){
 		s <- c(1:22, "X","Y")
 		l <- as.numeric(width(refLengths[seqnames(refLengths) %in% s]))
 		names(l) <- s
 		plot(NA,NA, ylab="Copy number",xlab="",xlim=xlim, ylim=ylim, xaxt="n")
 		c <- cumsum(l)
-		axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
+		#axis(side=1, at=c(0,c), labels=rep('', length(l)+1))
 		if(length(regions) == 1)
-			axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))))
+			if(xaxt) axis(side=1, at=pretty(c(start(regions), end(regions)))+chrOffset[as.character(seqnames(regions))], labels=sitools::f2si(pretty(c(start(regions), end(regions)))), las=1)
 		if(xaxt) mtext(side=1, at= cumsum(l) - l/2, text=names(l), line=1)
 	}
 	#r <- rowRanges(sv)
