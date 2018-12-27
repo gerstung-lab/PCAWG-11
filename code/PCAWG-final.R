@@ -1642,7 +1642,7 @@ for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueLines[
 
 #' ### Figure 6h
 #' Median time v accel
-#+ realTimeWgdAccel, fig.height=2, fig.width=2
+#+ realTimeMrcaAccel, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.25, bty="L")
 plot(accel, qSubclone["50%",,1], type='l', lty=0, ylim=c(0,10), xlab= "CpG>TpG rate acceleration", ylab="Median latency [years]", yaxs="i", xaxt="n")
 axis(side=1, at=accel)
