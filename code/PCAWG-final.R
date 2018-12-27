@@ -1085,7 +1085,7 @@ mean(c[1] / (c[1]+ x*c[2]), na.rm=TRUE)
 
 #' ### Timing
 #' Acceleration values to simulate
-accel <- c(1,2.5,5,7.5,10)
+accel <- c(1,2.5,5,7.5,10,20)
 names(accel) <- paste0(accel, "x")
 
 #' The actual timing
@@ -1131,7 +1131,8 @@ a <- "5x"
 subclonesTimeAbsType <- sapply(names(subclonesTimeAbs), function(n) {x <- subclonesTimeAbs[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
 m <- diag(qSubclone["50%",guessAccel[dimnames(qSubclone)[[3]]],])#t[1,3,]
 names(m) <- dimnames(qSubclone)[[3]]
-m[sapply(subclonesTimeAbsType, function(x) sum(!is.na(x[,1]))) < 5] <- NA
+nSubclones <- sapply(subclonesTimeAbsType, function(x) sum(!is.na(x[,1])))
+m[nSubclones < 5] <- NA
 o <- order(m, na.last=NA)
 plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Years before diagnosis", xlab="", xaxt="n", yaxs="i", ylim=c(0,30))
 abline(h=seq(10,20,10), col="#DDDDDD", lty=3)
@@ -1157,6 +1158,32 @@ for(i in seq_along(o))try({
 #par(xpd=TRUE)
 #s <- 12/8
 #dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
+
+#' ### Figure 6h
+#+ realTimeSubcloneMed, fig.width=6, fig.height=2.225
+#pdf("realTimeSubcloneMed.pdf", width=6, height=2.225, pointsize=8)
+u <- setdiff(names(finalSnv)[uniqueSamples], remove)
+m <- qSubclone["50%","5x",]#t[1,3,]
+names(m) <- dimnames(qSubclone)[[3]]
+m[nSubclones < 5] <- NA
+o <- order(m, na.last=NA)
+n <- dimnames(qSubclone)[[3]]
+par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Latency [yr]", xlab="", xaxt="n", yaxs="i", ylim=c(0,15))
+abline(h=seq(10,20,10), col="#DDDDDD", lty=3)
+x <- seq_along(m[o])
+mg14::rotatedLabel(x, labels=names(sort(m)))
+b <- .3
+rect(seq_along(o)-b,qSubclone["50%","1x",o],seq_along(o)+b,qSubclone["50%","10x",o], col=paste(tissueColors[n[o]],"88", sep=""), border=1)
+rect(seq_along(o)-b,qSubclone["50%","2.5x",o],seq_along(o)+b,qSubclone["50%","7.5x",o], col=paste(tissueColors[n[o]],"FF", sep=""), border=1)
+rect(seq_along(o)-b,qSubclone["50%","20x",o],seq_along(o)+b,qSubclone["50%","10x",o], col=paste(tissueColors[n[o]],"22", sep=""), border=1)
+segments(seq_along(o)-b,qSubclone["50%","5x",o],seq_along(o)+b,qSubclone["50%","5x",o])
+
+#par(xpd=TRUE)
+#s <- 12/8
+#dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
+
+sapply(subclonesTimeAbs, nrow)
 
 sapply(subclonesTimeAbs, nrow)
 
@@ -1353,6 +1380,27 @@ for(i in seq_along(o)){
 par(xpd=TRUE)
 #s <- 12/8
 #dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
+
+#' Median v acceleration
+#+ realTimeWgdQuantAccel, fig.height=3, fig.width=4.5
+#pdf("realTimeWgdMed.pdf", width=4.5, height=3, pointsize=8)
+u <- setdiff(names(finalSnv)[uniqueSamples], remove)
+m <- qWgd["50%","5x",]#t[1,3,]
+names(m) <- dimnames(qWgd)[[3]]
+m[nWgd < 5] <- NA
+o <- order(m, na.last=NA)
+n <- dimnames(qWgd)[[3]]
+par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
+plot(NA,NA, xlim=c(0.5,length(m[o])), ylab="Latency [yr]", xlab="", xaxt="n", yaxs="i", ylim=c(0,40))
+abline(h=seq(10,20,10), col="#DDDDDD", lty=3)
+x <- seq_along(m[o])
+mg14::rotatedLabel(x, labels=names(sort(m)))
+b <- .3
+rect(seq_along(o)-b,qWgd["50%","1x",o],seq_along(o)+b,qWgd["50%","10x",o], col=paste(tissueColors[n[o]],"88", sep=""), border=1)
+rect(seq_along(o)-b,qWgd["50%","2.5x",o],seq_along(o)+b,qWgd["50%","7.5x",o], col=paste(tissueColors[n[o]],"FF", sep=""), border=1)
+rect(seq_along(o)-b,qWgd["50%","20x",o],seq_along(o)+b,qWgd["50%","10x",o], col=paste(tissueColors[n[o]],"22", sep=""), border=1)
+segments(seq_along(o)-b,qWgd["50%","5x",o],seq_along(o)+b,qWgd["50%","5x",o])
+
 
 #' Plot extremely early samples
 #+ earlyWgdExamples, fig.width=4, fig.height=4
@@ -1591,6 +1639,16 @@ axis(side=1, at=accel)
 for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueLines[dimnames(qWgd)[[3]][j]], 
 			lty=ifelse(nWgd[dimnames(qWgd)[[3]][j]]<=9, 3, tissueLty[dimnames(qWgd)[[3]][j]]))
 #s <- 12/8; dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
+
+#' ### Figure 6h
+#' Median time v accel
+#+ realTimeWgdAccel, fig.height=2, fig.width=2
+par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.25, bty="L")
+plot(accel, qSubclone["50%",,1], type='l', lty=0, ylim=c(0,10), xlab= "CpG>TpG rate acceleration", ylab="Median latency [years]", yaxs="i", xaxt="n")
+axis(side=1, at=accel)
+for(j in 1:dim(qSubclone)[3]) lines(accel, qSubclone["50%",,j], type='l', col=tissueLines[dimnames(qSubclone)[[3]][j]], 
+			lty=ifelse(nSubclones[dimnames(qSubclone)[[3]][j]]<=9, 3, tissueLty[dimnames(qSubclone)[[3]][j]]))
+#s <- 12/8; dev.copy2pdf(file="realTimeMrcaAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
 #' ## MRCA v WGD
