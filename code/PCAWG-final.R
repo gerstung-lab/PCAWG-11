@@ -1743,7 +1743,7 @@ makeTitle <- function(n){
 	paste0(sample2icgc[n], ", ", donor2type[d], ", ", age[d], "yr")
 }
 
-#' ### Figure 5a
+#' ### Figure 5a and Extended Data Figure 7a
 #+ sigChangeEarlyLate, fig.width=2.5, fig.height=2
 n <- names(tail(sort(dEarlyLate),10))
 sigCol <- sapply(c("#2196F3","#212121","#f44336","#BDBDBD","#8BC34A","#FFAB91"), rep,16)
@@ -1800,7 +1800,7 @@ apply(t(t(a)/colSums(a))*100,2,mg14:::roundProp)
 w <- which(mg14:::asum(tncTime[,1:3,], c(1,2))>1000 & mg14:::asum(tncTime[,4,], 1)>1000)
 dClonalSubclonal <- sapply(w, function(i) {x <- tncTime[,,i]; 1-cosineDist(x[,1:3] %*% rep(1,3),x[,4,drop=FALSE])})
 
-#' ### Extended Data Figure 5a
+#' ### Extended Data Figure 5b and Extended Data Figure 7b
 #+ sigChangeClonalSubclonal, fig.width=2.5, fig.height=2
 n <- names(tail(sort(dClonalSubclonal),10))
 for(s in n){
@@ -1818,6 +1818,99 @@ for(s in n){
 w <- which(mg14:::asum(tncTime[,1:3,], c(1,2))>0 & mg14:::asum(tncTime[,4,], 1)>0)
 pClonalSubclonal <- apply(tncTime[,,w],3, function(x) tncLrt(x %*% matrix(c(1,1,1,0,0,0,0,1), ncol=2)))
 table(p.adjust(pClonalSubclonal["p",], "bonf")<0.05)
+
+#' Mean absolute differences
+n <- names(which(p.adjust(pEarlyLate["p",], "bonf")<0.05))
+madEarlyLate <- rowSums(abs(t(tncTime[,1,n])/colSums(tncTime[,1,n]) - t(tncTime[,2,n])/colSums(tncTime[,2,n])))/2
+n <- names(which(p.adjust(pClonalSubclonal["p",], "bonf")<0.05))
+madClonalSubclonal <- rowSums(abs(t(mg14:::asum(tncTime[,1:3,n],2))/colSums(mg14:::asum(tncTime[,1:3,n],2)) - t(tncTime[,4,n])/colSums(tncTime[,4,n])))/2
+
+#' More signature changes
+n <- names(which(sample2icgc=="SA557034"))
+e <- nmSolve(tncTime[,,n], P = as.matrix(sbs[,grep("SBS(1|2|13|3|5)$", colnames(sbs))]), maxIter=10000)
+e <- cbind(clonal=rowSums(e[,1:3]), subclonal=e[,4])
+a <- rbind(`APOBEC`=colSums(e[c(2,5),]), e[-c(2,5),])
+apply(t(t(a)/colSums(a))*100,2,mg14:::roundProp)
+
+#' ## Signature analysis
+sfc <- read.table("../ref/2019-01-03-allSignatureChanges.txt", header=TRUE, sep="\t")
+
+v <- sfc$samplename %in% names(which(p.adjust(pEarlyLate["p",])<0.05))
+#mg14:::ggPlot(pmin(100,pmax(0.01,exp(sfc$log2fc_earlyLate[v]*log(2)))),sfc$signature[v], log='y')
+
+#' ### Figure 5c
+#' Early to late clonal change
+#+ sigFcEarlyLate, fig.width=6, fig.height=3
+#cairo_pdf("sigFcEarlyLate.pdf", 6, 3, pointsize=8)
+.par()
+par(mar=c(9,3,1,1), bty="n")
+s <- names(sort(sapply(split(sfc$log2fc_earlyLate[v]*log(2)/log(10), sfc$signature[v]), median, na.rm=TRUE)))
+s <- setdiff(s, c(names(which(table(sfc$signature[v])<10)),"n_unassigned"))
+t <- donor2type[sample2donor[as.character(sfc$samplename)[v]]]
+f <- function(x) pmax(-2,pmin(2,x*log(2)/log(10)))
+x <- jitter(as.numeric(factor(as.character(sfc$signature[v]), levels=s)))
+plot(f(sfc$log2fc_earlyLate[v]) ~ x, pch=NA, xaxt='n', xlab="", ylab="fold change", ylim=c(-2.2,2.2), xaxt="n", yaxt="n", lwd=0.5)
+#segments(x, y0=f(sfc$lCI_earlyLate[v]), y1=f(sfc$uCI_earlyLate[v]), col='grey')
+points(f(sfc$log2fc_earlyLate[v]) ~ x, bg=tissueColors[t], pch=21, col=tissueBorder[t], cex=tissueCex[t])
+boxplot(sfc$log2fc_earlyLate[v]*log(2)/log(10) ~factor(as.character(sfc$signature[v]), levels=s), pch=NA, staplewex=0, lty=1, add=TRUE, col=NA, xaxt="n", yaxt="n")
+mg14::rotatedLabel(x0=seq_along(s), labels=s)
+axis(side=2, at=-2:2, labels=paste0(c("\u2265","","","","\u2264"),10^(-2:2)))
+m <- log10(2:9 %o% 10^(-2:1))
+axis(side=2, at=m, tcl=-0.1, labels=rep("", length(m)))
+axis(side=1, at=seq_along(s), labels=rep("", length(lengths(s))))
+text(0,2.2, "late", pos=4)
+text(0,-2.2, "early", pos=4)
+abline(h=0, lty=3)
+#dev.off()
+
+#' Some numbers
+t(signif(2^sapply(split(sfc$log2fc_earlyLate[v] , sfc$signature[v])[s], quantile, na.rm=TRUE),2))
+
+#' ### Figure 5d
+#' Clonal to subclonal change
+w <- sfc$samplename %in% names(which(p.adjust(pClonalSubclonal["p",])<0.05))
+
+#+ sigFcClonalSubclonal, fig.width=6, fig.height=3
+#cairo_pdf("sigFcClonalSubclonal.pdf", 6, 3, pointsize=8)
+.par()
+par(mar=c(9,3,1,1), bty="n")
+s <- names(sort(sapply(split(sfc$log2fc_clonalSubclonal[w]*log(2)/log(10), sfc$signature[w]), median, na.rm=TRUE)))
+s <- setdiff(s, c(names(which(table(sfc$signature[w])<10)),"n_unassigned"))
+t <- donor2type[sample2donor[as.character(sfc$samplename)[w]]]
+f <- function(x) pmax(-2,pmin(2,x*log(2)/log(10)))
+x <- jitter(as.numeric(factor(as.character(sfc$signature[w]), levels=s)))
+plot(f(sfc$log2fc_clonalSubclonal[w]) ~ x, pch=NA, xaxt='n', xlab="", ylab="fold change", ylim=c(-2.2,2.2), xaxt="n", yaxt="n", lwd=0.5)
+#segments(x, y0=f(sfc$lCI_clonalSubclonal[v]), y1=f(sfc$uCI_clonalSubclonal[v]), col='grey')
+points(f(sfc$log2fc_clonalSubclonal[w]) ~ x, bg=tissueColors[t], pch=21, col=tissueBorder[t], cex=tissueCex[t])
+boxplot(f(sfc$log2fc_clonalSubclonal[w]) ~factor(as.character(sfc$signature[w]), levels=s), pch=NA, staplewex=0, lty=1, add=TRUE, col=NA, xaxt="n", yaxt="n")
+mg14::rotatedLabel(x0=seq_along(s), labels=s)
+axis(side=2, at=-2:2, labels=paste0(c("\u2265","","","","\u2264"),10^(-2:2)))
+m <- log10(2:9 %o% 10^(-2:1))
+axis(side=2, at=m, tcl=-0.1, labels=rep("", length(m)))
+axis(side=1, at=seq_along(s), labels=rep("", length(lengths(s))))
+text(0,2.2, "subclonal", pos=4)
+text(0,-2.2, "clonal", pos=4)
+abline(h=0, lty=3)
+#dev.off()
+
+#' Some numbers
+t(signif(2^sapply(split(sfc$log2fc_clonalSubclonal[w] , sfc$signature[w])[s], quantile, na.rm=TRUE),2))
+ 
+#' Legend for figure
+#+ sigFcLegend, fig.width=2, fig.height=4
+#pdf("legend.pdf", 2,4)
+.par()
+par(mar=c(0,0,0,0), bty="n")
+plot(NA,NA, xlim=c(-1,1), ylim=c(-1,1), xaxt="n",yaxt="n", xlab='', ylab="")
+l <- as.character(sort(unique(donor2type[sample2donor[as.character(sfc$samplename)[w | v]]])))
+n <- unique(c(names(which(p.adjust(pClonalSubclonal["p",])<0.05)),names(which(p.adjust(pEarlyLate["p",])<0.05))))
+m <- unique(c(names(pClonalSubclonal["p",]),names(pEarlyLate["p",])))
+s <- table(donor2type[sample2donor[n]])[l]
+t <- table(donor2type[sample2donor[m]])[l]
+#l <- l[order(-s/t)]
+legend("top", legend=paste0(l, " (",s[l],"/",t[l],")"), pt.bg=tissueColors[l], pch=21, col=tissueBorder[l], pt.cex=tissueCex[l], bty="n")
+dev.off()
+ 
 
 
 #' # Outputs

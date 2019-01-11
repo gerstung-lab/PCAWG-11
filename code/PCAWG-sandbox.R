@@ -3512,7 +3512,7 @@ rownames(fpkm) <- g
 load("../ref/gencode.v19.annotation.gtf.RData")
 gencode <- gencode[gencode$type=="gene"]
 
-genes <-  strsplit("MLH1, MLH3, MSH2, MSH3, MSH6, PMS1, PMS2, POLD1, POLE, POLG, POLH, POLK, REV1, APOBEC3A, APOBEC3B, APOBEC3G, BRCA1, BRCA2, RIF1, TP53, MBD4, NEIL1, MGMT", ", ")[[1]]
+genes <-  strsplit("MLH1, MLH3, MSH2, MSH3, MSH6, PMS1, PMS2, POLD1, POLE, POLG, POLH, POLK, POLL, REV1, REV3L, UNG, APOBEC3A, APOBEC3B, APOBEC3G, BRCA1, BRCA2, RIF1, TP53, MBD4, NEIL1, MGMT, EXO1, MUTYH, OGG1, PARP1, WRN", ", ")[[1]]
 
 ensg <- gencode$gene_id[match(genes, gencode$gene_name)]
 names(ensg) <- genes
@@ -3536,7 +3536,7 @@ q <- t(apply(f, 1, function(x) {
 #					y <- unlist(sapply(split(x, donor2type[sample2donor[s]]), 
 #									function(xx){n <- xx/mean(xx, na.rm=TRUE)
 #										#log(n+0.01)
-#										rank(n, na.last="keep")/sum(!is.na(n))
+#									 	rank(n, na.last="keep")/sum(!is.na(n))
 #									}
 #										))[match(s, unlist(split(s, donor2type[sample2donor[s]])))]
 					rank(x,na.last="keep")/sum(!is.na(x))
@@ -3581,6 +3581,40 @@ ff <- sapply(split(f, donor2type[sample2donor[names(f)]]), median)
 plot(mbd4ByType[colnames(qDeamRate)], ff[colnames(qDeamRate)], pch=21,  bg=tissueColors[colnames(qDeamRate)], cex=2)
 abline(coef(lm( ff[colnames(qDeamRate)] ~ mbd4ByType[colnames(qDeamRate)])))
 
+#' Indels
+f <- fpkm[m,match(g2r[colnames(indelTable)], colnames(fpkm))]
+rownames(f) <- genes
+
+p <- prcomp(log(fpkm+0.5))
+fit <- glm(indelTable["insT",] ~ ., data=data.frame(t(f), tissue=donor2type[sample2donor[names(finalSnv)]]))
+fit <- glm(indelTable["insT",] ~ ., data=data.frame(t(f), PC=p$rotation[match(g2r[colnames(indelTable)], colnames(fpkm)),1:20]))
+fit <- glm(indelTable["delT",] ~ ., data=data.frame(t(log(f+1)), PC=p$rotation[match(g2r[colnames(indelTable)], colnames(fpkm)),1:20]))
+
+summary(fit)
+
+
+
+s17 <- colSums(snvTable[c('G[T>G]T','T[T>G]T','C[T>C]T', 'C[T>G]T' ),]) 
+
+fit <- glm(log(s17+1) ~ ., data=data.frame(t(f), PC=p$rotation[match(g2r[colnames(indelTable)], colnames(fpkm)),1:20]))
+
+#fit <- glm(snvTable["C[T>G]T",]/rowSums(snvTable) ~ ., data=data.frame(t(f), PC=p$rotation[match(g2r[colnames(indelTable)], colnames(fpkm)),1:5]), subset = donor2type[sample2donor[names(finalSnv)]] %in% c("Eso-AdenoCa","Stomach-AdenoCa"), family='binomial')
+
+summary(fit)
+
+s1 <- colSums(snvTable[c('A[C>T]G','C[C>T]G','G[C>T]G', 'T[C>T]G' ),]) 
+fit <- glm(s1 ~ ., data=data.frame(t(f), PC=p$rotation[match(g2r[colnames(indelTable)], colnames(fpkm)),1:20]))
+summary(fit)
+
+w <- indelTable["delT",] < 500 & colSums(snvTable[c('T[C>T]A'),,drop=FALSE]) < 500 
+fit <- glm(s1 ~ ., data=data.frame(t(f), PC=p$rotation[match(g2r[colnames(indelTable)], colnames(fpkm)),1:20]), subset=w)
+summary(fit)
+
+
+apobec <- (colSums(snvTable[c('T[C>T]A','T[C>T]T'),])+1) /  (colSums(snvTable[c('T[C>G]A','T[C>G]T'),])+1)
+w <- donor2type[sample2donor[names(finalSnv)]]!="Skin-Melanoma" & colSums(snvTable[c('T[C>T]A','T[C>T]T'),])/colSums(snvTable) > 0.1
+fit <- glm(log(apobec) ~ ., data=data.frame(t(log(f+1)), PC=p$rotation[match(g2r[colnames(indelTable)], colnames(fpkm)),1:20]), subset=w)
+summary(fit)
 
 #' TAD
 w <- which(donor2type[sample2donor[r2s[colnames(fpkm)]]]=="Liver-HCC")
@@ -4972,3 +5006,323 @@ d <- apply(tncTime[,1:2,w], 3, function(x) 1- cosineDist(x[,1,drop=FALSE], x[,2,
 p <- apply(tncTime[,1:2,w],3, tncLrt)
 
 plot(d, 1/p['p',], log='y')
+
+w <- which(colSums(tncTime[,1,])>0 & colSums(tncTime[,2,])>0) # Samples with at mutations in both categories
+dc<- sapply(w, function(i) {x <- tncTime[,,i]; 1-cosineDist(x[,1,drop=FALSE],x[,2,drop=FALSE])})
+da <- sapply(w, function(i) {x <- tncTime[,,i]; sum(abs(x[,1]/sum(x[,1])-x[,2]/sum(x[,2])))/2})
+
+
+
+pdf("~/Desktop/pie_legend.pdf",0.5,0.5,pointsize=8)
+par(mar=rep(0,4))
+prgn <- colorRampPalette(RColorBrewer::brewer.pal(11,"PRGn"))
+pie(rep(1,100), col=prgn(100), labels="", border=NA, init.angle=90)
+par(new=TRUE)
+pie(rep(1,8), col=NA, labels=seq(0,0.875,0.125), border=NA, init.angle=90 + 360/(8*2), clockwise=TRUE)
+dev.off()
+
+
+
+# Amplicons
+
+
+w20 <- sapply(finalBB, function(bb) sum(width(bb)[bb$total_cn > 20], na.rm=TRUE))
+
+pdf("amplicons.pdf", 12,4)
+for(w in names(which(w20>1e6))[1:50]){
+	b <- finalBB[[w]][which(finalBB[[w]]$total_cn>20)]
+	for(c in unique(seqnames(b)))
+	plotSample(w, regions=refLengths[seqnames(refLengths)==c], ylim.bb=c(0,max(b$total_cn, na.rm=TRUE)+1), layout.height=c(1,4,2), grid.bb=NA, col.bb=c("#888888","#444444"))
+}
+dev.off()
+
+
+#' Plot all GBMs with +7
+w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-GBM") 
+w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==7) & bb$total_cn >= 3], na.rm=TRUE)/width(refLengths[7])>0.8)]
+#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+
+pdf("GBM_tri7.pdf",3.2,3.2, pointsize=8)
+for(ww in w){
+	finalSnv[[ww]] -> v
+	v <- v[seqnames(v)==7]
+	v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
+	n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
+    plotSample(ww, title=paste0(sample2icgc[names(finalSnv)[ww]], ", n=", n,"/",nrow(v), " SNVs pre +7"))
+}
+dev.off()
+#dev.off()
+
+#' tabulate 
+t <- t(sapply(w, function(ww){
+			finalSnv[[ww]] -> v
+			v <- v[seqnames(v)==7]
+			v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
+			n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
+			c(pre_7=n, total=nrow(v))
+		}))
+
+mystack <- function(x, width=0.1){
+	o <- order(x)
+	y <- numeric(length(x))
+	for(i in seq_along(x)[-1]) if(x[o[i]] - x[o[i-1]] < w){
+		y[o[i]]
+	}
+}
+
+pdf("GBM_tri7_bee.pdf", 1.5, 2, pointsize=8)
+.par()
+par(bty="n")
+beeswarm::beeswarm(as.numeric(pmax(t,0.5)) ~ factor(rep(c("pre +7","total"), each=nrow(t))), method='hex', pch=19, xlab="", ylab="Number of SNVs", cex=0.5, log=TRUE, yaxt='n', col=set1[c(3,9)])
+axis(side=2, at=c(1,10,100,1000))
+axis(side=2, at=0.5, label=0)
+for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0.1)
+dev.off()
+
+
+
+hist(t[,2])
+
+m <- model.matrix(~ donor2type[sample2donor[names(finalSnv)]]-1)
+colnames(m) <- levels(donor2type)
+
+snvTable <- snvTable[1:96,] + snvTable[-(1:96),]
+n <- c("A","C","G","T")
+f <- paste0(rep(n, each=4), "[", rep(c("C","T"), each=96/2), ">", c(rep(c("A","G","T"), each=48/3), rep(c("A","C","G"), each=48/3)), "]", n)
+rownames(snvTable) <- f
+s <- snvTable %*% m
+
+
+
+#' Subclone-subclone variation
+vcf <- finalSnv[[1]]
+
+fuzzyMatch <- function(x, y) apply(abs(outer(x,y, `-`)), 1, function(x) if(all(is.na(x))) NA else which.min(x))
+m <- fuzzyMatch(info(vcf)$CNF, finalClusters[[1]]$proportion)
+
+w <- which(sapply(finalClusters, nrow) > 2)
+tncTime2 <- simplify2array(mclapply(finalSnv[w], function(vcf) table(tncToPyrimidine(vcf), fuzzyMatch(info(vcf)$CNF, finalClusters[[meta(header(vcf))[["META"]]["ID",]]]$proportion))))
+
+w2 <- sapply(tncTime2, ncol) == 3
+
+tncTime3 <- simplify2array(tncTime2[w2])
+
+
+w <- which(apply(mg14:::asum(tncTime3[,c(2,3),], 1)>0, 2, all))
+dSubSub <- sapply(w, function(i) {x <- tncTime3[,,i]; 1-cosineDist(x[,2,drop=FALSE],x[,3,drop=FALSE])})
+
+
+
+#w <- which(colSums(tncTime3[,2,]) >0 & colSums(tncTime3[,3,])>0)
+pSubSub <- apply(tncTime3[,2:3,w],3,tncLrt)
+table(p.adjust(pSubSub["p",], "bonf")<0.05)
+
+w <- which(p.adjust(pSubSub["p",], "bonf")<0.05)
+
+makeTitle <- function(n){
+	d <- sample2donor[n]
+	paste0(sample2icgc[n], ", ", donor2type[d], ", ", age[d], "yr")
+}
+
+#' ### Figure 5a
+#+ sigChangeEarlyLate, fig.width=2.5, fig.height=2
+pdf("sigChangeSubSub.pdf", 2.5, 3.25, pointsize=8)
+n <- names(tail(sort(dSubSub[names(w)]),22))
+sigCol <- sapply(c("#2196F3","#212121","#f44336","#BDBDBD","#8BC34A","#FFAB91"), rep,16)
+ttl <- function(){
+	l <- gsub("\\[|\\]||>.","", dimnames(tncTime3)[[1]])
+	mtext(text=l, at=b, las=2, cex=0.25, side=1)
+	mtext(at=b[8+16*(0:5)], side=1,text=c("C>A","C>G","C>T","T>A","T>C","T>G"), las=1, line=1)
+}
+for(s in n){
+	.par()
+	par(mfrow=c(3,1), las=2, mar=c(2,3,2,1), cex=1)
+	b <- barplot(as.numeric(tncTime3[,1,s]), ylab="SNVs", main=makeTitle(s),col=sigCol,border=NA, font.main=1, las=2, cex.main=1)
+	text(x=b[1],y=par("usr")[4], labels="clonal", xpd=TRUE, adj=c(0,1))
+	ttl()
+	b <- barplot(as.numeric(tncTime3[,2,s]), ylab="SNVs", main=makeTitle(s),col=sigCol,border=NA, font.main=1, las=2, cex.main=1)
+	text(x=b[1],y=par("usr")[4], labels="subclone 1", xpd=TRUE, adj=c(0,1))
+	ttl()
+	barplot(as.numeric(tncTime3[,3,s]), ylab="SNVs", col=sigCol, border=NA,las=2)
+	text(x=b[1],y=par("usr")[4], labels="subclone 2", xpd=TRUE, adj=c(0,1))
+	ttl()
+}
+dev.off()
+
+pdf("chronRateIncrease.pdf",2,2,pointsize=8)
+.par()
+t0 <- colMeans(wgdTimeDeamAcc["T.WGD","1x",1,,"time",],na.rm=TRUE) 
+names(t0) <- dimnames(wgdTimeDeamAcc)[[6]]
+a <- c(1,2.5,5,7.5,10, 20)
+x <-  age[sample2donor["052665d1-ab75-4f40-be5a-b88154c8beed"]]
+y <- nDeam["052665d1-ab75-4f40-be5a-b88154c8beed"]
+t <- seq(0,x, by=0.1)
+f <- function(t, ta, a){y <- t; y[t>ta] <- y[t>ta] + (y[t>ta] - min(y[t>ta]))*(a-1); y <- y/max(y)}
+r <- sapply(a, function(aa){
+			apply(sapply(x - seq(15,0,l=100), function(ta) f(t, ta, aa)),1,mean)
+		})
+plot(NA, NA, xlim=c(0,x), ylim=c(0,y), xlab="Age", ylab="CpG>TpG mutations")
+for(i in seq_along(a)) lines(t, r[,i]*y)
+w <- t0["052665d1-ab75-4f40-be5a-b88154c8beed"]
+segments(0,0, 0,w*y, col=set1[3])
+segments(0,w*y, 0, y, col=set1[4], lwd=2)
+for(i in seq_along(a)){
+	x0 = t[which.min(abs(w - r[,i]))]
+	segments(x0,0,x0,w*y, lty=3)
+}
+segments(0,w*y, x0, w*y, lty=3)
+dev.off()
+
+#' Normal blood CSC
+hsc_data <- read.table(gzfile("../data/Shearwater_calls_FDR0.95_all_muts.txt.gz"), header=TRUE, sep="\t")
+ct <- which((hsc_data$REF=="C" & hsc_data$ALT=="T") | (hsc_data$REF=="G" & hsc_data$ALT=="A" ))
+v <- VRanges(seqnames = hsc_data$X.CHROM, ref=hsc_data$REF, alt=hsc_data$ALT, ranges=IRanges(hsc_data$POS, width=1))
+#refFile <- "/Users/mg14/Projects/sandbox/genome.fa.gz"
+tnc=scanFa(file=refFile, resize(granges(v), 3,fix="center"))
+cpgtpg <- grepl("(A.CG)|(T..CG)", paste(alt(v),tnc))
+n_cpgtpg <- colSums(hsc_data[cpgtpg,5:144], na.rm=TRUE)
+normal_hsc_cpgtpg <- quantile(n_cpgtpg/59/6, c( 0.5, 0.025,0.975))
+
+#' Normal colon
+colon_sbs <- read.table("../data/model_input_with_CtoTatCpG.txt", header=TRUE, sep="\t")
+#colon_snv <- read.table("data/normal_colon_snv.txt", header=TRUE, sep="\t")
+foo <- as.data.frame(summary(lm(CtoTatCpG/6 ~ age-1, data=colon_sbs))$coef)
+normal_colon_cpgtpg <- quantile(colon_sbs$CtoTatCpG/colon_sbs$age/6, c( 0.5, 0.025,0.975))#c(foo$Estimate, foo$Estimate - 2*foo$`Std. Error`, foo$Estimate + 2*foo$`Std. Error`)
+
+#' Endometrium
+normal_endometrium_sbs1 <- c(300/50,100/25,500/50)/6
+
+#' Normal skin
+foo <- read.table("/Users/mg14/Desktop/PD20399be_wg_caveman_annotated_with_dinucs_for_mg14.txt", header=TRUE, sep="\t")
+
+is_cpgtpg <-  grepl("(A.CG[C,T])|(T.[A,G]CG)", paste(foo$mut,foo$trinuc_Ref))
+normal_skin_cpgtpg <- sum(is_cpgtpg * foo$VAF)/0.375/55/6
+
+finalSig <- read.table("../ref/sigProfiler_SBS_signatures_2018_03_28.csv", header=TRUE, sep=",")
+r <- sum(finalSig$SBS1[finalSig$Type=="C>T" & grepl(".CG",finalSig$SubType)])/ sum(finalSig$SBS1[finalSig$Type=="C>T" & grepl("(A|G)CG",finalSig$SubType)])
+
+normal_cpgtpg <- rbind(`Myeloid-MPN`=normal_hsc_cpgtpg,
+		`Skin-Melanoma`=c(normal_skin_cpgtpg,NA,NA) ,
+		`Uterus-AdenoCa`=normal_endometrium_sbs1,
+		`ColoRect-AdenoCa`=normal_colon_cpgtpg)
+
+plot(ab[rownames(normal_cpgtpg), "b","50%"], normal_cpgtpg[,1] )
+x <- abind::abind(cancer=ab[rownames(normal_cpgtpg), "b",colnames(normal_cpgtpg)], normal=normal_cpgtpg[,], along=3)
+x["Skin-Melanoma",,] <-x["Skin-Melanoma",,]
+
+barplot(rbind(ab[rownames(normal_cpgtpg), "b","50%"], normal_cpgtpg[,"50%"]), beside=TRUE)
+
+pdf("cancer_normal_cpgtpg.pdf", 2.5,2.5, pointsize=8)
+par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1)
+t(barplot(t(x[,"50%",]), beside=TRUE, col=rep(tissueColors[rownames(normal_cpgtpg)], each=2), density=rep(c(NA,36), nrow(normal_cpgtpg)), ylim=c(0,max(x, na.rm=TRUE)),
+				ylab="Mutation rate [CpG>TpG/Gb/yr]", names.arg=c("Blood","Skin","Uterus","Colon"))) -> b
+segments(b,x[,"2.5%",],b,x[,"97.5%",])
+legend("topleft", c("Cancer","Normal"), fill="black", density=c(NA,36), bty="n")
+dev.off()
+
+pd <- sub("[a-z]+[0-9]*","",sub("[a-z]*_.+", "",colon_sbs$crypt))
+u <- unique(pd)
+a <- colon_sbs$age[match(u, pd)]
+m <- sapply(u, grep, rownames(colon_snv))
+mm <- unlist(m)
+aa <- unlist(sapply(seq_along(m), function(i) rep(a[i], length(m[[i]]))))
+
+colon_cpg_tpg <- colon_snv$C.T.in.ACG +colon_snv$C.T.in.CCG+colon_snv$C.T.in.GCG+colon_snv$C.T.in.TCG 
+
+plot(aa, colon_cpg_tpg[mm])
+
+
+
+foo <- read.table("~/Desktop/foo.out", blank.lines.skip=TRUE, sep="\t", stringsAsFactors=FALSE)$V1
+bar <- as.numeric(sub(".+ ","",sub("([[:alpha:]]|-)+ ","",sub("  +"," ",foo[!grepl("^( |\\,)",foo)]))))
+n <- sub(",.+ ","",foo[grep("^,.+", foo)])
+i <- sub(" .+", "",foo[3:36])
+a <- matrix(bar, ncol=length(n), dimnames=list(i,n))
+x <-  abind::abind(cancer=a[rownames(normal_cpgtpg), colnames(normal_cpgtpg)], normal=normal_cpgtpg[,], along=3)
+x["Skin-Melanoma",,] <-x["Skin-Melanoma",,] * r
+
+
+
+#' Diversity
+
+t <- mg14:::asum(tncTime / rep(mg14:::asum(tncTime, 1), each=96), 3, na.rm=TRUE)
+
+
+t <- do.call("rbind", wgdTimeAbsType)
+o <- order(t[,"hat"], na.last=NA)
+
+pdf("WGD_early.pdf",3.2,3.2, pointsize=8)
+for(n in rownames(t)[tail(o, 20)]){
+	#plotSample(n, title=paste0(sub("-.+","",n),", ", donor2type[sample2donor[n]], ", ",round(t[n,"hat"]),"yr"))
+	print(n)
+	finalSnv[[n]] -> v
+	f <- if(donor2type[sample2donor[n]]=="Skin-Melanoma") isDeaminationNoUV else isDeamination 
+	v <- v[f(v)]
+	e <- table(info(v)$CLS)[1]
+	plotSample(n, vcf = v, title=paste0(sample2icgc[n], ", ",donor2type[sample2donor[n]],", ",age[sample2donor[n]],"yr, n=", e,"/",nrow(v), " early CpG>TpG"))
+}
+dev.off()
+
+d <- strsplit("DO46329
+DO46344
+DO46366
+DO46368
+DO46374
+DO46380
+DO46342
+DO46376
+DO46493","\n")[[1]]
+
+.par <- function() par(mar=c(3,3,1,1), bty="L", mgp=c(2,.5,0), tcl=-0.25, las=1)
+
+#' Relapse accel
+relapse <- read.table("../ref/2018_05_acceleration.txt", header=TRUE, sep="\t")
+p <- relapse$Primary_ploidy
+p[is.na(p)] <- 2
+m <- p
+m[m>2.8 & is.na(relapse$Primary_effGenome)] <- m[m>2.8 & is.na(relapse$Primary_effGenome)] * 0.7 # Typical scale factor for effective genome
+m[m>2.8 & !is.na(relapse$Primary_effGenome)] <- relapse$Primary_effGenome[m>2.8 & !is.na(relapse$Primary_effGenome)] # Typical scale factor for effective genome
+
+r <- relapse$Relapse_ploidy
+r[is.na(r)] <- relapse$Primary_ploidy[is.na(r)]
+r[is.na(r)] <- 2
+b_mrca <- relapse$Primary_CpG_muts * relapse$shared / 3 /m
+b_relapse <- (relapse$Relapse_CpG_muts - relapse$Primary_CpG_muts * relapse$shared)/ 3/ r
+b_primary <- (relapse$Primary_CpG_muts - relapse$Primary_CpG_muts * relapse$shared) / 3 /p
+
+t_primary <- relapse$Primary_age
+t_relapse <- t_primary + relapse$Relapse_time
+t_mrca <- 0.5 * (t_primary * b_mrca/(b_mrca + b_primary) + pmin(t_primary, t_relapse * b_mrca/(b_mrca + b_primary) ))
+
+pdf("relapse_accel_branch.pdf", pointsize=8, width=4, height=2)
+.par()
+par(mfrow=c(1,2))
+for(t in c("Ovarian", "Breast")){
+	w <- which(relapse$Ttype==t)
+	r <- relapse[w,]
+	plot(r$Primary_age+r$Relapse_time, r$Relapse_CpG_muts, ylim=c(0,150), xlim=c(0,80), pch=NA, xlab="Age", ylab="CpG>TpG/Gb")
+	tt <- c(Ovarian="Ovary-AdenoCa",Breast="Breast-AdenoCa")[t]
+	title(main=tt, line=0)
+	c <- tissueColors[tt]
+	#mrca <- r$Primary_CpG_muts*r$shared
+#points(mrca_time, mrca)
+	segments(0,0, t_mrca[w],b_mrca[w], col=c)
+	segments(t_mrca[w], b_mrca[w], t_primary[w], (b_mrca+b_primary)[w], col=c)
+	segments(t_mrca[w], b_mrca[w], t_relapse[w], (b_mrca+b_relapse)[w], col=c)
+	points(t_primary[w], b_mrca[w]+b_primary[w], pch=21, bg=c, col="white")
+	points(t_relapse[w], (b_mrca+b_relapse)[w], pch=21, bg=c, col="white")
+}
+dev.off()
+
+pdf("relapse_time.pdf", pointsize=8, width=2, height=2)
+.par()
+plot(t_relapse - t_primary, b_relapse-b_primary, xlim=c(0,13), xlab="Time to relapse", ylab="Surplus in relapse, CpG>TpG/Gb", pch=16)
+w <- t_relapse - t_primary < 10
+abline(lm((b_relapse - b_primary)[w] ~ (t_relapse-t_primary)[w]))
+legend("topright", c(paste("rho =",round(cor(t_relapse - t_primary, b_relapse-b_primary, method='s'),2)),
+				paste("p =",signif(cor.test(t_relapse - t_primary, b_relapse-b_primary, method='s')$p.value,1))), bty="n")
+dev.off()
+
+GREEK SMALL LETTER RHO
+Unicode: U+03C1, UTF-8: CF 81)))
+dev.off()
