@@ -606,7 +606,7 @@ t <- t(sapply(w, function(ww){
 
 
 #' ### Extended Data Figure 3b
-#+ GBM_tri7_bee, fig.width=1.5 fig.height=2
+#+ GBM_tri7_bee, fig.width=1.5, fig.height=2
 #pdf("GBM_tri7_bee.pdf", 1.5, 2, pointsize=8)
 .par()
 par(bty="n")
