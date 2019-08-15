@@ -585,7 +585,7 @@ w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==7)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 
 #pdf("GBM_tri7.pdf",3.2,3.2, pointsize=8)
-#+ GBM_tri7, fig.width=3.2 fig.height=3.2
+#+ GBM_tri7, fig.width=3.2, fig.height=3.2
 for(ww in w){
 	finalSnv[[ww]] -> v
 	v <- v[seqnames(v)==7]
