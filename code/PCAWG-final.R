@@ -263,7 +263,7 @@ legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n",
 #t <- 12/8
 #dev.copy2pdf(file="finalMutationProp.pdf", width=9*t, height=2.7*t, pointsize=8*t)
 
-#' ### Figure 3a
+#' ### Figure 2a
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
 d <- t(sapply(names(finalSnv)[whiteList &  selectedSamples], function(n) table(info(finalSnv[[n]])$CLS, useNA='a') + table(info(finalIndel[[n]])$CLS, useNA='a')))
 o <- order(droplevels(donor2type[sample2donor[rownames(d)]]), -d[,1]/rowSums(d))
@@ -360,7 +360,7 @@ legend("bottomright", col=col[1:4], lty=1, paste0(c("clonal [early]", "clonal [l
 abline(h=0.5, lty=3)
 #dev.copy2pdf(file="finalGenesCumulative.pdf", width=4,height=4)
 
-#' ### Figure 3d
+#' ### Figure 2d
 #+ finalGenes50, fig.width=3, fig.height=4
 par(mar=c(4,3,2.5,1), mgp=c(2,.5,0), bty="L")
 d50 <- apply((r[,,1]+r[,,2])/2 < 0.5, 2, which.min)[c(1,3,2,4)]
@@ -546,7 +546,7 @@ write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), timingInfo, quote=FALSE,
 
 
 #' ## Timing examples
-#' ### Figure 2c
+#' ### Figure 1e
 #+ timingExamples, fig.width=4, fig.height=4
 w <- which(wgdStar=="likely" & !isWgd)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
@@ -577,6 +577,46 @@ plotSample(w[1])
 plotSample(w[2])
 plotSample(w[3])
 #dev.off()
+
+#' ### Extended Data Figure 3a
+#' Plot all GBMs with +7
+w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-GBM") 
+w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==7) & bb$total_cn >= 3], na.rm=TRUE)/width(refLengths[7])>0.8)]
+#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+
+#pdf("GBM_tri7.pdf",3.2,3.2, pointsize=8)
+#+ GBM_tri7, fig.width=3.2 fig.height=3.2
+for(ww in w){
+	finalSnv[[ww]] -> v
+	v <- v[seqnames(v)==7]
+	v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
+	n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
+	plotSample(ww, title=paste0(sample2icgc[names(finalSnv)[ww]], ", n=", n,"/",nrow(v), " SNVs pre +7"))
+}
+#dev.off()
+
+#' tabulate 
+t <- t(sapply(w, function(ww){
+					finalSnv[[ww]] -> v
+					v <- v[seqnames(v)==7]
+					v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
+					n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
+					c(pre_7=n, total=nrow(v))
+				}))
+
+
+#' ### Extended Data Figure 3b
+#+ GBM_tri7_bee, fig.width=1.5 fig.height=2
+#pdf("GBM_tri7_bee.pdf", 1.5, 2, pointsize=8)
+.par()
+par(bty="n")
+beeswarm::beeswarm(as.numeric(pmax(t,0.5)) ~ factor(rep(c("pre +7","total"), each=nrow(t))), method='hex', pch=19, xlab="", ylab="Number of SNVs", cex=0.5, log=TRUE, yaxt='n', col=set1[c(3,9)])
+axis(side=2, at=c(1,10,100,1000))
+axis(side=2, at=0.5, label=0)
+for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0.1)
+#dev.off()
+
+
 
 #' ## Relationship with mutation rates
 #' Calculate number of substitutions and deciles per tumour type
@@ -684,7 +724,7 @@ plot(h$mids,h$counts/sum(h$counts),  pch=19, col='grey',ylim=c(0,max(h$counts/su
 
 plot(d$x,cumsum(d$y * diff(d$x)[1]), xlim=c(0,1), type='l', ylim=c(0,1), xlab="Relative time of second gain", ylab="CDF")
 
-#' ### Figure 2f
+#' ### Figure 1g
 #' By timing class
 #+ multiGainLatencyClass, fig.height=1, fig.width=1.5
 c <- cut(r[w], 20)
@@ -709,7 +749,7 @@ for(n in dimnames(t)[[3]]) {
 	lines(10^x, predict(loess(y ~x)), col=colTime[n], lwd=2)
 }
 
-#' ### Figure 2e
+#' ### Figure 1h
 #+ fracDoubleGains, fig.width=1.5, fig.height=1
 tt <- mg14:::asum(t[,x>=7,],2)
 o <- names(colTime)
@@ -909,7 +949,7 @@ segments(b, qRateDeam["50%",][o], b, qRateDeam["100%",][o], col=tissueLines[coln
 segments(b, qRateDeam["0%",][o], b, qRateDeam["50%",][o], col=tissueBorder[colnames(qRateDeam)][o], lwd=2)
 
 
-#' ### Figure 6a
+#' ### Extended Data Figure 8a
 #+ timeSubcloneAgePancan, fig.width=2, fig.height=2
 tt0 <- branchDeam/cbind(finalPloidy, effGenome) / cbind(nClones-1, 1)/3 # 3Gb Haploid genome
 tt0[is.infinite(tt0)|is.nan(tt0)] <- 0
@@ -1008,7 +1048,7 @@ plot(x,y, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=t
 for(i in 1:nrow(ab))
 	abline(ab[i,1,"50%"], ab[i,2,"50%"], col=tissueLines[levels(droplevels(t))[i]], lty=tissueLty[levels(droplevels(t))[i]])
 
-#' ### Extended Data Figure 6b
+#' ### Extended Data Figure 8c
 #+rateOffsetBayes, fig.width=2, fig.height=2
 plot(ab[,1,"50%"], ab[,2,"50%"], col=tissueColors[dimnames(ab)[[1]]], pch=NA, xlab="Offset", ylab="SNVs/Gb/yr", xlim=range(ab[,1,c("2.5%","97.5%")]), ylim=range(ab[,2,c("2.5%","97.5%")]))
 segments(ab[,1,"50%"], ab[,2,"2.5%"],ab[,1,"50%"], ab[,2,"97.5%"], col=tissueLines[dimnames(ab)[[1]]], pch=19)
@@ -1021,7 +1061,7 @@ a <- extract(fit, pars="offset")$offset
 b <- extract(fit, pars="slope")$slope
 colnames(a) <- colnames(b) <- levels(droplevels(t))
 
-#' ### Extended Data Figure 6a
+#' ### Extended Data Figure 8b
 #+ timeSubcloneAgeBayes, fig.width=10, fig.height=10
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
 d <- droplevels(t)
@@ -1053,7 +1093,7 @@ qPanCan=quantile(rowMeans(do.call("cbind",sapply(colnames(a), function(n){
 								}))),
 		c(0.025, 0.25, .5,.75,.975))*100
 
-#' ### Extended Data Figure 6c
+#' ### Extended Data Figure 8e
 #+fracLinearBayes, fig.width=4, fig.height=2
 par(mar=c(6,3,1,1))
 o <- order(q["50%",])
@@ -1122,7 +1162,7 @@ guessAccel <- sapply(subclonesTimeAbs, function(x) "5x")
 guessAccel["Ovary-AdenoCa"] <- guessAccel["Liver-HCC"] <- "7.5x"
 guessAccel[grep('CNS', names(guessAccel))] <- "2.5x"
 
-#' ### Figure 6h
+#' ### Extended Data Figure 9f
 #+ realTimeSubclone, fig.width=6, fig.height=2.225
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
@@ -1159,7 +1199,7 @@ for(i in seq_along(o))try({
 #s <- 12/8
 #dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
 
-#' ### Figure 6h
+#' ### Figure 5c
 #+ realTimeSubcloneMed, fig.width=6, fig.height=2.225
 #pdf("realTimeSubcloneMed.pdf", width=6, height=2.225, pointsize=8)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
@@ -1187,7 +1227,7 @@ sapply(subclonesTimeAbs, nrow)
 
 sapply(subclonesTimeAbs, nrow)
 
-#' ### Extended Data Figure 6g
+#' ### Extended Data Figure 9g
 #' Comparison of branching v linear
 #+ realTimeBranchLinear, fig.width=2.5, fig.height=3.5
 subclonesTimeAbsTypeLinear <- sapply(names(subclonesTimeAbsLinear), function(n) {x <- subclonesTimeAbsLinear[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
@@ -1348,7 +1388,7 @@ wgdTimeAbs <- sapply(s, function(l) {
 		}, simplify=FALSE)
 
 
-#' ### Figure 6e
+#' ### Extended Data Figure 9a
 #+ realTimeWgd, fig.height=3, fig.width=4.5
 par( mar=c(7,3,1,1), mgp=c(2,.5,0), tcl=0.25,cex=1, bty="L", xpd=FALSE, las=1)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
@@ -1414,7 +1454,7 @@ yy <- do.call("rbind",wgdTimeAbsType)
 yy <- yy[setdiff(rownames(yy), remove),"hat"]
 table(cut(yy, seq(0,60,10)))
 
-#' ### Figure 6f
+#' ### Extended Data Figure 9b
 #' WGD time v age at diagnosis
 #+ wgdAge, fig.width=10, fig.height=10
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
@@ -1480,7 +1520,7 @@ d[rownames(d) %in% remove] <- NA
 t0 <- colMeans(wgdTimeDeamAcc["T.WGD","1x",1,,"time",],na.rm=TRUE) 
 names(t0) <- dimnames(wgdTimeDeamAcc)[[6]]
 
-#' ### Extended Data Figure 6d&e
+#' ### Extended Data Figure 9c&d
 #' Plot time v early and total number of mutations 
 #+ nDeam22Time, fig.width=2, fig.height=2
 y <- d[names(t0),]/6
@@ -1555,7 +1595,7 @@ t <- donor2type[sample2donor[names(x)]]
 plot(y+runif(length(y)),x+runif(length(y)), pch=21, bg=tissueColors[t], col=tissueBorder[t], cex=tissueCex[t]*1, lwd=0.5, xlab="Time (constant acceleration)", ylab="Time (sample-specific accel.)", log='')
 #s <- 12/8; dev.copy2pdf(file="accelRelWgd.pdf", width=2*s, height=2*s, pointsize=8*s)
 
-#' ### Extended Data Figure 6f
+#' ### Extended Data Figure 9e
 #' Quantiles
 #+ qAccelRelWgd, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1)
@@ -1594,7 +1634,7 @@ for(n in names(wgdTimeAbsType)){
 }
 
 
-#' ### Figure 6d
+#' ### Figure 5a
 #' Conceptual plot
 #+ concept, fig.height=2, fig.width=2
 #par(mfrow=c(1,1), mar=c(3,3,1,1), mgp=c(2,0.5,0), bty="L")
@@ -1630,7 +1670,7 @@ text(x=0, y=t, labels="WGD", pos=4, adj=c(0,1))
 #s <- 12/8; dev.copy2pdf(file="concept.pdf", width=2*s, height=2*s, pointsize=8*s)
 
 
-#' ### Figure 6g
+#' 
 #' Median time v accel
 #+ realTimeWgdAccel, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.25, bty="L")
@@ -1640,7 +1680,7 @@ for(j in 1:dim(qWgd)[3]) lines(accel, qWgd["50%",,j], type='l', col=tissueLines[
 			lty=ifelse(nWgd[dimnames(qWgd)[[3]][j]]<=9, 3, tissueLty[dimnames(qWgd)[[3]][j]]))
 #s <- 12/8; dev.copy2pdf(file="realTimeWgdAccel.pdf", width=2*s, height=2*s, pointsize=8*s)
 
-#' ### Figure 6h
+#' 
 #' Median time v accel
 #+ realTimeMrcaAccel, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,0.5,0), tcl=-0.25, bty="L")
@@ -1743,7 +1783,7 @@ makeTitle <- function(n){
 	paste0(sample2icgc[n], ", ", donor2type[d], ", ", age[d], "yr")
 }
 
-#' ### Figure 5a and Extended Data Figure 7a
+#' ### Figure 4a and Extended Data Figure 6a
 #+ sigChangeEarlyLate, fig.width=2.5, fig.height=2
 n <- names(tail(sort(dEarlyLate),10))
 sigCol <- sapply(c("#2196F3","#212121","#f44336","#BDBDBD","#8BC34A","#FFAB91"), rep,16)
@@ -1800,7 +1840,7 @@ apply(t(t(a)/colSums(a))*100,2,mg14:::roundProp)
 w <- which(mg14:::asum(tncTime[,1:3,], c(1,2))>1000 & mg14:::asum(tncTime[,4,], 1)>1000)
 dClonalSubclonal <- sapply(w, function(i) {x <- tncTime[,,i]; 1-cosineDist(x[,1:3] %*% rep(1,3),x[,4,drop=FALSE])})
 
-#' ### Extended Data Figure 5b and Extended Data Figure 7b
+#' ### Figure 4b and Extended Data Figure 6b
 #+ sigChangeClonalSubclonal, fig.width=2.5, fig.height=2
 n <- names(tail(sort(dClonalSubclonal),10))
 for(s in n){
@@ -1838,7 +1878,7 @@ sfc <- read.table("../ref/2019-01-03-allSignatureChanges.txt", header=TRUE, sep=
 v <- sfc$samplename %in% names(which(p.adjust(pEarlyLate["p",])<0.05))
 #mg14:::ggPlot(pmin(100,pmax(0.01,exp(sfc$log2fc_earlyLate[v]*log(2)))),sfc$signature[v], log='y')
 
-#' ### Figure 5c
+#' ### Figure 4c
 #' Early to late clonal change
 #+ sigFcEarlyLate, fig.width=6, fig.height=3
 #cairo_pdf("sigFcEarlyLate.pdf", 6, 3, pointsize=8)
@@ -1866,7 +1906,7 @@ abline(h=0, lty=3)
 #' Some numbers
 t(signif(2^sapply(split(sfc$log2fc_earlyLate[v] , sfc$signature[v])[s], quantile, na.rm=TRUE),2))
 
-#' ### Figure 5d
+#' ### Figure 4d
 #' Clonal to subclonal change
 w <- sfc$samplename %in% names(which(p.adjust(pClonalSubclonal["p",])<0.05))
 
