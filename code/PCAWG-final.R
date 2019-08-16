@@ -570,6 +570,7 @@ axis(side=1)
 
 #' # Synchronous gains
 #' ## Classification
+#' Note: Final figures have slightly deviated from this earlier version due to more elaborate handling of segments.
 d <- fracGenomeWgdComp
 i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
 timingClass <- paste(ifelse(isWgd,"WGD","ND"), ifelse(!i, "uninformative",""))
@@ -577,7 +578,7 @@ timingClass[i] <- paste0(timingClass[i], ifelse(d[i,"nt.wgd"]/d[i,"nt.total"] > 
 #timingClass[i] <- paste0(timingClass[i], cut(fracGenomeWgdComp[i,"nt.wgd"]/fracGenomeWgdComp[i,"nt.total"], c(0,0.5,0.8,1), include.lowest=TRUE))
 timingClass <- factor(timingClass)
 
-#' ### Figure 2d
+#' ### Figure 1f
 #+ timingClass, fig.width=4, fig.height=4
 #pdf("TimingClass.pdf", 4,4)
 colTime <- c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00")
@@ -590,6 +591,10 @@ par(new=TRUE)
 symbols(x=0,y=0,circles=0.4, inches=FALSE, add=TRUE, bg="white")
 #pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
 #dev.off()
+
+#' xlsx output
+Figure1f <- createSheet(Figure1, "Figure1f")
+addDataFrame(t, Figure1f)
 
 colnames(d) <- c("ntCoamp","ntAmp","timeCoamp","segCoamp","segAmp","chrCoamp","chrAmp", "sdTimeCoamp","avgCiSeg","sdAllSeg")
 timingInfo <- data.frame(avgPloidy=finalPloidy, avgHom=finalHom, isWgd=isWgd, d, informative=i, timingClass=timingClass)
