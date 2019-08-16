@@ -1960,6 +1960,15 @@ for(s in n){
 	ttl()
 }
 
+#' xlsx output
+Figure4a <- createSheet(Figure4, "Figure4a")
+addDataFrame(as.data.frame(tncTime[,1:2,names(which(sample2icgc[n]=="SA434348"))]), Figure4a)
+ExtendedDataFigure6a <- createSheet(ExtendedDataFigure6, "ExtendedDataFigure6a")
+x <- tncTime[,1:2,n]
+dimnames(x)[[3]] <- sample2icgc[n]
+addDataFrame(as.data.frame(x), ExtendedDataFigure6a)
+
+
 #' LRT to test for spectral changes
 tncLrt <- function(x){
 	l1 <- dmultinom(x=x[,1], prob=x[,1], log=TRUE) + dmultinom(x=x[,2], prob=x[,2], log=TRUE)
@@ -2011,6 +2020,16 @@ for(s in n){
 	ttl()
 }
 
+#' xlsx output
+x <- tncTime[,c(1,4),n]
+x[,1,] <- mg14:::asum(tncTime[,1:3,n], 2)
+dimnames(x)[[3]] <- sample2icgc[n]
+dimnames(x)[[2]][1] <- "clonal [early/late/NA]"
+Figure4b <- createSheet(Figure4, "Figure4b")
+addDataFrame(as.data.frame(x[,1:2,"SA557034"]), Figure4b)
+ExtendedDataFigure6b <- createSheet(ExtendedDataFigure6, "ExtendedDataFigure6b")
+addDataFrame(as.data.frame(x), ExtendedDataFigure6b)
+
 #' TNC LRT
 w <- which(mg14:::asum(tncTime[,1:3,], c(1,2))>0 & mg14:::asum(tncTime[,4,], 1)>0)
 pClonalSubclonal <- apply(tncTime[,,w],3, function(x) tncLrt(x %*% matrix(c(1,1,1,0,0,0,0,1), ncol=2)))
@@ -2060,6 +2079,11 @@ text(0,-2.2, "early", pos=4)
 abline(h=0, lty=3)
 #dev.off()
 
+#' xlsx output
+Figure4c <- createSheet(Figure4, "Figure4c")
+addDataFrame(data.frame(sfc[v,c("samplename","signature","log2fc_earlyLate")], tumour_type=t), Figure4c)
+
+
 #' Some numbers
 t(signif(2^sapply(split(sfc$log2fc_earlyLate[v] , sfc$signature[v])[s], quantile, na.rm=TRUE),2))
 
@@ -2089,6 +2113,11 @@ text(0,2.2, "subclonal", pos=4)
 text(0,-2.2, "clonal", pos=4)
 abline(h=0, lty=3)
 #dev.off()
+
+#' xlsx output
+Figure4d <- createSheet(Figure4, "Figure4d")
+addDataFrame(data.frame(sfc[w,c("samplename","signature","log2fc_clonalSubclonal")], tumour_type=t), Figure4d)
+
 
 #' Some numbers
 t(signif(2^sapply(split(sfc$log2fc_clonalSubclonal[w] , sfc$signature[w])[s], quantile, na.rm=TRUE),2))
