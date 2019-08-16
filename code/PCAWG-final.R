@@ -26,8 +26,37 @@ options(mc.cores=as.numeric(Sys.getenv("LSB_MAX_NUM_PROCESSORS")))
 
 
 #' # Prelim
+#' ## Preprocessing
+#' Prior to this script, `MutationTimeR` was run on 2x 2,778 VCF files for subs and indels each. This was done using the script `VCF-annotate.R`, attached at
+#' the end of this vignette. 
+#' 
+#' Input files:
+#' * VCF files: Folder `../final/final_consensus_12oct_passonly`
+#' * Allele-specific copy number: Folder `../final/consensus.20170119.somatic.cna.annotated`
+#' * Subclone sizes and cell frequencies: `../final/structure_weme_released_consensus_merged.txt`, `../final/wcc_consensus_values_9_12.tsv`
+#' * Purity: `../final/consensus.20170218.purity.ploidy.txt` 
+#' 
+#' Output:
+system("for d in `find ../final/annotated_014 -maxdepth 1 -type d`
+do echo $d; ls $d | head -6;
+done", ignore.stderr=TRUE)
+#' Annotated VCF files and copy number segments with timing information will be loaded as shown below. This requires about 100G memory.
+
 #' ## Libraries
+#' Load convenience R functions (code shown at the end of this vignette).
 source("PCAWG-functions.R")
+
+#' Prepare spreadsheets for figure data
+library(xlsx)
+Figure1 <- createWorkbook()
+Figure2 <- createWorkbook()
+Figure4 <- createWorkbook()
+Figure5 <- createWorkbook()
+ExtendedDataFigure3 <- createWorkbook()
+ExtendedDataFigure6 <- createWorkbook()
+ExtendedDataFigure8 <- createWorkbook()
+ExtendedDataFigure9 <- createWorkbook()
+
 
 #+ evalOff, echo=FALSE
 dumpfile <- "2018-07-18-PCAWG-final.RData"
@@ -37,7 +66,7 @@ if(file.exists(dumpfile)){
 	source("PCAWG-functions.R")
 }
 
-#' # Load data
+#' # Load processed data
 #' ## Whitelist
 #' ### SNV and MNV
 #+ loadSNV
@@ -293,6 +322,10 @@ segments(d0, 0.66, d1, 0.33)
 segments(d1, 0.33, d1, 0)
 mg14::rotatedLabel(x0 = d1, names(s), y0=0)
 
+#' xlsx output
+Figure2a <- createSheet(Figure2, "Figure2a")
+addDataFrame(data.frame(d,cancer=droplevels(donor2type[sample2donor[rownames(d)]]))[o,c(6,1:5)], Figure2a)
+
 #t <- 12/8
 #dev.copy2pdf(file="finalMutationPropAll.pdf", width=9*t, height=1.8*t, pointsize=8*t)
 
@@ -333,6 +366,21 @@ b <- barplot(t(gu[2:51,]), col=col, las=2,  names.arg=rep("",50))
 mg14::rotatedLabel(x=b,labels=rownames(gu)[2:51], cex=.5)
 #dev.copy2pdf(file="finalDrivers.pdf", width=9, height=5, pointsize=8)
 
+#' xlsx output
+Figure2a2 <- createSheet(Figure2, "Figure2a2")
+addDataFrame(gu[wu,], Figure2a2)
+
+gt <- asum(finalGenotypes[,,,,selectedSamples[whiteList]], c(2:4))
+t <- droplevels(donor2type[sample2donor[colnames(gt)]])
+gt <- gt %*% model.matrix(~t-1)
+colnames(gt) <- levels(t)
+gtu <- t(sapply(unique(l), function(u) asum(gt[l==u,,drop=FALSE], 1)))
+gtu <- gtu[rownames(gu),]
+
+Figure2a3 <- createSheet(Figure2, "Figure2a3")
+addDataFrame(gtu[wu,], Figure2a3)
+
+
 #' ### Barpot drivers - proportions
 #+ finalDriversProp, fig.width=9, fig.height=3
 par(fig=c(0,1,0,1),mar=c(3,4,1,1)+.1, mgp=c(3,.5,0))
@@ -365,11 +413,15 @@ abline(h=0.5, lty=3)
 par(mar=c(4,3,2.5,1), mgp=c(2,.5,0), bty="L")
 d50 <- apply((r[,,1]+r[,,2])/2 < 0.5, 2, which.min)[c(1,3,2,4)]
 b <- barplot(d50,las=2, col=col[c(1,3,2,4)], border=NA, ylab="Genes contributing 50% of driver mutations")
-segments(b,apply(r[,,1] < 0.5, 2, which.min)[c(1,3,2,4)],b,apply(r[,,2] < 0.5, 2, which.min)[c(1,3,2,4)])
+lo <- apply(r[,,1] < 0.5, 2, which.min)[c(1,3,2,4)]
+hi <- apply(r[,,2] < 0.5, 2, which.min)[c(1,3,2,4)]
+segments(b,lo,b,hi)
 mg14::rotatedLabel(x=b,labels=c("clonal [early]", "clonal [late]", "clonal [other]", "subclonal")[c(1,3,2,4)])
 #dev.copy2pdf(file="finalGenes50.pdf", width=3,height=4)
 
-
+#' xlxs output
+Figure2d <- createSheet(Figure2, "Figure2d")
+addDataFrame(data.frame(d50, lo, hi, row.names=c("clonal [early]", "clonal [late]", "clonal [other]", "subclonal")[c(1,3,2,4)]), Figure2d)
 
 #' # Whole-genome duplications
 #' ## Prelim
@@ -586,7 +638,7 @@ w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==7)
 
 #pdf("GBM_tri7.pdf",3.2,3.2, pointsize=8)
 #+ GBM_tri7, fig.width=3.2, fig.height=3.2
-for(ww in w){
+for(ww in w[1:10]){
 	finalSnv[[ww]] -> v
 	v <- v[seqnames(v)==7]
 	v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
@@ -603,6 +655,10 @@ t <- t(sapply(w, function(ww){
 					n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
 					c(pre_7=n, total=nrow(v))
 				}))
+rownames(t) <- names(finalSnv)[w]
+
+#' Less than 3 early
+table(t[,1]<=3)
 
 
 #' ### Extended Data Figure 3b
@@ -616,6 +672,54 @@ axis(side=2, at=0.5, label=0)
 for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0.1)
 #dev.off()
 
+#' xlsx output
+ExtendedDataFigure3b <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3b")
+addDataFrame(t, ExtendedDataFigure3b)
+
+#' ### Extended Data Figure 3c
+#' Medulloblastoma with i17q
+w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-Medullo") 
+w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==17) & bb$total_cn >= 3], na.rm=TRUE)/width(refLengths[17])>0.5)]
+#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+
+#pdf("Medullo_i17q.pdf",3.2,3.2, pointsize=8)
+#+ Medullo_i17q, fig.width=3.2, fig.height=3.2
+for(ww in w[1:10]){
+	finalSnv[[ww]] -> v
+	v <- v[seqnames(v)==17]
+	v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
+	n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
+	plotSample(ww, title=paste0(sample2icgc[names(finalSnv)[ww]], ", n=", n,"/",nrow(v), " SNVs pre i17q"))
+}
+#dev.off()
+
+#' tabulate 
+t <- t(sapply(w, function(ww){
+					finalSnv[[ww]] -> v
+					v <- v[seqnames(v)==17]
+					v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
+					n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
+					c(pre_i17q=n, total=nrow(v))
+				}))
+rownames(t) <- names(finalSnv)[w]
+
+#' Less than 1 early
+table(t[,1]<=1)
+
+#' ### Extended Data Figure 3d
+#+ Medullo_i17q_bee, fig.width=1.5, fig.height=2
+#pdf("Medullo_i17q_bee.pdf", 1.5, 2, pointsize=8)
+.par()
+par(bty="n")
+beeswarm::beeswarm(as.numeric(pmax(t,0.5) + runif(length(t))*0.25 -0.1) ~ factor(rep(c("pre i17q","total"), each=nrow(t))), method='hex', pch=19, xlab="", ylab="Number of SNVs", cex=0.5, log=TRUE, yaxt='n', col=set1[c(3,9)], corral="gutter", corralWidth=1.25)
+axis(side=2, at=c(1,10,100,1000))
+axis(side=2, at=0.5, label=0)
+for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0.1)
+#dev.off()
+
+ExtendedDataFigure3d <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3d")
+addDataFrame(t, ExtendedDataFigure3d)
+saveWorkbook(ExtendedDataFigure3,'ExtendedDataFigure3.xlsx')
 
 
 #' ## Relationship with mutation rates
@@ -724,7 +828,7 @@ plot(h$mids,h$counts/sum(h$counts),  pch=19, col='grey',ylim=c(0,max(h$counts/su
 
 plot(d$x,cumsum(d$y * diff(d$x)[1]), xlim=c(0,1), type='l', ylim=c(0,1), xlab="Relative time of second gain", ylab="CDF")
 
-#' ### Figure 1g
+#' ### Figure 1h
 #' By timing class
 #+ multiGainLatencyClass, fig.height=1, fig.width=1.5
 c <- cut(r[w], 20)
@@ -732,6 +836,11 @@ t <- table(timingClass[doubleGainsAggregated$sample[w]],c)
 barplot(t[names(colTime),]/sum(t), border=NA, col=colTime, width=1/24, space=0.2, names.arg=rep("",20, bty="L", yaxs="s"))
 .par()
 axis(side=1, line=0.2)
+
+#' xlxs output
+Figure1h <- createSheet(Figure1, "Figure1h")
+addDataFrame(t[names(colTime),], Figure1h)
+saveWorkbook(Figure1, file="Figure1.xlsx")
 
 #' Copy number increments
 cn <- do.call("rbind", sapply(names(finalBB), function(n){
@@ -749,7 +858,7 @@ for(n in dimnames(t)[[3]]) {
 	lines(10^x, predict(loess(y ~x)), col=colTime[n], lwd=2)
 }
 
-#' ### Figure 1h
+#' ### Figure 1g
 #+ fracDoubleGains, fig.width=1.5, fig.height=1
 tt <- mg14:::asum(t[,x>=7,],2)
 o <- names(colTime)
@@ -757,6 +866,11 @@ p <- tt[4,o]/colSums(tt[3:4,o])
 ci <- sapply(c(0.025, 0.975), qbeta, 0.025, shape1=tt[4,o]+1, shape2=tt[3,o]+1)
 barplot(p, col=colTime, border=NA, las=2, ylab="Proportion >2 allelic copies", names=sub("ormative","",sub("near-diploid", "ND", names(colTime))), ylim=c(0,0.4)) -> b
 segments(b, ci[,1], b, ci[,2])
+
+#' xlsx output
+Figure1g <- createSheet(Figure1, "Figure1g")
+addDataFrame(t(tt[3:4,o]), Figure1g)
+
 
 #' Simulate higher order gains to cross-check
 n <- 100
@@ -1997,6 +2111,16 @@ dev.off()
 
 
 #' # Outputs
+#' ## Figure data
+saveWorkbook(Figure1,'Figure1.xlsx')
+saveWorkbook(Figure2,'Figure2.xlsx')
+saveWorkbook(Figure4,'Figure4.xlsx')
+saveWorkbook(Figure5,'Figure5.xlsx')
+saveWorkbook(ExtendedDataFigure3,'ExtendedDataFigure3.xlsx')
+saveWorkbook(ExtendedDataFigure6,'ExtendedDataFigure6.xlsx')
+saveWorkbook(ExtendedDataFigure8,'ExtendedDataFigure8.xlsx')
+saveWorkbook(ExtendedDataFigure9,'ExtendedDataFigure9.xlsx')
+
 #' ## Real time WGD & MRCA
 #+ wgdMrcaOut
 n <- names(finalSnv)
@@ -2036,7 +2160,7 @@ wgdMrcaTimingData <- cbind(wgdMrcaTimingData,
 write.table(wgdMrcaTimingData, file=paste0(Sys.Date(),"-wgdMrcaTiming.txt"), sep="\t", quote=FALSE, row.names=FALSE)
 
 #' ## All segments, MutationTime.R raw values
-#+ segOut
+#+ segOut, eval=FALSE
 t <- do.call("rbind", mclapply(finalBB, function(bb) as.data.frame(bb[,c(1:6,38:47)])))
 n <- rownames(t) 
 t <- as.data.frame(lapply(t, function(x) if(class(x)=="numeric") round(x,3) else x)) 
