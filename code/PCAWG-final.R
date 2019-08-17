@@ -1218,7 +1218,6 @@ qPanCan=quantile(rowMeans(do.call("cbind",sapply(colnames(a), function(n){
 hsc_data <- read.table(gzfile("../data/Shearwater_calls_FDR0.95_all_muts.txt.gz"), header=TRUE, sep="\t")
 ct <- which((hsc_data$REF=="C" & hsc_data$ALT=="T") | (hsc_data$REF=="G" & hsc_data$ALT=="A" ))
 v <- VRanges(seqnames = hsc_data$X.CHROM, ref=hsc_data$REF, alt=hsc_data$ALT, ranges=IRanges(hsc_data$POS, width=1))
-#refFile <- "/Users/mg14/Projects/sandbox/genome.fa.gz"
 tnc=scanFa(file=refFile, resize(granges(v), 3,fix="center"))
 cpgtpg <- grepl("(A.CG)|(T..CG)", paste(alt(v),tnc))
 n_cpgtpg <- colSums(hsc_data[cpgtpg,5:144], na.rm=TRUE)
@@ -1227,20 +1226,18 @@ normal_hsc_cpgtpg <- quantile(n_cpgtpg/59/6, c( 0.5, 0.025,0.975))
 #' #### Normal colon
 #' Data from Lee-Six et al. bioRxiv 2018
 colon_sbs <- read.table("../data/model_input_with_CtoTatCpG.txt", header=TRUE, sep="\t")
-#colon_snv <- read.table("data/normal_colon_snv.txt", header=TRUE, sep="\t")
 foo <- as.data.frame(summary(lm(CtoTatCpG/6 ~ age-1, data=colon_sbs))$coef)
 normal_colon_cpgtpg <- quantile(colon_sbs$CtoTatCpG/colon_sbs$age/6, c( 0.5, 0.025,0.975))#c(foo$Estimate, foo$Estimate - 2*foo$`Std. Error`, foo$Estimate + 2*foo$`Std. Error`)
 
 #' #### Endometrium
 #' Data from Moore et al., bioRxiv 2018
-tab <- read.table("/Users/mg14/Desktop/endom_subs.txt", sep="\t", header=TRUE)
+tab <- read.table("../data/endom_subs.txt", sep="\t", header=TRUE)
 quantile(tab$C.T.at.CpG/tab$Age, c(0.5, 0.025, 0.975))/6
 normal_endometrium_cpgtpg <- quantile(tab$C.T.at.CpG/tab$Age, c(0.5, 0.025, 0.975))/6
 
 #' #### Normal skin
 #' Data from Martincorena et al., Science 2015
 foo <- read.table("../ref/PD20399be_wg_caveman_annotated_with_dinucs_for_mg14.txt", header=TRUE, sep="\t")
-
 is_cpgtpg <-  grepl("(A.CG[C,T])|(T.[A,G]CG)", paste(foo$mut,foo$trinuc_Ref))
 normal_skin_cpgtpg <- sum(is_cpgtpg * foo$VAF)/0.375/55/6 # Adjust for YCG fraction, age and genome
 
@@ -1263,6 +1260,10 @@ segments(b,x[,"2.5%",],b,x[,"97.5%",])
 legend("topleft", c("Cancer","Normal"), fill="black", density=c(NA,36), bty="n")
 #dev.off()
 
+#' xlsx
+ExtendedDataFigure8d <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8d")
+addDataFrame(x, ExtendedDataFigure8d)
+
 #' ### Extended Data Figure 8e
 #+fracLinearBayes, fig.width=4, fig.height=2
 par(mar=c(6,3,1,1))
@@ -1274,6 +1275,10 @@ segments(b, q["2.5%",o], b, q["50%",][o], col=tissueBorder[colnames(q)][o], lwd=
 abline(h=min(q["97.5%",]), lty=3)
 abline(h=max(q["2.5%",]), lty=3)
 #abline(h=qPanCan["50%"], lty=4)
+
+#' xlsx
+ExtendedDataFigure8e <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8e")
+addDataFrame(q, ExtendedDataFigure8e)
 
 
 #' Qualitative behaviour, simulating  0-15yrs with 5x acceleration
