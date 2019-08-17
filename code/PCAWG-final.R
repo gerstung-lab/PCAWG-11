@@ -43,7 +43,7 @@ system("for d in `find ../final/annotated_014 -maxdepth 1 -type d`
 do echo $d; ls $d | head -6;
 done", ignore.stderr=TRUE)
 #' Annotated VCF files and copy number segments with timing information will be loaded as shown below. This requires about 100G memory.
-
+#' 
 #' ## Libraries
 #' Load convenience R functions (code shown at the end of this vignette).
 source("PCAWG-functions.R")
@@ -69,8 +69,10 @@ if(file.exists(dumpfile)){
 }
 
 #' # Load processed data from MutationTimeR
+#' 
 #' ## Whitelist
 #' First 2,703 whitelisted samples
+#' 
 #' ### SNV and MNV
 #' Load annotated VCF files for SNVs and MNVs into a list with `VariantAnnotation::VCF()` objects:
 #+ loadSNV
@@ -147,6 +149,7 @@ for(i in seq_along(finalDriversAnnotated)){
 
 #' ## Graylisted data
 #' 75 graylisted samples were processed separately using MutationTimeR. We load these just like the whitelisted samples and concatenate the output.
+#' 
 #' ### SNV and MNV
 #+ loadSnvGray
 p <- "../final/annotated_014/graylist/snv_mnv"
@@ -237,7 +240,8 @@ for(i in seq_along(finalSnv)[1:25]){
 
 
 #' # Driver genotypes
-#' Here we tabulate all driver point mutations and their clonal allele status
+#' Here we tabulate all driver point mutations and their clonal allele status.
+#' 
 #' ## MAP genotypes
 #' These are the maximum a posteriori (MAP) assignments, used for the early/late/clonal/subclonal annotation output of MutationTimeR.
 #+ finalGenotypes
@@ -274,6 +278,7 @@ opts_chunk$set(eval=TRUE)
 
 #' # Timing of point mutations
 #' Here we assess the timing of point mutations, including driver gene mutations.
+#' 
 #' ## Duplicated donors
 #' First, find samples with the same donor to avoid double dipping for some computations.
 w <- names(finalSnv)
@@ -285,6 +290,7 @@ selectedSamples <- !w %in% setdiff(s[!s %in% finalDrivers$sample ], names(u)[!du
 uniqueSamples <- !duplicated(sample2donor[names(finalSnv)])
 
 #' ## Overall distribution
+#' 
 #' ### Subs or indels
 #' First assess the overall distributions of early/late/clonal/subclonal variants per sample, separately for subs and indels.
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
@@ -455,6 +461,7 @@ addDataFrame(data.frame(d50, lo, hi, row.names=c("clonal [early]", "clonal [late
 
 #' # Whole-genome duplications
 #' Now turn to the timing of copy number alterations. First assess the whole genome duplications (WGD).
+#' 
 #' ## Prelim
 #' Final ploidy, weighted if subclonal CN
 finalPloidy <- sapply(finalBB, averagePloidy)
@@ -466,6 +473,7 @@ names(finalHom) <- names(finalBB)
 
 #' ## WGD classification
 #' WGD is primarily classified by the copy number data. Additionally we assess the concordance of timing. 
+#' 
 #' ### Based on ploidy and homozygousity
 #' Using the quantities above, we classify WGD samples. This is the official WG output.
 isWgd <- .classWgd(finalPloidy, finalHom)
@@ -500,6 +508,7 @@ table(wgdStat, wgdStar)
 
 #' # Temporal distribution of chromosomal gains
 #' In this section we assess the temporal distribution of large-scale copy number gains.
+#' 
 #' ## Functions
 #' This one aggregates individual segments by chromosome
 aggregatePerChromosome <- function(bb, isWgd=FALSE){
@@ -651,6 +660,7 @@ write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), timingInfo, quote=FALSE,
 
 #' ## Timing examples
 #' Show 9 prototypical examples for the different timing classes.
+#' 
 #' ### Figure 1e
 #+ timingExamples, fig.width=4, fig.height=4, warning=FALSE
 w <- which(wgdStar=="likely" & !isWgd) # Garden variety near-diploid with concordant timing
@@ -802,6 +812,7 @@ axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
 #' We can also time secondary gains for certain configurations. This is always possible as long only one allele is gained, such as 3:1. If two alleles
 #' are gained this required additional assumptions. For 3:2 the typical assumption would be 1:1 -> 2:2 -> 3:2. For 4:2 the assumption is 1:1 -> 2:1 -> 4:2.
 #' Here we only consider gains of a single allele, which can be uniquely timed. These analyses were conducted by Lara Jerman. Here we load her data.
+#' 
 #' ### Load data
 #' Load preprocessed data, aggregated by chromsome
 load("two_gain_times.RData")
@@ -966,6 +977,7 @@ addDataFrame(t(tt[3:4,o]), Figure1g)
 #' # Chronological WGD & MRCA
 #' Here we calculate approximate real time estimates of WGD and MRCA using only CpG>TpG mutations, which are found in every tumoyr type 
 #' and vary relatively little between samples.
+#' 
 #' ## Prelim
 #' Get the age of every donor.
 age <- clinicalData$donor_age_at_diagnosis
@@ -982,7 +994,9 @@ typeNa <- gsub("\t","",strsplit("Bone-Cart
 #' First start with the timing of the most recent common ancestor (MRCA). Effectively we compute the time between MRCA and the last observable subclone.
 #' An implicit assumption is that that the latency between the emergence of the last detectable subclone and diagnosis is short with respect
 #' to the time between fertilisation and diagnosis.
+#' 
 #' ### Prelim
+#' 
 #' #### Effective (time-averaged) genome size
 #' Calculate effective genome size, i.e. time-averaged ploidy from mutation copy numbers. This is useful to convert mutation counts into approximate rates.
 #+ effGenome
