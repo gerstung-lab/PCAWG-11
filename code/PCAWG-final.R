@@ -62,7 +62,7 @@ ExtendedDataFigure9 <- createWorkbook()
 dumpfile <- "2018-07-18-PCAWG-final.RData"
 if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
-	load(dumpfile)
+	#load(dumpfile)
 	source("PCAWG-functions.R")
 }
 
@@ -1217,6 +1217,42 @@ qPanCan=quantile(rowMeans(do.call("cbind",sapply(colnames(a), function(n){
 								}))),
 		c(0.025, 0.25, .5,.75,.975))*100
 
+
+
+#' ### Extended Data Figure 8e
+#+fracLinearBayes, fig.width=4, fig.height=2
+par(mar=c(6,3,1,1))
+o <- order(q["50%",])
+barplot(q["50%",o], col=tissueColors[colnames(q)][o], border=tissueLines[colnames(q)][o], las=2,names.arg=rep("",length(q["50%",])) , ylab="Age-attributed mutations [%]", ylim=c(0,100)) -> b
+mg14::rotatedLabel(b, labels=names(q["50%",o]))
+segments(b, q["50%",][o], b, q["97.5%",o], col=tissueLines[colnames(q)][o], lwd=2)
+segments(b, q["2.5%",o], b, q["50%",][o], col=tissueBorder[colnames(q)][o], lwd=2)
+abline(h=min(q["97.5%",]), lty=3)
+abline(h=max(q["2.5%",]), lty=3)
+#abline(h=qPanCan["50%"], lty=4)
+
+#' xlsx
+ExtendedDataFigure8e <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8e")
+addDataFrame(t(q), ExtendedDataFigure8e)
+
+
+#' Qualitative behaviour, simulating  0-15yrs with 5x acceleration
+set.seed(42)
+x <- df$x
+a <-  runif(length(x), pmax(0.5, 1-15/x), 1) #
+r <- rgamma(length(x), 10, 10)
+y <- rpois(length(x), (a + (1-a)*5) * r * x * 6 * 0.2)/6
+y[x < 40] <- NA
+
+#+fracLinearSim, fig.width=2, fig.height=2
+plot(x,y, ylim=c(0,max(y, na.rm=TRUE)), xlab="Age", ylab="SNVs/Gb", pch=21, bg="grey", lwd=0.5)
+f <- lm(y~x)
+summary(f)
+c <- coef(f)
+abline(c)
+
+mean(c[1] / (c[1]+ x*c[2]), na.rm=TRUE)
+
 #' ### Normal tissue mutation rates
 #' #### Normal blood CSC
 #' Data from Lee-Six et al. Nature 2018
@@ -1268,40 +1304,6 @@ legend("topleft", c("Cancer","Normal"), fill="black", density=c(NA,36), bty="n")
 #' xlsx
 ExtendedDataFigure8d <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8d")
 addDataFrame(x, ExtendedDataFigure8d)
-
-#' ### Extended Data Figure 8e
-#+fracLinearBayes, fig.width=4, fig.height=2
-par(mar=c(6,3,1,1))
-o <- order(q["50%",])
-barplot(q["50%",o], col=tissueColors[colnames(q)][o], border=tissueLines[colnames(q)][o], las=2,names.arg=rep("",length(q["50%",])) , ylab="Age-attributed mutations [%]", ylim=c(0,100)) -> b
-mg14::rotatedLabel(b, labels=names(q["50%",o]))
-segments(b, q["50%",][o], b, q["97.5%",o], col=tissueLines[colnames(q)][o], lwd=2)
-segments(b, q["2.5%",o], b, q["50%",][o], col=tissueBorder[colnames(q)][o], lwd=2)
-abline(h=min(q["97.5%",]), lty=3)
-abline(h=max(q["2.5%",]), lty=3)
-#abline(h=qPanCan["50%"], lty=4)
-
-#' xlsx
-ExtendedDataFigure8e <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8e")
-addDataFrame(q, ExtendedDataFigure8e)
-
-
-#' Qualitative behaviour, simulating  0-15yrs with 5x acceleration
-set.seed(42)
-x <- df$x
-a <-  runif(length(x), pmax(0.5, 1-15/x), 1) #
-r <- rgamma(length(x), 10, 10)
-y <- rpois(length(x), (a + (1-a)*5) * r * x * 6 * 0.2)/6
-y[x < 40] <- NA
-
-#+fracLinearSim, fig.width=2, fig.height=2
-plot(x,y, ylim=c(0,max(y, na.rm=TRUE)), xlab="Age", ylab="SNVs/Gb", pch=21, bg="grey", lwd=0.5)
-f <- lm(y~x)
-summary(f)
-c <- coef(f)
-abline(c)
-
-mean(c[1] / (c[1]+ x*c[2]), na.rm=TRUE)
 
 #' ### Timing
 #' Acceleration values to simulate
@@ -1377,7 +1379,16 @@ for(i in seq_along(o))try({
 
 #par(xpd=TRUE)
 #s <- 12/8
-#dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)
+#dev.copy2pdf(file="realTimeSubclone.pdf", width=6*s, height=3.5*3/5*s, pointsize=8*s)#' xlsx
+
+#' xlsx
+#+ ExtendedDataFigure9f
+ExtendedDataFigure9f <- createSheet(ExtendedDataFigure9, "ExtendedDataFigure9f")
+tab <- data.frame(do.call("rbind", subclonesTimeAbsType))
+tab$tumour_type <- donor2type[sample2donor[rownames(tab)]]
+addDataFrame(tab, ExtendedDataFigure9f)
+
+
 
 #' ### Figure 5c
 #+ realTimeSubcloneMed, fig.width=6, fig.height=2.225
@@ -1405,7 +1416,10 @@ segments(seq_along(o)-b,qSubclone["50%","5x",o],seq_along(o)+b,qSubclone["50%","
 
 sapply(subclonesTimeAbs, nrow)
 
-sapply(subclonesTimeAbs, nrow)
+#' xlsx
+#+ Figure5c
+Figure5c <- createSheet(Figure5, "Figure5c")
+addDataFrame(aperm(qSubclone, c(3,1,2)), Figure5c)
 
 #' ### Extended Data Figure 9g
 #' Comparison of branching v linear
@@ -1413,7 +1427,7 @@ sapply(subclonesTimeAbs, nrow)
 subclonesTimeAbsTypeLinear <- sapply(names(subclonesTimeAbsLinear), function(n) {x <- subclonesTimeAbsLinear[[n]]; x[,,guessAccel[n]][setdiff(rownames(x),remove), 1:3, drop=FALSE]})
 qSubcloneLinear <- sapply(subclonesTimeAbsLinear, function(x) apply(x[,"hat",][rownames(x)%in%u,,drop=FALSE], 2, quantile, c(0.05,0.25,0.5,0.75,0.95), na.rm=TRUE), simplify='array')
 n <- diag(qSubcloneLinear["50%",guessAccel[dimnames(qSubcloneLinear)[[3]]],])#t[1,3,]
-
+names(n) <- dimnames(qSubcloneLinear)[[3]]
 par( mar=c(5,3,3,10), mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="n", xpd=FALSE, las=1)
 plot(c(rep(1, length(m)), rep(2, each=length(n))), c(m,n), bg=tissueColors[c(names(m), names(n))], pch=21, cex=1, xaxt="n", ylab="Years after MRCA", xlab="", xlim=c(0.5,2.5), ylim=c(0, max(n, na.rm=TRUE)))
 segments(rep(1, each=length(m)), m, rep(2, each=length(n)), n,col=tissueLines[names(m)], lty= ifelse(sapply(subclonesTimeAbsType, nrow) <= 5, 3, tissueLty[names(m)]))
@@ -1427,6 +1441,11 @@ segments(2.2,y0,2.3,y1)
 segments(2.3,y1,2.4,y1)
 mg14::rotatedLabel(1:2, labels=c("Branching","Linear"))
 
+
+#' xlsx
+#+ ExtendedDataFigure9g
+ExtendedDataFigure9g <- createSheet(ExtendedDataFigure9, "ExtendedDataFigure9g")
+addDataFrame(data.frame(branching=m, linear=n), ExtendedDataFigure9g)
 
 #' Numbers per decade
 yy <- do.call("rbind",subclonesTimeAbsType)
@@ -1601,8 +1620,15 @@ par(xpd=TRUE)
 #s <- 12/8
 #dev.copy2pdf(file="realTimeWgd.pdf", width=4*s, height=3.5*s, pointsize=8*s)
 
-#' Median v acceleration
-#+ realTimeWgdQuantAccel, fig.height=3, fig.width=4.5
+#' xlsx
+#+ ExtendedDataFigure9a
+ExtendedDataFigure9a <- createSheet(ExtendedDataFigure9, "ExtendedDataFigure9a")
+tab <- data.frame(do.call("rbind", wgdTimeAbsType))
+tab$tumour_type <- donor2type[sample2donor[rownames(tab)]]
+addDataFrame(tab, ExtendedDataFigure9a)
+
+#' ### Figure 5b
+#+ realTimeWgdMed, fig.height=4.5, fig.width=3
 #pdf("realTimeWgdMed.pdf", width=4.5, height=3, pointsize=8)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 m <- qWgd["50%","5x",]#t[1,3,]
@@ -1621,6 +1647,10 @@ rect(seq_along(o)-b,qWgd["50%","2.5x",o],seq_along(o)+b,qWgd["50%","7.5x",o], co
 rect(seq_along(o)-b,qWgd["50%","20x",o],seq_along(o)+b,qWgd["50%","10x",o], col=paste(tissueColors[n[o]],"22", sep=""), border=1)
 segments(seq_along(o)-b,qWgd["50%","5x",o],seq_along(o)+b,qWgd["50%","5x",o])
 
+#' xlsx
+#+ Figure5b
+Figure5b <- createSheet(Figure5, "Figure5b")
+addDataFrame(aperm(qWgd, c(3,1,2)), Figure5b)
 
 #' Plot extremely early samples
 #+ earlyWgdExamples, fig.width=4, fig.height=4
@@ -1654,6 +1684,14 @@ for(i in seq_along(wgdTimeAbsType)){
 	title(main=n, line=0, font.main=1, cex.main=1)
 	abline(0,1, lty=3)
 }
+
+#' xlsx
+#+ ExtendedDataFigure9b
+ExtendedDataFigure9b <- createSheet(ExtendedDataFigure9, "ExtendedDataFigure9b")
+tab <- data.frame(do.call("rbind", wgdTimeAbsType))
+tab$age <- age[sample2donor[rownames(tab)]]
+tab$tumour_type <- donor2type[sample2donor[rownames(tab)]]
+addDataFrame(tab, ExtendedDataFigure9b)
 
 #' #### Deaminations v all mutations
 #' Scatter
@@ -1719,6 +1757,17 @@ polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#000000
 lines(sort(x, na.last=NA),p$fit)
 
 #s <- 12/8; dev.copy2pdf(file="nDeam22Time.pdf", width=2*s, height=2*s, pointsize=8*s)
+
+#' xlsx
+#+ ExtendedDataFigure9c
+ExtendedDataFigure9c <- createSheet(ExtendedDataFigure9, "ExtendedDataFigure9c")
+tab <- data.frame(`Molecular Time`=x, `Early CpG>TpG/Gb`=y[,2])
+addDataFrame(tab, ExtendedDataFigure9c)
+
+#+ ExtendedDataFigure9d
+ExtendedDataFigure9d <- createSheet(ExtendedDataFigure9, "ExtendedDataFigure9d")
+tab <- data.frame(`Molecular Time`=x, `Total CpG>TpG/Gb`=rowSums(y))
+addDataFrame(tab, ExtendedDataFigure9d)
 
 #' ### Mutation burden
 #' Age at diagnosis
@@ -1790,6 +1839,12 @@ segments(qWgd["25%","5x",], qAccelRelWgd["50%",],qWgd["75%","5x",], qAccelRelWgd
 segments(qWgd["50%","5x",], qAccelRelWgd["25%",],qWgd["50%","5x",], qAccelRelWgd["75%",], lty=tissueLty[t], col=tissueLines[t])
 points(qWgd["50%","5x",], qAccelRelWgd["50%",], bg=tissueColors[t], pch=21,  col=tissueBorder[t], cex=tissueCex[t], lwd=0.5)
 #s <- 12/8; dev.copy2pdf(file="qAccelRelWgd.pdf", width=2*s, height=2*s, pointsize=8*s)
+
+#' xlsx
+#+ ExtendedDataFigure9e
+ExtendedDataFigure9e <- createSheet(ExtendedDataFigure9, "ExtendedDataFigure9e")
+tab <- data.frame(fixed_acc=t(qWgd[2:4,"5x",]),sample_acc=t(qAccelRelWgd[2:4,]))
+addDataFrame(tab, ExtendedDataFigure9e)
 
 
 #' ### Average rate v time
