@@ -420,6 +420,7 @@ mg14::rotatedLabel(x=b,labels=c("clonal [early]", "clonal [late]", "clonal [othe
 #dev.copy2pdf(file="finalGenes50.pdf", width=3,height=4)
 
 #' xlxs output
+#+ Figure2d
 Figure2d <- createSheet(Figure2, "Figure2d")
 addDataFrame(data.frame(d50, lo, hi, row.names=c("clonal [early]", "clonal [late]", "clonal [other]", "subclonal")[c(1,3,2,4)]), Figure2d)
 
@@ -678,6 +679,7 @@ for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0
 #dev.off()
 
 #' xlsx output
+#+ ExtendedDataFigure3b
 ExtendedDataFigure3b <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3b")
 addDataFrame(t, ExtendedDataFigure3b)
 
@@ -722,6 +724,8 @@ axis(side=2, at=0.5, label=0)
 for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0.1)
 #dev.off()
 
+#' xlsx output
+#+ ExtendedDataFigure3d
 ExtendedDataFigure3d <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3d")
 addDataFrame(t, ExtendedDataFigure3d)
 saveWorkbook(ExtendedDataFigure3,'ExtendedDataFigure3.xlsx')
@@ -843,6 +847,7 @@ barplot(t[names(colTime),]/sum(t), border=NA, col=colTime, width=1/24, space=0.2
 axis(side=1, line=0.2)
 
 #' xlxs output
+#+ Figure1h
 Figure1h <- createSheet(Figure1, "Figure1h")
 addDataFrame(t[names(colTime),], Figure1h)
 saveWorkbook(Figure1, file="Figure1.xlsx")
@@ -873,6 +878,7 @@ barplot(p, col=colTime, border=NA, las=2, ylab="Proportion >2 allelic copies", n
 segments(b, ci[,1], b, ci[,2])
 
 #' xlsx output
+#+ Figure1h
 Figure1g <- createSheet(Figure1, "Figure1g")
 addDataFrame(t(tt[3:4,o]), Figure1g)
 
@@ -1084,6 +1090,12 @@ polygon(r(sort(x, na.last=NA)), c(p$fit+2*p$se, rev(p$fit-2*p$se)), col="#000000
 lines(sort(x, na.last=NA),p$fit)
 #s <- 12/8; dev.copy2pdf(file="timeSubcloneAgePancan.pdf", width=2*s, height=2*s, pointsize=8*s)
 
+#' xlsx
+#+ ExtendedDataFigure8a
+ExtendedDataFigure8a <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8a")
+tab <- data.frame(age=x, `CpG>TpG/Gb`=s, tumour_type=t)
+addDataFrame(tab, ExtendedDataFigure8a)
+
 #' Positive intercept?
 a <- simplify2array(cc[!names(cc) %in% c("Myeloid-AML","Bone-Epith")])
 all(a[1,1,] + 2*a[1,2,]>0 )
@@ -1181,6 +1193,7 @@ b <- extract(fit, pars="slope")$slope
 colnames(a) <- colnames(b) <- levels(droplevels(t))
 
 #' xlsx
+#+ ExtendedDataFigure8c
 ExtendedDataFigure8c <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8c")
 addDataFrame(ab, ExtendedDataFigure8c)
 
@@ -1203,6 +1216,12 @@ for(n in levels(d)){
 				polygon(c(x0,rev(x0)), c(p["2.5%",], rev(p["97.5%",])), border=tissueBorder[n], col=paste0(tissueColors[n],"44"))
 			})
 }
+
+#' xlsx
+#+ ExtendedDataFigure8b
+ExtendedDataFigure8b <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8b")
+tab <- data.frame(age=x, `CpG>TpG/Gb`=y, tumour_type=d)
+addDataFrame(tab, ExtendedDataFigure8c)
 
 #' Fraction of mutations due to linear accumulation
 q <- sapply(colnames(a), function(n){
@@ -1232,6 +1251,7 @@ abline(h=max(q["2.5%",]), lty=3)
 #abline(h=qPanCan["50%"], lty=4)
 
 #' xlsx
+#+ ExtendedDataFigure8e
 ExtendedDataFigure8e <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8e")
 addDataFrame(t(q), ExtendedDataFigure8e)
 
@@ -1302,6 +1322,7 @@ legend("topleft", c("Cancer","Normal"), fill="black", density=c(NA,36), bty="n")
 #dev.off()
 
 #' xlsx
+#+ ExtendedDataFigure8d
 ExtendedDataFigure8d <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8d")
 addDataFrame(x, ExtendedDataFigure8d)
 
