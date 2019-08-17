@@ -878,7 +878,7 @@ barplot(p, col=colTime, border=NA, las=2, ylab="Proportion >2 allelic copies", n
 segments(b, ci[,1], b, ci[,2])
 
 #' xlsx output
-#+ Figure1h
+#+ Figure1g
 Figure1g <- createSheet(Figure1, "Figure1g")
 addDataFrame(t(tt[3:4,o]), Figure1g)
 
