@@ -605,7 +605,7 @@ write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), timingInfo, quote=FALSE,
 
 #' ## Timing examples
 #' ### Figure 1e
-#+ timingExamples, fig.width=4, fig.height=4
+#+ timingExamples, fig.width=4, fig.height=4, warn=FALSE
 w <- which(wgdStar=="likely" & !isWgd)
 #pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 plotSample(w[1])
@@ -1744,6 +1744,9 @@ mg14::rotatedLabel(labels=levels(droplevels(donor2type[sample2donor[colnames(t)]
 abline(h=0, lty=3)
 
 #' ### Assessment of absolute mutation counts
+#' Number of deaminations used for WGD (2:0, 2:1, 2:2)
+nDeam <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
+
 #' Number of deaminatinos in 2:2 regions
 nDeam22 <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) as.numeric(x$n[1]) else NA)
 w22 <- sapply(finalBB[isWgd][!void], function(bb) {
@@ -2265,7 +2268,6 @@ wgdMrcaTimingData <- data.frame(
 
 t <- as.data.frame(round(Reduce("rbind", wgdTimeAbsType),2))
 colnames(t) <- c("time", "time.lo","time.up")
-nDeam <- sapply(wgdParamDeam[!void], function(x) if(!is.null(x$n)) sum(x$n, na.rm=TRUE) else NA)
 w <- data.frame(row.names=rownames(t), t, `CpG_TpG_total`=nDeam[rownames(t)])
 colnames(w) <- sub("lo", "10%", sub("up","90%", colnames(w)))
 
