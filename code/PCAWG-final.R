@@ -1180,6 +1180,11 @@ a <- extract(fit, pars="offset")$offset
 b <- extract(fit, pars="slope")$slope
 colnames(a) <- colnames(b) <- levels(droplevels(t))
 
+#' xlsx
+ExtendedDataFigure8c <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8c")
+addDataFrame(ab, ExtendedDataFigure8c)
+
+
 #' ### Extended Data Figure 8b
 #+ timeSubcloneAgeBayes, fig.width=10, fig.height=10
 par(mfrow=c(6,6), mar=c(3,3,2,1),mgp=c(2,.5,0), tcl=-0.25,cex=1, bty="L", xpd=FALSE, las=1, xpd=FALSE)
