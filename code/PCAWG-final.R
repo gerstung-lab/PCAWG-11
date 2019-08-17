@@ -31,12 +31,14 @@ options(mc.cores=as.numeric(Sys.getenv("LSB_MAX_NUM_PROCESSORS")))
 #' the end of this vignette. 
 #' 
 #' Input files:
+#' 
 #' * VCF files: Folder `../final/final_consensus_12oct_passonly`
 #' * Allele-specific copy number: Folder `../final/consensus.20170119.somatic.cna.annotated`
 #' * Subclone sizes and cell frequencies: `../final/structure_weme_released_consensus_merged.txt`, `../final/wcc_consensus_values_9_12.tsv`
 #' * Purity: `../final/consensus.20170218.purity.ploidy.txt` 
 #' 
 #' Output:
+#+ files, ignore.stderr = FALSE
 system("for d in `find ../final/annotated_014 -maxdepth 1 -type d`
 do echo $d; ls $d | head -6;
 done", ignore.stderr=TRUE)
@@ -66,9 +68,11 @@ if(file.exists(dumpfile)){
 	source("PCAWG-functions.R")
 }
 
-#' # Load processed data
+#' # Load processed data from MutationTimeR
 #' ## Whitelist
+#' First 2,703 whitelisted samples
 #' ### SNV and MNV
+#' Load annotated VCF files for SNVs and MNVs into a list with `VariantAnnotation::VCF()` objects:
 #+ loadSNV
 p <- "../final/annotated_014/snv_mnv"
 d <- dir(p, pattern="*.vcf.RData", full.names=TRUE)
@@ -80,6 +84,7 @@ finalSnv <- unlist(mclapply(split(d, seq_along(d) %/% 100), lapply, function(f) 
 names(finalSnv) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Copy number profiles
+#' Load copynumber profiles as a list of `GRanges()`:
 #+ loadBB
 p <- "../final/annotated_014/cn"
 finalBB <- list()
@@ -90,7 +95,8 @@ for( f in dir(p, pattern="*.bb_granges.RData", full.names=TRUE)){
 }
 names(finalBB) <- sub(".conse.+","",dir(p, pattern="*.bb_granges.RData", full.names=FALSE))
 
-#' ### Indel
+#' ### Indels
+#' Load annotated VCF files for indels into a list with `VariantAnnotation::VCF()` objects:
 #+ loadIndel
 p <- "../final/annotated_014/indel"
 d <- dir(p, pattern="*.vcf.RData", full.names=TRUE)
@@ -102,6 +108,7 @@ finalIndel <- unlist(mclapply(split(d, seq_along(d) %/% 100), lapply, function(f
 names(finalIndel) <- sub(".conse.+","",dir(p, pattern="*.vcf.RData", full.names=FALSE))
 
 #' ### Clusters and purity
+#' These were input to MutationTimeR. Loaded as a `list()` (clusters) and `data.frame` (purity/ploidy).
 #+ loadClusters
 finalClusters <- list()
 finalPurity <- numeric()
@@ -115,7 +122,8 @@ names(finalClusters) <- names(finalPurity) <- sub(".conse.+","",dir(p, pattern="
 
 
 #' ## Update drivers
-#' ### Update finalDrivers
+#' `finalDrivers` is a `VariantAnnotation::VRanges()` object with driver point mutations (substitutions and indels), as provided by the PCAWG drivers 
+#' working group. Here, we match these data with annotation from MutationTimeR. To this end, match samples and positions and copy annotation. 
 #+ updateDrivers
 finalDriversAnnotated <- finalDrivers
 d <- info(finalSnv[[3]])[seq_along(finalDriversAnnotated),19:32]
@@ -137,8 +145,8 @@ for(i in seq_along(finalDriversAnnotated)){
 		mcols(finalDriversAnnotated)[i,colnames(d)] <- NA
 }
 
-
 #' ## Graylisted data
+#' 75 graylisted samples were processed separately using MutationTimeR. We load these just like the whitelisted samples and concatenate the output.
 #' ### SNV and MNV
 #+ loadSnvGray
 p <- "../final/annotated_014/graylist/snv_mnv"
@@ -193,6 +201,7 @@ whiteList <- seq_along(finalSnv) %in% 1:2703
 grayList <- !whiteList
 
 #' ## Structural variants
+#' Lastly, we load structural variant data. This is only available for a subset. We pad missing samples with NA
 finalSv <- mclapply(dir("../final/pcawg_consensus_1.6.161116.somatic_svs", pattern='*.vcf.gz$', full.names=TRUE), function(x) {
 			t <- try(readVcf(x))
 			return(t)
@@ -202,15 +211,20 @@ finalSv <- finalSv[names(finalSnv)]
 
 
 #' # QC
+#' Here we calculate basic QC for MutationTimeR output. `info(vcf)$pMutCNTail` contains the beta-binomial tail probability `pbetabinom` for every variant
+#' for its most likely clonal state. These should be roughly uniform, hence 1% outside [0.005,0.995] and about 5% outside [0.025,0.975]. Larger deviations
+#' indicate that either purity, copy number or clusters were wrong in a given sample.
 #+ QC
 q1 <- sapply(finalSnv, function(vcf) mean(abs(0.5- info(vcf)$pMutCNTail) > 0.495 , na.rm=TRUE))
 q5 <- sapply(finalSnv, function(vcf) mean(abs(0.5- info(vcf)$pMutCNTail) > 0.475 , na.rm=TRUE))
 
+#' Most samples agree, on average:
 #+ QCboxplot, eval=TRUE
 par(mfrow=c(1,1))
 boxplot(1-q5 ~ donor2type[sample2donor[names(finalSnv)]], las=2, ylab="Fraction of data inside theoretical 95% CI")
 abline(h=0.95, lty=3)
 
+#' QQ-plots show few outliers per sample:
 #+ QQplots, fig.width=12, fig.height=12, eval=TRUE
 #pdf("QQplots.pdf", 4,4, pointsize=8)
 par(mfrow=c(5,5))
@@ -223,7 +237,9 @@ for(i in seq_along(finalSnv)[1:25]){
 
 
 #' # Driver genotypes
+#' Here we tabulate all driver point mutations and their clonal allele status
 #' ## MAP genotypes
+#' These are the maximum a posteriori (MAP) assignments, used for the early/late/clonal/subclonal annotation output of MutationTimeR.
 #+ finalGenotypes
 finalGenotypesSnv <- simplify2array(mclapply(finalSnv[whiteList], getGenotype, useNA="always"))
 finalGenotypesIndel <- simplify2array(mclapply(finalIndel[whiteList], getGenotype, useNA="always"))
@@ -231,6 +247,8 @@ finalGenotypes <- aperm(abind::abind(subs=finalGenotypesSnv,indels=finalGenotype
 rm(finalGenotypesSnv,finalGenotypesIndel)
 
 #' ## Probabilistic genotypes
+#' Alternatively to the hard MAP assignments one can calculate the actual probailities per state and assess their overall distribution. This could avoid
+#' some biases of the MAP estimates, which are typically biased towards the more populous clonal states.
 #+ finalGenotypesP
 finalGenotypesSnvP <- simplify2array(mclapply(finalSnv[whiteList], probGenotype))
 finalGenotypesIndelP <- simplify2array(mclapply(finalIndel[whiteList], probGenotype))
@@ -238,6 +256,7 @@ finalGenotypesP <- aperm(abind::abind(subs=finalGenotypesSnvP,indels=finalGenoty
 rm(finalGenotypesSnvP,finalGenotypesIndelP)
 
 #' ## Probabilistic genotypes - tail prob (QC)
+#' As QC, we aggregate also the tail probabilities to find out whether there were annotation issues for some driver genes
 #+ finalGenotypesQ
 finalGenotypesSnvQ <- simplify2array(mclapply(finalSnv[whiteList], probGenotypeTail))
 finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenotypeTail))
@@ -245,6 +264,7 @@ finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenoty
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
 #' # Save output
+#' As the previous steps take rather long, introduce a checkpoint here and serialise the data, so it can be loaded later on.
 #+ saveOut
 save.image(file=dumpfile, compress=FALSE)
 save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-FinalGenotypes.RData"))
@@ -253,7 +273,9 @@ save(finalGenotypes, finalGenotypesP, finalGenotypesQ, file=paste0(Sys.Date(),"-
 opts_chunk$set(eval=TRUE)
 
 #' # Timing of point mutations
-#' ## Duplicated samples
+#' Here we assess the timing of point mutations, including driver gene mutations.
+#' ## Duplicated donors
+#' First, find samples with the same donor to avoid double dipping for some computations.
 w <- names(finalSnv)
 n <- names(which(table(sample2donor[w]) > 1)) # donors
 s <- w[w %in% names(sample2donor[sample2donor %in% n])] # multisamples
@@ -264,6 +286,7 @@ uniqueSamples <- !duplicated(sample2donor[names(finalSnv)])
 
 #' ## Overall distribution
 #' ### Subs or indels
+#' First assess the overall distributions of early/late/clonal/subclonal variants per sample, separately for subs and indels.
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
 d <- t(asum(finalGenotypesP[,"subs",,], 1))
 o <- order(droplevels(donor2type[sample2donor[rownames(d)]]), -d[,1]/rowSums(d))
@@ -289,10 +312,10 @@ segments(d1, 1.08, d1, 1)
 mg14::rotatedLabel(x0 = d1, names(s), y0=1)
 legend("bottom", fill=col, legend=paste(dimnames(finalGenotypes)[[3]]), bty="n", horiz=TRUE, title="Mutation timing")
 
-#t <- 12/8
-#dev.copy2pdf(file="finalMutationProp.pdf", width=9*t, height=2.7*t, pointsize=8*t)
-
+#' The proportions of subs and indels are remarkably similar.
+#' 
 #' ### Figure 2a
+#' For the manuscript only plot subs, together with the color code for each tumour type.
 f <- function(x) unlist(sapply(seq_along(x), function(i) rep(i, x[i])))
 d <- t(sapply(names(finalSnv)[whiteList &  selectedSamples], function(n) table(info(finalSnv[[n]])$CLS, useNA='a') + table(info(finalIndel[[n]])$CLS, useNA='a')))
 o <- order(droplevels(donor2type[sample2donor[rownames(d)]]), -d[,1]/rowSums(d))
@@ -322,7 +345,7 @@ segments(d0, 0.66, d1, 0.33)
 segments(d1, 0.33, d1, 0)
 mg14::rotatedLabel(x0 = d1, names(s), y0=0)
 
-#' xlsx output
+#' Also dump the xlsx output.
 Figure2a <- createSheet(Figure2, "Figure2a")
 addDataFrame(data.frame(d,cancer=droplevels(donor2type[sample2donor[rownames(d)]]))[o,c(6,1:5)], Figure2a)
 
@@ -331,6 +354,7 @@ addDataFrame(data.frame(d,cancer=droplevels(donor2type[sample2donor[rownames(d)]
 
 
 #' ### Barplot drivers
+#' Not turn to driver point mutations. Extract from the large arrays calculated above.
 p <- asum(finalGenotypesP[,,,selectedSamples[whiteList]], c(2,4))
 g <- asum(finalGenotypes[,,,,selectedSamples[whiteList]], c(2,4:5))
 g <- g[order(rowSums(g), decreasing=TRUE),]
@@ -341,7 +365,7 @@ p <- p[rownames(g),]
 w <- rowSums(g) > 0
 w[1] <- FALSE
 
-#' Unique loci
+#' Collapse into unique genes
 l <- sapply(strsplit(rownames(p),"::"), function(x) paste(x[2:3], collapse=":"))
 pu <- t(sapply(unique(l), function(u) asum(p[l==u,,drop=FALSE], 1)))
 gu <- t(sapply(unique(l), function(u) asum(g[l==u,,drop=FALSE], 1)))
@@ -350,6 +374,7 @@ pu <- pu[rownames(gu),]
 wu <- rowSums(gu) > 0
 wu[1] <- FALSE
 
+#' Now plot as a barplot. All drivers, with the top 50 as an inset.
 #+ finalDrivers, fig.width=9, fig.height=5
 par(fig=c(0,1,0,1),mar=c(1,4,1,1)+.1, mgp=c(3,.5,0))
 barplot(t(gu[wu,]), col=col, las=2, legend=TRUE, args.legend=list("topright", bty='n'), ylab="Number of cases", names.arg=rep("",sum(wu)), border=NA)
@@ -366,13 +391,14 @@ b <- barplot(t(gu[2:51,]), col=col, las=2,  names.arg=rep("",50))
 mg14::rotatedLabel(x=b,labels=rownames(gu)[2:51], cex=.5)
 #dev.copy2pdf(file="finalDrivers.pdf", width=9, height=5, pointsize=8)
 
-#' xlsx output
+#' Also generate xlsx output
 Figure2a2 <- createSheet(Figure2, "Figure2a2")
 addDataFrame(gu[wu,], Figure2a2)
 
 gt <- asum(finalGenotypes[,,,,selectedSamples[whiteList]], c(2:4))
 t <- droplevels(donor2type[sample2donor[colnames(gt)]])
-gt <- gt %*% model.matrix(~t-1)
+rownames(gt) <- paste(rownames(gt))
+gt <- gt[rownames(g),] %*% model.matrix(~t-1)
 colnames(gt) <- levels(t)
 gtu <- t(sapply(unique(l), function(u) asum(gt[l==u,,drop=FALSE], 1)))
 gtu <- gtu[rownames(gu),]
@@ -381,8 +407,8 @@ Figure2a3 <- createSheet(Figure2, "Figure2a3")
 addDataFrame(gtu[wu,], Figure2a3)
 
 
-#' ### Barpot drivers - proportions
-#+ finalDriversProp, fig.width=9, fig.height=3
+#' Proportions may be more revealing than absolute numbers:
+#+ finalDriversProp, fig.width=9, fig.height=2
 par(fig=c(0,1,0,1),mar=c(3,4,1,1)+.1, mgp=c(3,.5,0))
 w <- rowSums(pu) > 0
 n <- 50
@@ -392,7 +418,9 @@ mg14::rotatedLabel(x=b[1:(n+1)],labels=c("Genome-wide", rownames(pu)[2:(n+1)]), 
 #s <- 12/8
 #dev.copy2pdf(file="finalDriversProp.pdf", width=9*s, height=3*s, pointsize=8*s)
 
-#' ### Cumulative effects
+#' ### Cumulative distribution of driver mutations
+#' Sort driver mutations by prevalence in each timing class. Clearly the MAP estimate is biased downwards for driver genes not observed in a final cohort size. 
+#' Hence to this without and with a pseudocount of one (which will overestimate). Report the average of the two as the point estimate.
 #+ genesCumulative, fig.width=4, fig.height=4
 tt <- abind::abind(pu[-1,], pu[-1,] + 0.5, along=3)
 
@@ -409,6 +437,7 @@ abline(h=0.5, lty=3)
 #dev.copy2pdf(file="finalGenesCumulative.pdf", width=4,height=4)
 
 #' ### Figure 2d
+#' Now plot the value where the number of unique genes contributes 50% of all driver mutations.
 #+ finalGenes50, fig.width=3, fig.height=4
 par(mar=c(4,3,2.5,1), mgp=c(2,.5,0), bty="L")
 d50 <- apply((r[,,1]+r[,,2])/2 < 0.5, 2, which.min)[c(1,3,2,4)]
@@ -425,6 +454,7 @@ Figure2d <- createSheet(Figure2, "Figure2d")
 addDataFrame(data.frame(d50, lo, hi, row.names=c("clonal [early]", "clonal [late]", "clonal [other]", "subclonal")[c(1,3,2,4)]), Figure2d)
 
 #' # Whole-genome duplications
+#' Now turn to the timing of copy number alterations. First assess the whole genome duplications (WGD).
 #' ## Prelim
 #' Final ploidy, weighted if subclonal CN
 finalPloidy <- sapply(finalBB, averagePloidy)
@@ -435,19 +465,25 @@ finalHom <- sapply(finalBB, averageHom)
 names(finalHom) <- names(finalBB)
 
 #' ## WGD classification
+#' WGD is primarily classified by the copy number data. Additionally we assess the concordance of timing. 
 #' ### Based on ploidy and homozygousity
+#' Using the quantities above, we classify WGD samples. This is the official WG output.
 isWgd <- .classWgd(finalPloidy, finalHom)
-
+table(isWgd)
 #+ wdgHomPloidy, fig.widht=4, fig.height=4
 plot(finalHom, finalPloidy, col=.classWgd( finalPloidy, finalHom)+1, xlim=c(0,1))
 
 #' ### Based on timing
+#' Further it's worthwile assessing whether the different copy number segments show the same timing, which would be expected for WGD.
+#' We do this for both WGD and near diploid (ND) samples.
 fracGenomeWgdComp <- t(sapply(finalBB, function(bb) {
 					fgw <- try(fractionGenomeWgdCompatible(bb)); 
 					if(class(fgw)!='try-error') fgw
 					else rep(NA,10)}))
 rownames(fracGenomeWgdComp) <- names(finalBB)
 
+#' The temporal concordance defines out rating. Some samples are uninformative (especially ND) either due to too little point mutations (large timing 
+#' CIs), or too few gained segments.
 wgdStar <- factor(rep(1,nrow(fracGenomeWgdComp)), levels=0:3, labels=c("unlikely","uninformative","likely","very likely"))
 wgdStar[fracGenomeWgdComp[,"avg.ci"]<=0.75 & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.33 ] <- "likely"
 wgdStar[fracGenomeWgdComp[,"nt.wgd"]/fracGenomeWgdComp[,"nt.total"] < 0.66] <- "unlikely"
@@ -460,8 +496,10 @@ wgdPoss <- !isWgd & 2.5 - 1.5 * finalHom <= finalPloidy
 wgdStat <- factor(wgdPoss + 2*isWgd - wgdPoss*isWgd, labels=c("absent","possible","present"))
 table(wgdStat, wgdStar)
 
+#' Overall, WGD samples display a high level of temporal concordance, as hoped.
 
 #' # Temporal distribution of chromosomal gains
+#' In this section we assess the temporal distribution of large-scale copy number gains.
 #' ## Functions
 #' This one aggregates individual segments by chromosome
 aggregatePerChromosome <- function(bb, isWgd=FALSE){
@@ -486,6 +524,7 @@ aggregatePerChromosome <- function(bb, isWgd=FALSE){
 }
 
 #' ## Aggregate
+#' This provides an average timing estimate per chromosome, per sample. 
 allChrAgg <- simplify2array(mclapply(finalBB, aggregatePerChromosome, mc.cores=2))
 
 t <- allChrAgg[1:23,"time",!isWgd]
@@ -508,6 +547,7 @@ wgdCancerHist <- sapply(u, function(x) if(nrow(x)>0){at(x$WGD,n=n)}else{rep(0,n)
 allChrCancerHist <- abind::abind(allChrCancerHist, All=sapply(sapply(s, as.matrix), at, n=n, simplify="array")/23*5, WGD=wgdCancerHist, along=2)
 
 #' ## Per tumour type
+#' Plot the timing histograms (deciles) per chromosome per cancer type, similar to Figure 1c in the final publication.
 #+ histTiming, fig.height=6, fig.width=6
 prgn <- RColorBrewer::brewer.pal(11,"PRGn")
 set1 <- RColorBrewer::brewer.pal(9,"Set1")
@@ -560,6 +600,7 @@ hh <- matrix(matrix(aperm(h, c(1,3,2)), ncol=length(vv)) %*% vv, nrow=nrow(h))
 rownames(hh) <- rownames(h)
 
 #' ## Pan-Can histograms
+#' It can also be instructive to study the timing histograms pan-cancer:
 #+ histTimingPanCan, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,.5,0), tcl=-0.5, bty="L", xpd=NA)
 barplot(hh["WGD",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relative frequency", width=0.1, ylim=c(0,.065), yaxs='r', border=NA)
@@ -570,6 +611,10 @@ axis(side=1)
 
 
 #' # Synchronous gains
+#' One thing observed in the temporal classification of WGD samples was that a surprisingly high fraction of near-diploid samples also 
+#' display very concordant timings. Here we provide a basic assessment of the phenomenon. The final results were further refined, more accurately
+#' considering the exact copy numeber configurations involved.
+#'  
 #' ## Classification
 #' Note: Final figures have slightly deviated from this earlier version due to more elaborate handling of segments.
 d <- fracGenomeWgdComp
@@ -580,6 +625,7 @@ timingClass[i] <- paste0(timingClass[i], ifelse(d[i,"nt.wgd"]/d[i,"nt.total"] > 
 timingClass <- factor(timingClass)
 
 #' ### Figure 1f
+#' First the pie chart with the timing classification
 #+ timingClass, fig.width=4, fig.height=4
 #pdf("TimingClass.pdf", 4,4)
 colTime <- c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00")
@@ -604,56 +650,49 @@ write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), timingInfo, quote=FALSE,
 
 
 #' ## Timing examples
+#' Show 9 prototypical examples for the different timing classes.
 #' ### Figure 1e
-#+ timingExamples, fig.width=4, fig.height=4, warn=FALSE
-w <- which(wgdStar=="likely" & !isWgd)
-#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
-plotSample(w[1])
+#+ timingExamples, fig.width=4, fig.height=4, warning=FALSE
+w <- which(wgdStar=="likely" & !isWgd) # Garden variety near-diploid with concordant timing
+plotSample(w[1]) 
 plotSample(w[2])
 plotSample(w[3])
-#dev.off()
 
-w <- which(wgdStar=="very likely" & isWgd)
-#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+w <- which(wgdStar=="very likely" & isWgd) # Now a-star WGD with highly concordant timing.
 plotSample(w[1])
 plotSample(w[2])
 plotSample(w[9])
-#dev.off()
 
-w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5)
-#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
+w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5) # Near diploid with highly discordant timing
 plotSample(w[1])
 plotSample(w[2])
 plotSample(w[3])
-#dev.off()
 
 #' ## GBM examples
+#' GBMs display very early timing on chromosomes 7, 20 and 21. Plot a few.
 #+ timingExamplesGbm, fig.width=4, fig.height=4
 w <- which(fracGenomeWgdComp[,"time.wgd"]<0.1 & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.1 &  !isWgd & donor2type[sample2donor[names(finalBB)]]=="CNS-GBM")
-#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 plotSample(w[1])
 plotSample(w[2])
 plotSample(w[3])
-#dev.off()
 
 #' ### Extended Data Figure 3a
-#' Plot all GBMs with +7
+#' Explore the early timing of chromosome 7 a bit more deeply.
+#' Find all GBMs with +7
 w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-GBM") 
 w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==7) & bb$total_cn >= 3], na.rm=TRUE)/width(refLengths[7])>0.8)]
-#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 
-#pdf("GBM_tri7.pdf",3.2,3.2, pointsize=8)
+#' Plot the first 10
 #+ GBM_tri7, fig.width=3.2, fig.height=3.2
-for(ww in w[1:10]){
+for(ww in w[1:10]){ 
 	finalSnv[[ww]] -> v
 	v <- v[seqnames(v)==7]
 	v <- v[which(info(v)$MajCN <= 4 & info(v)$MajCN > 1)]
 	n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
 	plotSample(ww, title=paste0(sample2icgc[names(finalSnv)[ww]], ", n=", n,"/",nrow(v), " SNVs pre +7"))
 }
-#dev.off()
 
-#' tabulate 
+#' Tabulate the number of point mutations preceding +7 
 t <- t(sapply(w, function(ww){
 					finalSnv[[ww]] -> v
 					v <- v[seqnames(v)==7]
@@ -668,8 +707,8 @@ table(t[,1]<=3)
 
 
 #' ### Extended Data Figure 3b
+#' Plot the distributions of early and toal point mutations on chr7 across all GBM samples with +7:
 #+ GBM_tri7_bee, fig.width=1.5, fig.height=2
-#pdf("GBM_tri7_bee.pdf", 1.5, 2, pointsize=8)
 .par()
 par(bty="n")
 beeswarm::beeswarm(as.numeric(pmax(t,0.5)) ~ factor(rep(c("pre +7","total"), each=nrow(t))), method='hex', pch=19, xlab="", ylab="Number of SNVs", cex=0.5, log=TRUE, yaxt='n', col=set1[c(3,9)])
@@ -678,19 +717,18 @@ axis(side=2, at=0.5, label=0)
 for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0.1)
 #dev.off()
 
-#' xlsx output
+#' Generate xlsx output:
 #+ ExtendedDataFigure3b
 ExtendedDataFigure3b <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3b")
 addDataFrame(t, ExtendedDataFigure3b)
 
 #' ### Extended Data Figure 3c
-#' Medulloblastoma with i17q
+#' Medulloblastoma showed very frequent and early i17q. Gather them all:
 w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-Medullo") 
 w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==17) & bb$total_cn >= 3], na.rm=TRUE)/width(refLengths[17])>0.5)]
-#pdf(paste0(names(w[1]), ".pdf"), 4,4, pointsize=8)
 
+#' Plot first 10
 #pdf("Medullo_i17q.pdf",3.2,3.2, pointsize=8)
-#+ Medullo_i17q, fig.width=3.2, fig.height=3.2
 for(ww in w[1:10]){
 	finalSnv[[ww]] -> v
 	v <- v[seqnames(v)==17]
@@ -698,9 +736,8 @@ for(ww in w[1:10]){
 	n <- sum(info(v)$MutCN==info(v)$MajCN, na.rm=TRUE)
 	plotSample(ww, title=paste0(sample2icgc[names(finalSnv)[ww]], ", n=", n,"/",nrow(v), " SNVs pre i17q"))
 }
-#dev.off()
 
-#' tabulate 
+#' Tabulate early and late substitutions. 
 t <- t(sapply(w, function(ww){
 					finalSnv[[ww]] -> v
 					v <- v[seqnames(v)==17]
@@ -714,17 +751,16 @@ rownames(t) <- names(finalSnv)[w]
 table(t[,1]<=1)
 
 #' ### Extended Data Figure 3d
+#' Plot distribution across samples
 #+ Medullo_i17q_bee, fig.width=1.5, fig.height=2
-#pdf("Medullo_i17q_bee.pdf", 1.5, 2, pointsize=8)
 .par()
 par(bty="n")
 beeswarm::beeswarm(as.numeric(pmax(t,0.5) + runif(length(t))*0.25 -0.1) ~ factor(rep(c("pre i17q","total"), each=nrow(t))), method='hex', pch=19, xlab="", ylab="Number of SNVs", cex=0.5, log=TRUE, yaxt='n', col=set1[c(3,9)], corral="gutter", corralWidth=1.25)
 axis(side=2, at=c(1,10,100,1000))
 axis(side=2, at=0.5, label=0)
 for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0.1)
-#dev.off()
 
-#' xlsx output
+#' Dump xlsx output
 #+ ExtendedDataFigure3d
 ExtendedDataFigure3d <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3d")
 addDataFrame(t, ExtendedDataFigure3d)
@@ -732,7 +768,7 @@ saveWorkbook(ExtendedDataFigure3,'ExtendedDataFigure3.xlsx')
 
 
 #' ## Relationship with mutation rates
-#' Calculate number of substitutions and deciles per tumour type
+#' As a sanity check for the molecular timing estimates, calculate number of substitutions and timing per tumour type. There shouldn't be a trend.
 n <- nSub <- sapply(finalSnv, nrow)
 n[timingInfo$timeCoamp==0] <- NA
 q <- unlist(sapply(split(n, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1) quantile(x, seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
@@ -740,12 +776,12 @@ m <- match(names(finalSnv),unlist(split(names(finalSnv), donor2type[sample2donor
 t <- timingInfo$timeCoamp
 table(decSub=q[m], time=cut(t, seq(0,1,0.1)))
 
-#' Also calculate deciles of timing per tumour type
+#' Also calculate deciles of timing per tumour type; this is an even stronger indication of independence, as hoped.
 t[t==0] <- NA
 r <- unlist(sapply(split(t, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1 & length(unique(x)) > 2) quantile(jitter(x), seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
 table(decSub=q[m], decTime=r[m])
 
-#' Plot 
+#' Plot the number of mutations per sample vs the average duplication time.
 #+ timeNsub, fig.height=3, fig.width=4
 #pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
 par(mar=c(3,4,1,1), bty="n", mgp=c(2,.5,0), las=1, tcl=-.25) 
@@ -763,6 +799,10 @@ axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
 
 
 #' ## Secondary gains
+#' We can also time secondary gains for certain configurations. This is always possible as long only one allele is gained, such as 3:1. If two alleles
+#' are gained this required additional assumptions. For 3:2 the typical assumption would be 1:1 -> 2:2 -> 3:2. For 4:2 the assumption is 1:1 -> 2:1 -> 4:2.
+#' Here we only consider gains of a single allele, which can be uniquely timed. These analyses were conducted by Lara Jerman. Here we load her data.
+#' ### Load data
 #' Load preprocessed data, aggregated by chromsome
 load("two_gain_times.RData")
 doubleGains <- as.data.frame(T.i.F)
@@ -772,7 +812,7 @@ doubleGainsAggregated <- Reduce("rbind",sapply(s, function(x) {
 					data.frame(sample=x$sample[1], tumor_type=x$tumor_type[1], T1_raw=weighted.mean(x$T1_raw, x$n_mutations),T2_raw=weighted.mean(x$T2_raw, x$n_mutations), n_mutations=sum(x$n_mutations))
 				}, simplify=FALSE))
 
-#' Plot Pan-Can
+#' First plot all samples and chromosomes, first versus second gain. 
 #+ multiGain, fig.height=2, fig.width=2
 x <- doubleGainsAggregated$T1_raw/pmax(1, doubleGainsAggregated$T2_raw)
 y <- doubleGainsAggregated$T2_raw/pmax(1, doubleGainsAggregated$T2_raw)
@@ -787,7 +827,9 @@ plot(x[o],
 		lwd=0.5)
 t <- table(doubleGainsAggregated$sample)
 
-#' Plot by timing class
+#' The distribution is surprisingly independent, as one might have expected multiple copies of the same allele to be gained at the same time. 
+#' 
+#' Now split by timing class - no obvious trend.
 #+ multiGainClass, fig.height=3, fig.width=3
 names(timingClass) <- names(finalSnv)
 par(mfrow=c(2,2))
@@ -804,7 +846,7 @@ for(l in grep("uninformative",levels(timingClass), invert=TRUE, value=TRUE)){
 	title(main=l, line=0, font.main=1)
 }
 
-#' Individual samples
+#' Clusters are often caused by individual samples:
 #+ multiGainSamples, fig.height=4, fig.width=4
 par(mfrow=c(5,5))
 for(i in as.numeric(names(t)[t>5])[1:25]){
@@ -820,7 +862,7 @@ for(i in as.numeric(names(t)[t>5])[1:25]){
 	
 }
 
-#' Relative latency
+#' To formalise the observation that the second gains occur seemingly uniformly after the first, calculate and plot the relative latency.
 #+ multiGainLatency, fig.height=1, fig.width=1.5
 w <- y < 1 & x > 0
 r <- ((y-x)/(1-x))
@@ -833,12 +875,12 @@ d$y[min(i) -  seq_along(i)] <-  d$y[min(i) -  seq_along(i)] + d$y[i]
 i <- which(d$x >0 & d$x < 1)
 d <- list(x=d$x[i], y=d$y[i])
 plot(h$mids,h$counts/sum(h$counts),  pch=19, col='grey',ylim=c(0,max(h$counts/sum(h$counts))), xlab="Latency of second gain", ylab="Relative frequency", type='h')
-#lines(d, xlim=c(0,1), type='l')
+#' The majority of secondary gains indeed appear to occur independently after the second. Only about 17% occur in close succession.
 
 plot(d$x,cumsum(d$y * diff(d$x)[1]), xlim=c(0,1), type='l', ylim=c(0,1), xlab="Relative time of second gain", ylab="CDF")
 
 #' ### Figure 1h
-#' By timing class
+#' It is perhaps instructive to assess the relative latency by timing class. WGD appears underrepresented in cases with synchronous double gains.
 #+ multiGainLatencyClass, fig.height=1, fig.width=1.5
 c <- cut(r[w], 20)
 t <- table(timingClass[doubleGainsAggregated$sample[w]],c)
@@ -850,40 +892,8 @@ axis(side=1, line=0.2)
 #+ Figure1h
 Figure1h <- createSheet(Figure1, "Figure1h")
 addDataFrame(t[names(colTime),], Figure1h)
-saveWorkbook(Figure1, file="Figure1.xlsx")
 
-#' Copy number increments
-cn <- do.call("rbind", sapply(names(finalBB), function(n){
-					bb <- finalBB[[n]]
-					data.frame(sample=n, chr=seqnames(bb), width=width(bb), M=bb$major_cn, m=bb$minor_cn)}, simplify=FALSE))
-
-
-#+ distSegCopies, fig.width=2.5, fi.height=2.5
-t <- table(pmin(cn$M,3) ,  pmax(3,round(log10(cn$width),1)), timingClass[cn$sample])
-x <- as.numeric(colnames(t))
-plot(NA,NA, type='p', col=colTime[1], pch=16, ylim=c(0,0.8), xlim=range(10^x), xlab="Length of segment", ylab="Proportion >2 allelic copies", log='x')
-for(n in dimnames(t)[[3]]) {
-	y <- as.numeric(t[4,,n]/colSums(t[3:4,,n]))
-	lines(10^x,y, type='p', col=paste0(colTime[n],"44"), pch=16, cex=1)#sqrt(colSums(t[3:4,,i]/1000)))
-	lines(10^x, predict(loess(y ~x)), col=colTime[n], lwd=2)
-}
-
-#' ### Figure 1g
-#+ fracDoubleGains, fig.width=1.5, fig.height=1
-tt <- mg14:::asum(t[,x>=7,],2)
-o <- names(colTime)
-p <- tt[4,o]/colSums(tt[3:4,o])
-ci <- sapply(c(0.025, 0.975), qbeta, 0.025, shape1=tt[4,o]+1, shape2=tt[3,o]+1)
-barplot(p, col=colTime, border=NA, las=2, ylab="Proportion >2 allelic copies", names=sub("ormative","",sub("near-diploid", "ND", names(colTime))), ylim=c(0,0.4)) -> b
-segments(b, ci[,1], b, ci[,2])
-
-#' xlsx output
-#+ Figure1g
-Figure1g <- createSheet(Figure1, "Figure1g")
-addDataFrame(t(tt[3:4,o]), Figure1g)
-
-
-#' Simulate higher order gains to cross-check
+#' Lastly, simulate higher order gains to cross-check whether the inference is credible.
 n <- 100
 c <- 40
 purity=0.7
@@ -919,10 +929,48 @@ x <- seq(0,1,0.05)
 plot(x[-1]+x[2]/2, as.numeric(prop.table(table(cut(l[l<1], x)))), xlab="Latency", ylab="frequency", type='h')
 axis(side=1)
 
-#' # Real-time WGD & MRCA
+#' ### Figure 1g
+#' We also calculate how often higher order gains occur in each timing class. To this end, to a tally of all copy number gains. 
+cn <- do.call("rbind", sapply(names(finalBB), function(n){
+					bb <- finalBB[[n]]
+					data.frame(sample=n, chr=seqnames(bb), width=width(bb), M=bb$major_cn, m=bb$minor_cn)}, simplify=FALSE))
+
+#' How does this relate to the length of the segments?
+#+ distSegCopies, fig.width=2.5, fi.height=2.5
+t <- table(pmin(cn$M,3) ,  pmax(3,round(log10(cn$width),1)), timingClass[cn$sample])
+x <- as.numeric(colnames(t))
+plot(NA,NA, type='p', col=colTime[1], pch=16, ylim=c(0,0.8), xlim=range(10^x), xlab="Length of segment", ylab="Proportion >2 allelic copies", log='x')
+for(n in dimnames(t)[[3]]) {
+	y <- as.numeric(t[4,,n]/colSums(t[3:4,,n]))
+	lines(10^x,y, type='p', col=paste0(colTime[n],"44"), pch=16, cex=1)#sqrt(colSums(t[3:4,,i]/1000)))
+	lines(10^x, predict(loess(y ~x)), col=colTime[n], lwd=2)
+}
+
+#' Plot the fraction of samples with double gains for each timing class. Asynchronous samples appear overrepresented.
+#+ fracDoubleGains, fig.width=1.5, fig.height=1
+tt <- mg14:::asum(t[,x>=7,],2)
+o <- names(colTime)
+p <- tt[4,o]/colSums(tt[3:4,o])
+ci <- sapply(c(0.025, 0.975), qbeta, 0.025, shape1=tt[4,o]+1, shape2=tt[3,o]+1)
+barplot(p, col=colTime, border=NA, las=2, ylab="Proportion >2 allelic copies", names=sub("ormative","",sub("near-diploid", "ND", names(colTime))), ylim=c(0,0.4)) -> b
+segments(b, ci[,1], b, ci[,2])
+
+#' Produce xlsx output
+#+ Figure1g
+Figure1g <- createSheet(Figure1, "Figure1g")
+addDataFrame(t(tt[3:4,o]), Figure1g)
+
+
+
+
+#' # Chronological WGD & MRCA
+#' Here we calculate approximate real time estimates of WGD and MRCA using only CpG>TpG mutations, which are found in every tumoyr type 
+#' and vary relatively little between samples.
+#' ## Prelim
+#' Get the age of every donor.
 age <- clinicalData$donor_age_at_diagnosis
 names(age) <- clinicalData$icgc_donor_id
-
+#' Exclude these cancer types:
 typeNa <- gsub("\t","",strsplit("Bone-Cart
 						Breast-LobularCa
 						Breast-DCIS
@@ -931,9 +979,12 @@ typeNa <- gsub("\t","",strsplit("Bone-Cart
 						Cervix-AdenoCa", "\n")[[1]])
 
 #' ## MRCA
+#' First start with the timing of the most recent common ancestor (MRCA). Effectively we compute the time between MRCA and the last observable subclone.
+#' An implicit assumption is that that the latency between the emergence of the last detectable subclone and diagnosis is short with respect
+#' to the time between fertilisation and diagnosis.
 #' ### Prelim
 #' #### Effective (time-averaged) genome size
-#' Calculate effective genome size, i.e. time-averaged ploidy from mutation copy numbers
+#' Calculate effective genome size, i.e. time-averaged ploidy from mutation copy numbers. This is useful to convert mutation counts into approximate rates.
 #+ effGenome
 effGenome <- unlist(mclapply(finalSnv, function(vcf) {
 					w <- info(vcf)$CLS!="subclonal"
@@ -946,6 +997,7 @@ effGenome <- unlist(mclapply(finalSnv, function(vcf) {
 names(effGenome) <- names(finalSnv)
 
 #' #### Power per (sub)clone
+#' Also calculate the power to detect variants for different subclones to extrapolate their true branch length.
 #+ finalPower
 finalPower <- sapply(names(finalBB), function(n) {
 			x <- finalBB[[n]]
