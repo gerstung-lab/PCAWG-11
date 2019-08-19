@@ -39,9 +39,9 @@ options(mc.cores=as.numeric(Sys.getenv("LSB_MAX_NUM_PROCESSORS")))
 #' 
 #' Output:
 #+ files, ignore.stderr = FALSE
-system("for d in `find ../final/annotated_014 -maxdepth 1 -type d`
+cat(paste0(system("for d in `find ../final/annotated_014 -maxdepth 1 -type d`
 do echo $d; ls $d | head -6;
-done", ignore.stderr=TRUE)
+done", ignore.stderr=TRUE, intern=TRUE), collapse="\n"))
 #' Annotated VCF files and copy number segments with timing information will be loaded as shown below. This requires about 100G memory.
 #' 
 #' ## Libraries
