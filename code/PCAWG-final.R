@@ -267,7 +267,7 @@ finalGenotypesIndelQ <- simplify2array(mclapply(finalIndel[whiteList], probGenot
 finalGenotypesQ <- aperm(abind::abind(subs=finalGenotypesSnvQ,indels=finalGenotypesIndelQ, along=3), c(1,3,2))
 rm(finalGenotypesSnvQ,finalGenotypesIndelQ)
 
-#' # Save output
+#' # Checkpoint
 #' As the previous steps take rather long, introduce a checkpoint here and serialise the data, so it can be loaded later on.
 #+ saveOut
 save.image(file=dumpfile, compress=FALSE)
@@ -505,7 +505,7 @@ wgdStat <- factor(wgdPoss + 2*isWgd - wgdPoss*isWgd, labels=c("absent","possible
 table(wgdStat, wgdStar)
 
 #' Overall, WGD samples display a high level of temporal concordance, as hoped.
-
+#' 
 #' # Temporal distribution of chromosomal gains
 #' In this section we assess the temporal distribution of large-scale copy number gains.
 #' 
@@ -532,7 +532,7 @@ aggregatePerChromosome <- function(bb, isWgd=FALSE){
 	return(r)
 }
 
-#' ## Aggregate
+#' ## Aggregated timing per chromosome
 #' This provides an average timing estimate per chromosome, per sample. 
 allChrAgg <- simplify2array(mclapply(finalBB, aggregatePerChromosome, mc.cores=2))
 
@@ -555,7 +555,7 @@ u <- split(data.frame(WGD=allChrAgg["WGD","time",isWgd]), droplevels(donor2type[
 wgdCancerHist <- sapply(u, function(x) if(nrow(x)>0){at(x$WGD,n=n)}else{rep(0,n)}, simplify="array")
 allChrCancerHist <- abind::abind(allChrCancerHist, All=sapply(sapply(s, as.matrix), at, n=n, simplify="array")/23*5, WGD=wgdCancerHist, along=2)
 
-#' ## Per tumour type
+#' ### Per tumour type
 #' Plot the timing histograms (deciles) per chromosome per cancer type, similar to Figure 1c in the final publication.
 #+ histTiming, fig.height=6, fig.width=6
 prgn <- RColorBrewer::brewer.pal(11,"PRGn")
@@ -608,7 +608,7 @@ vv <- vv/sum(vv)
 hh <- matrix(matrix(aperm(h, c(1,3,2)), ncol=length(vv)) %*% vv, nrow=nrow(h))
 rownames(hh) <- rownames(h)
 
-#' ## Pan-Can histograms
+#' ### Pan-Can histograms
 #' It can also be instructive to study the timing histograms pan-cancer:
 #+ histTimingPanCan, fig.height=2, fig.width=2
 par(mar=c(3,3,1,1), mgp=c(2,.5,0), tcl=-0.5, bty="L", xpd=NA)
@@ -618,67 +618,37 @@ barplot(hh["All",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relati
 axis(side=1)
 #dev.copy2pdf(file="histTimingPanCan.pdf",width=2, height=2, pointsize=8)
 
+#' ## Relationship with mutation rates
+#' As a sanity check for the molecular timing estimates, calculate number of substitutions and timing per tumour type. There shouldn't be a trend.
+n <- nSub <- sapply(finalSnv, nrow)
+n[timingInfo$timeCoamp==0] <- NA
+q <- unlist(sapply(split(n, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1) quantile(x, seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
+m <- match(names(finalSnv),unlist(split(names(finalSnv), donor2type[sample2donor[names(finalSnv)]])))
+t <- timingInfo$timeCoamp
+table(decSub=q[m], time=cut(t, seq(0,1,0.1)))
 
-#' # Synchronous gains
-#' One thing observed in the temporal classification of WGD samples was that a surprisingly high fraction of near-diploid samples also 
-#' display very concordant timings. Here we provide a basic assessment of the phenomenon. The final results were further refined, more accurately
-#' considering the exact copy numeber configurations involved.
-#'  
-#' ## Classification
-#' Note: Final figures have slightly deviated from this earlier version due to more elaborate handling of segments.
-d <- fracGenomeWgdComp
-i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
-timingClass <- paste(ifelse(isWgd,"WGD","ND"), ifelse(!i, "uninformative",""))
-timingClass[i] <- paste0(timingClass[i], ifelse(d[i,"nt.wgd"]/d[i,"nt.total"] > 0.75,"sync","async"))
-#timingClass[i] <- paste0(timingClass[i], cut(fracGenomeWgdComp[i,"nt.wgd"]/fracGenomeWgdComp[i,"nt.total"], c(0,0.5,0.8,1), include.lowest=TRUE))
-timingClass <- factor(timingClass)
+#' Also calculate deciles of timing per tumour type; this is an even stronger indication of independence, as hoped.
+t[t==0] <- NA
+r <- unlist(sapply(split(t, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1 & length(unique(x)) > 2) quantile(jitter(x), seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
+table(decSub=q[m], decTime=r[m])
 
-#' ### Figure 1f
-#' First the pie chart with the timing classification
-#+ timingClass, fig.width=4, fig.height=4
-#pdf("TimingClass.pdf", 4,4)
-colTime <- c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00")
-names(colTime) <- levels(timingClass)[c(4,5,6,3,2,1)]
-c <- c(RColorBrewer::brewer.pal(9, "Pastel1"),"#DDDDDD")
-t <- table(timingClass)[names(colTime)]
-pie(t, init.angle=90, labels=paste0(names(t), ",\nn=", t), col=colTime)
-#t <- table(isWgd)
-par(new=TRUE)
-symbols(x=0,y=0,circles=0.4, inches=FALSE, add=TRUE, bg="white")
-#pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
+#' Plot the number of mutations per sample vs the average duplication time.
+#+ timeNsub, fig.height=3, fig.width=4
+#pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
+par(mar=c(3,4,1,1), bty="n", mgp=c(2,.5,0), las=1, tcl=-.25) 
+d <- as.character(donor2type[sample2donor[names(finalSnv)]])
+lineCol <- tissueColors
+lineCol[grep("Lung", names(lineCol))] <- "black"
+plot(t, nSub, log='y', bg=tissueColors[d], pch=21, xlab="Typical amplification time", ylab="", cex=.66, lwd=.5, yaxt="n", ylim=c(100,3e6))
+mtext(side=2, "Number of SNVs", line=3, las=3)
+u <- round(par("usr")[3:4])
+a <- axisTicks(par("usr")[3:4], log=TRUE)
+axis(side=2, at=a, labels=prettyNum(a))
+b <- sapply(a[-length(a)], function(x) (1:10)*x)
+axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
 #dev.off()
 
-#' xlsx output
-Figure1f <- createSheet(Figure1, "Figure1f")
-addDataFrame(t, Figure1f)
-
-colnames(d) <- c("ntCoamp","ntAmp","timeCoamp","segCoamp","segAmp","chrCoamp","chrAmp", "sdTimeCoamp","avgCiSeg","sdAllSeg")
-timingInfo <- data.frame(avgPloidy=finalPloidy, avgHom=finalHom, isWgd=isWgd, d, informative=i, timingClass=timingClass)
-#tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
-write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), timingInfo, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
-
-
-#' ## Timing examples
-#' Show 9 prototypical examples for the different timing classes.
-#' 
-#' ### Figure 1e
-#+ timingExamples, fig.width=4, fig.height=4, warning=FALSE
-w <- which(wgdStar=="likely" & !isWgd) # Garden variety near-diploid with concordant timing
-plotSample(w[1]) 
-plotSample(w[2])
-plotSample(w[3])
-
-w <- which(wgdStar=="very likely" & isWgd) # Now a-star WGD with highly concordant timing.
-plotSample(w[1])
-plotSample(w[2])
-plotSample(w[9])
-
-w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5) # Near diploid with highly discordant timing
-plotSample(w[1])
-plotSample(w[2])
-plotSample(w[3])
-
-#' ## GBM examples
+#' ## Glioblastoma
 #' GBMs display very early timing on chromosomes 7, 20 and 21. Plot a few.
 #+ timingExamplesGbm, fig.width=4, fig.height=4
 w <- which(fracGenomeWgdComp[,"time.wgd"]<0.1 & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.1 &  !isWgd & donor2type[sample2donor[names(finalBB)]]=="CNS-GBM")
@@ -686,7 +656,7 @@ plotSample(w[1])
 plotSample(w[2])
 plotSample(w[3])
 
-#' #### Extended Data Figure 3a
+#' ### Extended Data Figure 3a
 #' Explore the early timing of chromosome 7 a bit more deeply.
 #' Find all GBMs with +7
 w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-GBM") 
@@ -715,8 +685,8 @@ rownames(t) <- names(finalSnv)[w]
 #' Less than 3 early
 table(t[,1]<=3)
 
-
-#' #### Extended Data Figure 3b
+#' ## Medulloblastoma
+#' ### Extended Data Figure 3b
 #' Plot the distributions of early and toal point mutations on chr7 across all GBM samples with +7:
 #+ GBM_tri7_bee, fig.width=1.5, fig.height=2
 .par()
@@ -732,7 +702,7 @@ for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0
 ExtendedDataFigure3b <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3b")
 addDataFrame(t, ExtendedDataFigure3b)
 
-#' #### Extended Data Figure 3c
+#' ### Extended Data Figure 3c
 #' Medulloblastoma showed very frequent and early i17q. Gather them all:
 w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-Medullo") 
 w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==17) & bb$total_cn >= 3], na.rm=TRUE)/width(refLengths[17])>0.5)]
@@ -777,35 +747,67 @@ addDataFrame(t, ExtendedDataFigure3d)
 saveWorkbook(ExtendedDataFigure3,'ExtendedDataFigure3.xlsx')
 
 
-#' ## Relationship with mutation rates
-#' As a sanity check for the molecular timing estimates, calculate number of substitutions and timing per tumour type. There shouldn't be a trend.
-n <- nSub <- sapply(finalSnv, nrow)
-n[timingInfo$timeCoamp==0] <- NA
-q <- unlist(sapply(split(n, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1) quantile(x, seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
-m <- match(names(finalSnv),unlist(split(names(finalSnv), donor2type[sample2donor[names(finalSnv)]])))
-t <- timingInfo$timeCoamp
-table(decSub=q[m], time=cut(t, seq(0,1,0.1)))
+#' # Synchronous gains
+#' One thing observed in the temporal classification of WGD samples was that a surprisingly high fraction of near-diploid samples also 
+#' display very concordant timings. Here we provide a basic assessment of the phenomenon. The final results were further refined, more accurately
+#' considering the exact copy numeber configurations involved.
+#'  
+#' ## Synchronous/asynchronous classification
+#' Note: Final figures have slightly deviated from this earlier version due to more elaborate handling of segments.
+d <- fracGenomeWgdComp
+i <- d[,"avg.ci"]<=0.5 & d[,"chr.all"] > 2 #&  fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] >= 0.1
+timingClass <- paste(ifelse(isWgd,"WGD","ND"), ifelse(!i, "uninformative",""))
+timingClass[i] <- paste0(timingClass[i], ifelse(d[i,"nt.wgd"]/d[i,"nt.total"] > 0.75,"sync","async"))
+#timingClass[i] <- paste0(timingClass[i], cut(fracGenomeWgdComp[i,"nt.wgd"]/fracGenomeWgdComp[i,"nt.total"], c(0,0.5,0.8,1), include.lowest=TRUE))
+timingClass <- factor(timingClass)
 
-#' Also calculate deciles of timing per tumour type; this is an even stronger indication of independence, as hoped.
-t[t==0] <- NA
-r <- unlist(sapply(split(t, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1 & length(unique(x)) > 2) quantile(jitter(x), seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
-table(decSub=q[m], decTime=r[m])
-
-#' Plot the number of mutations per sample vs the average duplication time.
-#+ timeNsub, fig.height=3, fig.width=4
-#pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
-par(mar=c(3,4,1,1), bty="n", mgp=c(2,.5,0), las=1, tcl=-.25) 
-d <- as.character(donor2type[sample2donor[names(finalSnv)]])
-lineCol <- tissueColors
-lineCol[grep("Lung", names(lineCol))] <- "black"
-plot(t, nSub, log='y', bg=tissueColors[d], pch=21, xlab="Typical amplification time", ylab="", cex=.66, lwd=.5, yaxt="n", ylim=c(100,3e6))
-mtext(side=2, "Number of SNVs", line=3, las=3)
-u <- round(par("usr")[3:4])
-a <- axisTicks(par("usr")[3:4], log=TRUE)
-axis(side=2, at=a, labels=prettyNum(a))
-b <- sapply(a[-length(a)], function(x) (1:10)*x)
-axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
+#' ### Figure 1f
+#' First the pie chart with the timing classification
+#+ timingClass, fig.width=4, fig.height=4
+#pdf("TimingClass.pdf", 4,4)
+colTime <- c("#A0C758","#6B8934","#BEC6AD","#CEB299","#CC6415","#EF7B00")
+names(colTime) <- levels(timingClass)[c(4,5,6,3,2,1)]
+c <- c(RColorBrewer::brewer.pal(9, "Pastel1"),"#DDDDDD")
+t <- table(timingClass)[names(colTime)]
+pie(t, init.angle=90, labels=paste0(names(t), ",\nn=", t), col=colTime)
+#t <- table(isWgd)
+par(new=TRUE)
+symbols(x=0,y=0,circles=0.4, inches=FALSE, add=TRUE, bg="white")
+#pie(t, labels=c("",""), col=NA, lwd=5, lty=1, init.angle=90)
 #dev.off()
+
+#' xlsx output
+Figure1f <- createSheet(Figure1, "Figure1f")
+addDataFrame(t, Figure1f)
+
+colnames(d) <- c("ntCoamp","ntAmp","timeCoamp","segCoamp","segAmp","chrCoamp","chrAmp", "sdTimeCoamp","avgCiSeg","sdAllSeg")
+timingInfo <- data.frame(avgPloidy=finalPloidy, avgHom=finalHom, isWgd=isWgd, d, informative=i, timingClass=timingClass)
+#tab <- rbind(tab, data.frame(WGD_call=otherStat, WGD_timing=NA, ploidy=otherPloidy, hom=otherHom, nt.wgd=NA, nt.total=NA, time.wgd=NA, sd.wgd=NA,avg.ci=NA, sd.all=NA))
+write.table(file=paste0(Sys.Date(),"-Timing-info.txt"), timingInfo, quote=FALSE, row.names=TRUE, col.names=TRUE, sep="\t")
+
+
+#' ## Examples
+#' Show 9 prototypical examples for the different timing classes.
+#' 
+#' ### Figure 1e
+#+ timingExamples, fig.width=4, fig.height=4, warning=FALSE
+w <- which(wgdStar=="likely" & !isWgd) # Garden variety near-diploid with concordant timing
+plotSample(w[1]) 
+plotSample(w[2])
+plotSample(w[3])
+
+w <- which(wgdStar=="very likely" & isWgd) # Now a-star WGD with highly concordant timing.
+plotSample(w[1])
+plotSample(w[2])
+plotSample(w[9])
+
+w <- which(wgdStar=="unlikely" & !isWgd & fracGenomeWgdComp[,"nt.total"]/chrOffset["MT"] > 0.25 & fracGenomeWgdComp[,"avg.ci"] < 0.5) # Near diploid with highly discordant timing
+plotSample(w[1])
+plotSample(w[2])
+plotSample(w[3])
+
+
+
 
 
 #' ## Secondary gains
@@ -980,7 +982,14 @@ addDataFrame(t(tt[3:4,o]), Figure1g)
 #' Here we calculate approximate real time estimates of WGD and MRCA using only CpG>TpG mutations, which are found in every tumoyr type 
 #' and vary relatively little between samples.
 #' 
-#' ## Prelim
+#' ## CpG>TpG branch lengths and mutation rates
+#' The approximate chronological timing is basd only CpG>TpG mutations, which universally occur in all tissues, are used as a precautionary measure.
+#' We first study the burden of CpG>TpG mutations (RpCpG>RpTpG in Melanoma) in each sample across tissues and as a function of age. This enables us to 
+#' remove some hypermutant samples and derive a range of possible mutation rate increase.
+#' 
+#' Branch lengths need to be adjusted for time-dependent copy number as well as the structure of the subclonal phyllogeny. 
+#' 
+#' ### Prelim
 #' Get the age of every donor.
 age <- clinicalData$donor_age_at_diagnosis
 names(age) <- clinicalData$icgc_donor_id
@@ -991,15 +1000,6 @@ typeNa <- gsub("\t","",strsplit("Bone-Cart
 						Lymph-NOS
 						Myeloid-MDS
 						Cervix-AdenoCa", "\n")[[1]])
-
-#' ## Estimate branch lengths and mutation rates
-#' The approximate chronological timing is basd only CpG>TpG mutations, which universally occur in all tissues, are used as a precautionary measure.
-#' We first study the burden of CpG>TpG mutations (RpCpG>RpTpG in Melanoma) in each sample across tissues and as a function of age. This enables us to 
-#' remove some hypermutant samples and derive a range of possible mutation rate increase.
-#' 
-#' Branch lengths need to be adjusted for time-dependent copy number as well as the structure of the subclonal phyllogeny. 
-#' 
-#' ### Prelim
 #' 
 #' #### Effective (time-averaged) genome size
 #' Calculate effective genome size, i.e. time-averaged ploidy from mutation copy numbers. This is useful to convert mutation counts into approximate rates.
@@ -1359,10 +1359,10 @@ abline(c)
 
 mean(c[1] / (c[1]+ x*c[2]), na.rm=TRUE)
 
-#' ### Normal tissue mutation rates
+#' ## Normal tissue mutation rates
 #' Here we compare the infereed CpG>TpG baseline rates to data from four different studies on normal tissues.
 #' 
-#' #### Normal blood CSC
+#' ### Normal blood CSC
 #' Data of blood colonies from a 59yr-old individual. Taken from Lee-Six et al. Nature 2018
 hsc_data <- read.table(gzfile("../data/Shearwater_calls_FDR0.95_all_muts.txt.gz"), header=TRUE, sep="\t")
 ct <- which((hsc_data$REF=="C" & hsc_data$ALT=="T") | (hsc_data$REF=="G" & hsc_data$ALT=="A" ))
@@ -1372,7 +1372,7 @@ cpgtpg <- grepl("(A.CG)|(T..CG)", paste(alt(v),tnc))
 n_cpgtpg <- colSums(hsc_data[cpgtpg,5:144], na.rm=TRUE)
 normal_hsc_cpgtpg <- quantile(n_cpgtpg/59/6, c( 0.5, 0.025,0.975))
 
-#' #### Normal colon
+#' ### Normal colon
 #' Colonic crypts of several individuals. Data taken from Lee-Six et al. bioRxiv 2018, https://www.biorxiv.org/content/10.1101/416800v1.
 #+ normalColon
 colon_sbs <- read.table("../data/model_input_with_CtoTatCpG.txt", header=TRUE, sep="\t")
@@ -1380,7 +1380,7 @@ foo <- as.data.frame(summary(lm(CtoTatCpG/6 ~ age-1, data=colon_sbs))$coef)
 normal_colon_cpgtpg <- quantile(colon_sbs$CtoTatCpG/colon_sbs$age/6, c( 0.5, 0.025,0.975))#c(foo$Estimate, foo$Estimate - 2*foo$`Std. Error`, foo$Estimate + 2*foo$`Std. Error`)
 plot(colon_sbs$age, colon_sbs$CtoTatCpG/6, xlab="Age", ylab="CpG>TpG/Gb", pch=16)
 
-#' #### Endometrium
+#' ### Endometrium
 #' Normal endometrial glands. Data from Moore et al., bioRxiv 2018, https://www.biorxiv.org/content/10.1101/505685v1.
 #+ normalEndometrium
 tab <- read.table("../data/endom_subs.txt", sep="\t", header=TRUE)
@@ -1388,7 +1388,7 @@ quantile(tab$C.T.at.CpG/tab$Age, c(0.5, 0.025, 0.975))/6
 normal_endometrium_cpgtpg <- quantile(tab$C.T.at.CpG/tab$Age, c(0.5, 0.025, 0.975))/6
 plot(tab$Age, tab$C.T.at.CpG/6, xlab="Age", ylab="CpG>TpG/Gb", pch=16)
 
-#' #### Normal skin
+#' ### Normal skin
 #' Data for a single normal skin biopsy from Martincorena et al., Science 2015
 foo <- read.table("../ref/PD20399be_wg_caveman_annotated_with_dinucs_for_mg14.txt", header=TRUE, sep="\t")
 is_cpgtpg <-  grepl("(A.CG[C,T])|(T.[A,G]CG)", paste(foo$mut,foo$trinuc_Ref))
@@ -1403,7 +1403,7 @@ x <- abind::abind(cancer=ab[rownames(normal_cpgtpg), "b",colnames(normal_cpgtpg)
 x["Skin-Melanoma",,] <-x["Skin-Melanoma",,]
 
 
-#' #### Extended Data Figure 8d
+#' ### Extended Data Figure 8d
 #' Side-by-side comparison of the median rates of normal tissues with linear (ie presumed baseline) rates from cancer samples with 95% CI.
 #+cancer_normal_cpgtpg.pdf, fig.width=2.5, fig.height=2.5
 #pdf("cancer_normal_cpgtpg.pdf", 2.5,2.5, pointsize=8)
@@ -1425,12 +1425,12 @@ segments(b,x[,"2.5%",],b,x[,"97.5%",])
 ExtendedDataFigure8d <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8d")
 addDataFrame(x, ExtendedDataFigure8d)
 
-#' MRCA
+#' ## MRCA
 #' Now we time the latency of the most recent common ancestor (MRCA), or more accurately we compute the time between MRCA and the last observable subclone.
 #' An implicit assumption is that that the latency between the emergence of the last detectable subclone and diagnosis is short with respect
 #' to the time between fertilisation and diagnosis. 
 #' 
-#' ### Timing
+#' ### Functions
 #' Acceleration values to simulate
 accel <- c(1,2.5,5,7.5,10,20)
 names(accel) <- paste0(accel, "x")
@@ -1462,6 +1462,7 @@ computeSubclonesTimeAbs <- function(l, b) {
 	return(arr)
 }
 
+#' ### Timing
 #' Calculate for linear and branching topologies
 subclonesTimeAbs <- mclapply(typesSubclones, computeSubclonesTimeAbs, b=branchDeam)
 subclonesTimeAbsLinear <- mclapply(typesSubclones, computeSubclonesTimeAbs, b=branchDeamLinear)
