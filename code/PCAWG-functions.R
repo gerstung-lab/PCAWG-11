@@ -1,19 +1,16 @@
-# TODO: Add comment
+# This file contains a range of convenience functions for running a 
+# range of timing analyses of the PCAWG-11 Evolution and Heterogeneity 
+# working group, detailed in PCAWG-final.R
 # 
-# Author: mg14
+# Author: Moritz Gerstung <moritz.gerstung@ebi.ac.uk>s
 ###############################################################################
 
 library(Rsamtools)
 library(VariantAnnotation)
 
 vcfPath <- '../final/final_consensus_12oct_passonly/snv_mnv'
-basePath <-  '../dp/20170129_dpclust_finalConsensusCopynum_levels_a_b_c_d'
 dpPath <- paste0('../final/consensus_subclonal_reconstruction_20170325')
-#CANCERGENES <- read.table('../ref/cancer_genes.txt')$V1
 purityPloidy <- read.table( '../final/consensus.20170218.purity.ploidy.txt', header=TRUE, row.names=1)
-#colnames(purityPloidy) <- c("purity","ploidy")
-cnPath <- paste0(basePath,'/4_copynumber/')
-bbPath <- paste0(basePath,'/4_copynumber/')
 
 allGender <- read.table('../final/2016_12_09_inferred_sex_all_samples.txt', header=TRUE, sep='\t')
 allGender <- allGender[!duplicated(allGender$tumourid) & allGender$tumourid != 'tumourid',]
@@ -65,24 +62,6 @@ parseRegion <- function(regions){
 	start <- as.numeric(regmatches(regions, regexpr("(?<=:)[0-9]+(?=-)",regions,perl=TRUE)))
 	end <- as.numeric(regmatches(regions, regexpr("(?<=-)[0-9]+$",regions,perl=TRUE)))
 	data.frame(chr,start,end)
-}
-
-loadCn <- function(ID){
-	file <- paste0(cnPath, "/",ID,"_timingsMle.txt")
-	tab <- read.table(file, header=TRUE, sep=" ")
-	reg <- parseRegion(tab$ascatId)
-	GRanges(tab$chr, IRanges(reg$start,reg$end), strand="*", tab[-1])
-}
-
-loadBB <- function(ID){
-	t <- try({
-				file <- grep(paste0(ID,"[[:punct:]]"), dir(bbPath, pattern="segments.txt", recursive=TRUE, full.names=TRUE), value=TRUE)
-				if(grepl(".gz", file))
-					file <- gzfile(file)
-				tab <- read.table(file, header=TRUE, sep='\t')
-				GRanges(tab$chromosome, IRanges(tab$start, tab$end), strand="*", tab[-3:-1])
-			})
-	if(class(t)=='try-error') GRanges(copy_number=numeric(), major_cn=numeric(), minor_cn=numeric(), clonal_frequency=numeric()) else t
 }
 
 loadConsensusCNA <- function(ID, purity=1, path="../final/consensus.20170119.somatic.cna.annotated"){

@@ -1,6 +1,7 @@
-# TODO: Add comment
+# Code to time gains and point mutations in simulated data. Invoked by
+# ./PCAWG-simulate.sh
 # 
-# Author: mg14
+# Author: Moritz Gerstung <moritz.gerstung@ebi.ac.uk> 
 ###############################################################################
 
 set.seed(42)

@@ -1,6 +1,8 @@
-# TODO: Add comment
+# This file contains the commands to time copy number gains using point mutations 
+# for a given cancer sample. It runs an earlier version of MutationTimeR and is
+# invoked via the shell, passing on arguments about input and output file name.
 # 
-# Author: mg14
+# Author: Moritz Gerstung <moritz.gerstung@ebi.ac.uk>
 ###############################################################################
 
 set.seed(42)
