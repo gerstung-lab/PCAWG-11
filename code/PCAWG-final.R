@@ -685,7 +685,6 @@ rownames(t) <- names(finalSnv)[w]
 #' Less than 3 early
 table(t[,1]<=3)
 
-#' ## Medulloblastoma
 #' ### Extended Data Figure 3b
 #' Plot the distributions of early and toal point mutations on chr7 across all GBM samples with +7:
 #+ GBM_tri7_bee, fig.width=1.5, fig.height=2
@@ -702,12 +701,13 @@ for( i in 0:2) axis(side=2, at=c(2,3,4,5,6,7,8,9)*10^i, labels=rep("",8), tcl=-0
 ExtendedDataFigure3b <- createSheet(ExtendedDataFigure3, "ExtendedDataFigure3b")
 addDataFrame(t, ExtendedDataFigure3b)
 
-#' ### Extended Data Figure 3c
+#' ## Medulloblastoma
 #' Medulloblastoma showed very frequent and early i17q. Gather them all:
 w <- which(donor2type[sample2donor[names(finalSnv)]]=="CNS-Medullo") 
 w <- w[sapply(finalBB[w], function(bb) sum(width(bb)[as.logical(seqnames(bb)==17) & bb$total_cn >= 3], na.rm=TRUE)/width(refLengths[17])>0.5)]
 
-#' Plot first 10
+#' ### Extended Data Figure 3c
+#' Plot first 10 samples
 #pdf("Medullo_i17q.pdf",3.2,3.2, pointsize=8)
 for(ww in w[1:10]){
 	finalSnv[[ww]] -> v
@@ -730,7 +730,7 @@ rownames(t) <- names(finalSnv)[w]
 #' Less than 1 early
 table(t[,1]<=1)
 
-#' #### Extended Data Figure 3d
+#' ### Extended Data Figure 3d
 #' Plot distribution across samples
 #+ Medullo_i17q_bee, fig.width=1.5, fig.height=2
 .par()
@@ -1358,6 +1358,106 @@ c <- coef(f)
 abline(c)
 
 mean(c[1] / (c[1]+ x*c[2]), na.rm=TRUE)
+
+#' ## CpG>TpG acceleration in relapse samples
+#' Load a table with data from cancer relapse samples in 8 tissues. This data was collected from 8 separate studies and
+#' compiled by Santiago Gonzalez.
+relapse <- read.table("../data/2018_05_acceleration.txt", header=TRUE, sep="\t")
+head(relapse)
+
+#' ### Branch lengths
+#' Now caculate branch lengths to visualise these data, adjusted for (time-dependent) ploidy. To this end first the ploidy in the primary branch.
+p <- relapse$Primary_ploidy
+p[is.na(p)] <- 2
+
+#' And for the MRCA. Impute effective genome if timing is missing using typical scale factor for effective genome (this is just for graphical purposes).
+m <- p
+m[m>2.8 & is.na(relapse$Primary_effGenome)] <- m[m>2.8 & is.na(relapse$Primary_effGenome)] * 0.7 
+m[m>2.8 & !is.na(relapse$Primary_effGenome)] <- relapse$Primary_effGenome[m>2.8 & !is.na(relapse$Primary_effGenome)]
+
+#' Ploidy in the relapse branch
+r <- relapse$Relapse_ploidy
+r[is.na(r)] <- relapse$Primary_ploidy[is.na(r)]
+r[is.na(r)] <- 2
+
+#' Branch lengths, adjusted for ploidy
+b_mrca <- relapse$Primary_CpG_muts * relapse$shared / 3 /m
+b_relapse <- (relapse$Relapse_CpG_muts - relapse$Primary_CpG_muts * relapse$shared)/ 3/ r
+b_primary <- (relapse$Primary_CpG_muts - relapse$Primary_CpG_muts * relapse$shared) / 3 /p
+
+#' Corresponding time points
+t_primary <- relapse$Primary_age
+t_relapse <- t_primary + relapse$Relapse_time
+t_mrca <- 0.5 * (t_primary * b_mrca/(b_mrca + b_primary) + pmin(t_primary, t_relapse * b_mrca/(b_mrca + b_primary) ))
+
+#' #### Extended Data Figure 8f,g
+#+ relapse_accel_branch, fig.width=4, fig.height=2
+#pdf("relapse_accel_branch.pdf", pointsize=8, width=4, height=2)
+.par()
+par(mfrow=c(1,2))
+for(t in c("Ovarian", "Breast")){
+	w <- which(relapse$Ttype==t)
+	r <- relapse[w,]
+	plot(r$Primary_age+r$Relapse_time, r$Relapse_CpG_muts, ylim=c(0,150), xlim=c(0,80), pch=NA, xlab="Age", ylab="CpG>TpG/Gb")
+	tt <- c(Ovarian="Ovary-AdenoCa",Breast="Breast-AdenoCa")[t]
+	title(main=tt, line=0)
+	c <- tissueColors[tt]
+	#mrca <- r$Primary_CpG_muts*r$shared
+#points(mrca_time, mrca)
+	segments(0,0, t_mrca[w],b_mrca[w], col=c)
+	segments(t_mrca[w], b_mrca[w], t_primary[w], (b_mrca+b_primary)[w], col=c)
+	segments(t_mrca[w], b_mrca[w], t_relapse[w], (b_mrca+b_relapse)[w], col=c)
+	points(t_primary[w], b_mrca[w]+b_primary[w], pch=21, bg=c, col="white")
+	points(t_relapse[w], (b_mrca+b_relapse)[w], pch=21, bg=c, col="white")
+}
+#dev.off()
+
+ExtendedDataFigure8f <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8f")
+tab <- data.frame(t_mrca, t_primary, t_relapse, b_mrca, b_primary, b_relapse, type=relapse$Ttype, ID=relapse$ID)
+addDataFrame(tab[which(relapse$Ttype=="Ovarian"),], ExtendedDataFigure8f)
+ExtendedDataFigure8g <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8g")
+addDataFrame(tab[which(relapse$Ttype=="Breast"),], ExtendedDataFigure8g)
+
+#' ### Mutation rate increase
+#' The acceleration - or mutation rate increase - is effectively the ratio of the ploidy adjusted CpG>TpG branch-length in the relase
+#' sample versus the MRCA. See Supplementary Methods for details.
+#' 
+#' #### Extended Data Figure 8h
+#' Plot the acceleration values inferred from CpG>TpG mutations in each branch
+#accRelapse, fig.width=2, fig,height=2
+#pdf('foo.pdf', 2,2, pointsize=8)
+.par()
+par(mar=c(5,3,1,1))
+x <- relapse$Ttype
+levels(x) <- c("Myeloid-AML","Breast-AdenoCa","CNS-LGG","Liver-HCC","Lung-AdenoCa","CNS-Medullo","Lymph-BNHL","Ovary-AdenoCa")
+x <- as.character(x)
+c <- tissueColors; c["CNS-LGG"] <- "black"
+b <- tissueBorder; b["CNS-LGG"] <- "white"
+t <- tissueCex; t["CNS-LGG"] <- 1
+j <- jitter(as.numeric(factor(x)))
+plot(NA,NA, xlim=c(.5,8), xaxt="n", xlab="", ylab="Acceleration", ylim=c(0,15))
+segments(j, relapse$Acc_min, j, relapse$Acc_max, col=c[x])
+points(Acc_CpG ~ j, data=relapse, bg=c[x], col=b[x], pch=21, cex=t[x])
+abline(h=1, lty=3)
+mg14::rotatedLabel(labels=levels(factor(x)))
+#dev.off()
+
+ExtendedDataFigure8h <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8h")
+addDataFrame(relapse, ExtendedDataFigure8h)
+
+
+#' The surplus of mutations in relapse samples (after adjusting for the depth of branching) shows a very good correlation with the time difference
+#' between primary and relapse sample
+#+ relapse_time, fig.width=2, fig.height=2 
+#pdf("relapse_time.pdf", pointsize=8, width=2, height=2)
+.par()
+plot(t_relapse - t_primary, b_relapse-b_primary, xlim=c(0,13), xlab="Time to relapse", ylab="Surplus in relapse, CpG>TpG/Gb", pch=16)
+w <- t_relapse - t_primary < 10
+abline(lm((b_relapse - b_primary)[w] ~ (t_relapse-t_primary)[w]))
+legend("topright", c(paste("rho =",round(cor(t_relapse - t_primary, b_relapse-b_primary, method='s'),2)),
+				paste("p =",signif(cor.test(t_relapse - t_primary, b_relapse-b_primary, method='s')$p.value,1))), bty="n")
+#dev.off()
+
 
 #' ## Normal tissue mutation rates
 #' Here we compare the infereed CpG>TpG baseline rates to data from four different studies on normal tissues.
