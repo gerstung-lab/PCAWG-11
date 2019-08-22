@@ -1261,7 +1261,7 @@ plot(x,y, bg=tissueColors[t], pch=21, ylim=c(0,1000), col=tissueBorder[t], cex=t
 for(i in 1:nrow(ab))
 	abline(ab[i,1,"50%"], ab[i,2,"50%"], col=tissueLines[levels(droplevels(t))[i]], lty=tissueLty[levels(droplevels(t))[i]])
 
-#' #### Extended Data Figure 
+#' #### Extended Data Figure 8c
 #' Plot inferred rates and offsets with 95% credible intervals.
 #+rateOffsetBayes, fig.width=2, fig.height=2
 plot(ab[,1,"50%"], ab[,2,"50%"], col=tissueColors[dimnames(ab)[[1]]], pch=NA, xlab="Offset", ylab="SNVs/Gb/yr", xlim=range(ab[,1,c("2.5%","97.5%")]), ylim=range(ab[,2,c("2.5%","97.5%")]))
@@ -1424,7 +1424,7 @@ addDataFrame(tab[which(relapse$Ttype=="Breast"),], ExtendedDataFigure8g)
 #' 
 #' #### Extended Data Figure 8h
 #' Plot the acceleration values inferred from CpG>TpG mutations in each branch
-#accRelapse, fig.width=2, fig,height=2
+#+ accRelapse, fig.width=2, fig,height=2
 #pdf('foo.pdf', 2,2, pointsize=8)
 .par()
 par(mar=c(5,3,1,1))
@@ -1870,7 +1870,7 @@ addDataFrame(tab, ExtendedDataFigure9a)
 
 #' #### Figure 5b
 #' Plot the median timing value for WGD, as a function of the unknown rate increase.
-#+ realTimeWgdMed, fig.height=4.5, fig.width=3
+#+ realTimeWgdMed, fig.height=3, fig.width=4.5
 #pdf("realTimeWgdMed.pdf", width=4.5, height=3, pointsize=8)
 u <- setdiff(names(finalSnv)[uniqueSamples], remove)
 m <- qWgd["50%","5x",]#t[1,3,]
@@ -1980,16 +1980,16 @@ d <- nDeam22 *  t(sapply(wgdParamDeam[!void], function(x) if(!is.null(x$P)) x$P[
 d[rownames(d) %in% remove] <- NA
 
 #' Unadjusted time (inc. of subclonal mutations)
-t0 <- colMeans(wgdTimeDeamAcc["T.WGD","1x",1,,"time",],na.rm=TRUE) 
+t0 <- colMeans(wgdTimeDeamAcc["T.WGD","1x",1,,"time",],na.rm=TRUE) # WGD
 names(t0) <- dimnames(wgdTimeDeamAcc)[[6]]
+m0 <- colMeans(wgdTimeDeamAcc["T.MRCA","1x",1,,"time",],na.rm=TRUE) # MRCA
+names(m0) <- dimnames(wgdTimeDeamAcc)[[6]]
 
 #' #### Figure 5a
 #' Conceptual plot
 #+ concept, fig.height=2, fig.width=2
 #pdf("chronRateIncrease.pdf",2,2,pointsize=8)
 .par()
-t0 <- colMeans(wgdTimeDeamAcc["T.WGD","1x",1,,"time",],na.rm=TRUE) 
-names(t0) <- dimnames(wgdTimeDeamAcc)[[6]]
 a <- c(1,2.5,5,7.5,10, 20)
 x <-  age[sample2donor["052665d1-ab75-4f40-be5a-b88154c8beed"]]
 y <- nDeam["052665d1-ab75-4f40-be5a-b88154c8beed"]
@@ -2001,8 +2001,12 @@ r <- sapply(a, function(aa){
 plot(NA, NA, xlim=c(0,x), ylim=c(0,y), xlab="Age", ylab="CpG>TpG mutations")
 for(i in seq_along(a)) lines(t, r[,i]*y)
 w <- t0["052665d1-ab75-4f40-be5a-b88154c8beed"]
-segments(0,0, 0,w*y, col=set1[3])
-segments(0,w*y, 0, y, col=set1[4], lwd=2)
+v <- m0["052665d1-ab75-4f40-be5a-b88154c8beed"]
+segments(0,0, 0,w*y, col=set1[3]) 
+text(10, w*y, "WGD", pos=3)
+segments(0,w*y, 0, v*y, col=set1[4], lwd=2) # (WGD, MRCA)
+text(0, v*y, "MRCA", pos=4)
+segments(0,v*y, 0, y, col=set1[1], lwd=3) # (MRCA, diag)
 for(i in seq_along(a)){
 	x0 = t[which.min(abs(w - r[,i]))]
 	segments(x0,0,x0,w*y, lty=3)
