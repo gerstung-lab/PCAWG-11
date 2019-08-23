@@ -1425,7 +1425,7 @@ addDataFrame(tab[which(relapse$Ttype=="Breast"),], ExtendedDataFigure8g)
 #' 
 #' #### Extended Data Figure 8h
 #' Plot the acceleration values inferred from CpG>TpG mutations in each branch
-#+accRelapse, fig.width=2, fig,height=2
+#+ accRelapse, fig.width=2, fig.height=2
 #pdf('foo.pdf', 2,2, pointsize=8)
 .par()
 par(mar=c(5,3,1,1))
