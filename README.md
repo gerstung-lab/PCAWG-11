@@ -1,6 +1,9 @@
 # Code accompanying _The evolutionary history of 2,658 cancers_
 
-This repository contains analysis code for the aforementioned publication.
+**Moritz Gerstung and Santiago Gonzalez, on behalf of the PCAWG-11 Evolution and Heterogeneity Working Group.**
+
+This repository contains analysis code for the aforementioned publication, especially, Figures 1b,e-h, 2, 4, 5 & Extended Data Figures 3, 6, 8 and 9. The output of the code 
+is an `rmarkdown` html report, hosted at <https://gerstung-lab.github.io/PCAWG-11>.
 
 Note that some referenced files in `ref` and `final` folders are protected access and are note part of this repository.
 
@@ -47,11 +50,11 @@ Additionally it requires the following R libraries
 ```
 Rsamtools
 VariantAnnotation
-MutationTimeR (github.com/gerstung-lab/MutationTimeR
+MutationTimeR <https://github.com/gerstung-lab/MutationTimeR>
 rstan
 rmarkdown
 ```
 
 ## Output
-Main output is `run/PCAWG-final.html`, which contains code and results underlying Figures 1b, 2d-f, 3a,d, 5a, and 6.
+Main output is `run/PCAWG-final.html`, hosted at <https://gerstung-lab.github.io/PCAWG-11/> in addition to this repository.
 
