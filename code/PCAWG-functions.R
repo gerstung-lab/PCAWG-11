@@ -30,7 +30,7 @@ addTNC <- function(vcf){
 
 dpFiles <- dir(dpPath, pattern="_subclonal_structure.txt", recursive=TRUE)
 	
-bbFiles <- dir(bbPath, pattern="_segments.txt", recursive=TRUE)
+#bbFiles <- dir(bbPath, pattern="_segments.txt", recursive=TRUE)
 
 wccTable <- read.table("../final/wcc_consensus_values_9_12.tsv", header=TRUE, sep='\t')
 d <- data.frame(cluster=wccTable$sc_n, n_ssms=wccTable$consensus_mutation_number, proportion = round(wccTable$consensus_cluster_cp,3))
