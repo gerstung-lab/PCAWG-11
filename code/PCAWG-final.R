@@ -1306,7 +1306,7 @@ for(n in levels(d)){
 #+ ExtendedDataFigure8b
 ExtendedDataFigure8b <- createSheet(ExtendedDataFigure8, "ExtendedDataFigure8b")
 tab <- data.frame(age=x, `CpG>TpG/Gb`=y, tumour_type=d)
-addDataFrame(tab, ExtendedDataFigure8c)
+addDataFrame(tab, ExtendedDataFigure8b)
 
 #' Calculate the fraction of mutations due to linear accumulation using the inferred parameters and propagate the error from the HMC samples.
 q <- sapply(colnames(a), function(n){
