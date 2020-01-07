@@ -65,7 +65,7 @@ ExtendedDataFigure9 <- createWorkbook()
 dumpfile <- "2018-07-18-PCAWG-final.RData"
 if(file.exists(dumpfile)){
 	opts_chunk$set(eval=FALSE) # ie skip following steps
-	#load(dumpfile)
+	load(dumpfile)
 	source("PCAWG-functions.R")
 }
 
@@ -619,36 +619,6 @@ barplot(hh["All",], space=0, col=rev(col), xlab="Time [mutations]", ylab="Relati
 axis(side=1)
 #dev.copy2pdf(file="histTimingPanCan.pdf",width=2, height=2, pointsize=8)
 
-#' ## Relationship with mutation rates
-#' As a sanity check for the molecular timing estimates, calculate number of substitutions and timing per tumour type. There shouldn't be a trend.
-n <- nSub <- sapply(finalSnv, nrow)
-n[timingInfo$timeCoamp==0] <- NA
-q <- unlist(sapply(split(n, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1) quantile(x, seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
-m <- match(names(finalSnv),unlist(split(names(finalSnv), donor2type[sample2donor[names(finalSnv)]])))
-t <- timingInfo$timeCoamp
-table(decSub=q[m], time=cut(t, seq(0,1,0.1)))
-
-#' Also calculate deciles of timing per tumour type; this is an even stronger indication of independence, as hoped.
-t[t==0] <- NA
-r <- unlist(sapply(split(t, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1 & length(unique(x)) > 2) quantile(jitter(x), seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
-table(decSub=q[m], decTime=r[m])
-
-#' Plot the number of mutations per sample vs the average duplication time.
-#+ timeNsub, fig.height=3, fig.width=4
-#pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
-par(mar=c(3,4,1,1), bty="n", mgp=c(2,.5,0), las=1, tcl=-.25) 
-d <- as.character(donor2type[sample2donor[names(finalSnv)]])
-lineCol <- tissueColors
-lineCol[grep("Lung", names(lineCol))] <- "black"
-plot(t, nSub, log='y', bg=tissueColors[d], pch=21, xlab="Typical amplification time", ylab="", cex=.66, lwd=.5, yaxt="n", ylim=c(100,3e6))
-mtext(side=2, "Number of SNVs", line=3, las=3)
-u <- round(par("usr")[3:4])
-a <- axisTicks(par("usr")[3:4], log=TRUE)
-axis(side=2, at=a, labels=prettyNum(a))
-b <- sapply(a[-length(a)], function(x) (1:10)*x)
-axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
-#dev.off()
-
 #' ## Glioblastoma
 #' GBMs display very early timing on chromosomes 7, 20 and 21. Plot a few.
 #+ timingExamplesGbm, fig.width=4, fig.height=4
@@ -808,7 +778,35 @@ plotSample(w[2])
 plotSample(w[3])
 
 
+#' ## Relationship with mutation rates
+#' As a sanity check for the molecular timing estimates, calculate number of substitutions and timing per tumour type. There shouldn't be a trend.
+n <- nSub <- sapply(finalSnv, nrow)
+n[timingInfo$timeCoamp==0] <- NA
+q <- unlist(sapply(split(n, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1) quantile(x, seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
+m <- match(names(finalSnv),unlist(split(names(finalSnv), donor2type[sample2donor[names(finalSnv)]])))
+t <- timingInfo$timeCoamp
+table(decSub=q[m], time=cut(t, seq(0,1,0.1)))
 
+#' Also calculate deciles of timing per tumour type; this is an even stronger indication of independence, as hoped.
+t[t==0] <- NA
+r <- unlist(sapply(split(t, donor2type[sample2donor[names(finalSnv)]]), function(x) as.numeric(cut(x, {if(sum(!is.na(x))>1 & length(unique(x)) > 2) quantile(jitter(x), seq(0,1,0.1), na.rm=TRUE) else 1:10}, include.lowest=TRUE))))
+table(decSub=q[m], decTime=r[m])
+
+#' Plot the number of mutations per sample vs the average duplication time.
+#+ timeNsub, fig.height=3, fig.width=4
+#pdf("timeNsub.pdf", 3, 2.5, pointsize=8)
+par(mar=c(3,4,1,1), bty="n", mgp=c(2,.5,0), las=1, tcl=-.25) 
+d <- as.character(donor2type[sample2donor[names(finalSnv)]])
+lineCol <- tissueColors
+lineCol[grep("Lung", names(lineCol))] <- "black"
+plot(t, nSub, log='y', bg=tissueColors[d], pch=21, xlab="Typical amplification time", ylab="", cex=.66, lwd=.5, yaxt="n", ylim=c(100,3e6))
+mtext(side=2, "Number of SNVs", line=3, las=3)
+u <- round(par("usr")[3:4])
+a <- axisTicks(par("usr")[3:4], log=TRUE)
+axis(side=2, at=a, labels=prettyNum(a))
+b <- sapply(a[-length(a)], function(x) (1:10)*x)
+axis(side=2, at=b, labels=rep("", length(b)), tcl=-.1)
+#dev.off()
 
 
 #' ## Secondary gains
